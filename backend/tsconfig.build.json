@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    // `deleteOutDir` do nest-cli apaga dist/ a cada start; com build incremental
+    // o tsc consultava o .tsbuildinfo, concluía que nada mudou e não emitia nada,
+    // fazendo o start falhar com "Cannot find module dist/main".
+    "incremental": false
+  },
+  "exclude": ["node_modules", "dist", "test", "prisma", "**/*.spec.ts"]
+}

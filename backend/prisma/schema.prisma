@@ -1,0 +1,467 @@
+// ---------------------------------------------------------------------------
+// ProCert — modelo de dados PostgreSQL
+//
+// Migrado do MySQL legado (tbl_cliente, tbl_funcionario, tbl_produto,
+// tbl_etapa_certificacao, tbl_certificacao_produto, tbl_certificacao_historico,
+// tbl_pagamento, tbl_estado, tbl_reset_senha, tbl_contato).
+//
+// Mudanças estruturais em relação ao legado:
+//  • Nomes normalizados (sem prefixo tbl_ e sem sufixo por entidade nas colunas)
+//  • Status textuais viraram ENUMs
+//  • `status_etapa` + `ativo_certificacao` (duplicados no legado) → único campo `ativo`
+//  • Chaves estrangeiras reais com ON DELETE definido
+//  • Unicidade de (produtoId, etapaId) em CertificacaoProduto
+//  • Senhas sempre em hash bcrypt (`senhaHash`)
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------- ENUMS -------------------------------------
+
+/// Papel do usuário. No legado: tbl_tipo_usuario.id_tipo (1, 2, 3).
+enum Role {
+  ADMIN // legado id_tipo_usuario = 1
+  FUNCIONARIO // legado id_tipo_usuario = 2
+  CLIENTE // legado id_tipo_usuario = 3
+}
+
+/// Substitui os textos 'Ativo' / 'Inativo' do legado.
+enum StatusRegistro {
+  ATIVO
+  INATIVO
+}
+
+enum TipoPessoa {
+  FISICA
+  JURIDICA
+}
+
+/// ENUM já existente no legado em tbl_certificacao_produto.status.
+enum StatusCertificacao {
+  PENDENTE
+  EM_ANDAMENTO
+  APROVADO
+  REPROVADO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PAGO
+  CANCELADO
+  ESTORNADO
+}
+
+/// Gravidade da não conformidade encontrada em uma etapa.
+/// MAIOR compromete a conformidade do produto; MENOR admite correção pontual.
+enum CriticidadeNaoConformidade {
+  MENOR
+  MAIOR
+}
+
+enum StatusNaoConformidade {
+  ABERTA
+  EM_TRATATIVA
+  RESOLVIDA
+  REPROVADA
+}
+
+enum StatusCertificado {
+  EMITIDO
+  SUSPENSO
+  CANCELADO
+  VENCIDO
+}
+
+/// Natureza técnica de uma etapa do processo de certificação.
+enum TipoEtapa {
+  DOCUMENTAL
+  ENSAIO
+  AUDITORIA_FABRICA
+  ANALISE_CRITICA
+  DECISAO
+  OUTRO
+}
+
+// ------------------------------ MODELOS ------------------------------------
+
+/// Unidades federativas (legado: tbl_estado).
+model Estado {
+  id    Int    @id @default(autoincrement())
+  sigla String @unique @db.Char(2)
+  nome  String @db.VarChar(60)
+
+  clientes     Cliente[]
+  funcionarios Funcionario[]
+
+  @@map("estados")
+}
+
+/// Empresa/pessoa que contrata a certificação (legado: tbl_cliente).
+model Cliente {
+  id             Int            @id @default(autoincrement())
+  nome           String         @db.VarChar(150)
+  email          String         @unique @db.VarChar(150)
+  senhaHash      String         @map("senha_hash") @db.VarChar(255)
+  tipoPessoa     TipoPessoa     @default(JURIDICA) @map("tipo_pessoa")
+  cpf            String?        @db.VarChar(14)
+  cnpj           String?        @db.VarChar(18)
+  dataNascimento DateTime?      @map("data_nascimento") @db.Date
+  telefone       String?        @db.VarChar(20)
+  cep            String?        @db.VarChar(9)
+  endereco       String?        @db.VarChar(255)
+  bairro         String?        @db.VarChar(120)
+  cidade         String?        @db.VarChar(120)
+  estadoId       Int?           @map("estado_id")
+  fotoUrl        String?        @map("foto_url") @db.VarChar(255)
+  status         StatusRegistro @default(ATIVO)
+  criadoEm       DateTime       @default(now()) @map("criado_em")
+  atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
+
+  estado   Estado?   @relation(fields: [estadoId], references: [id], onDelete: SetNull)
+  produtos Produto[]
+
+  @@index([status])
+  @@index([nome])
+  @@map("clientes")
+}
+
+/// Equipe interna. Concentra ADMIN e FUNCIONARIO (legado: tbl_funcionario).
+model Funcionario {
+  id             Int            @id @default(autoincrement())
+  nome           String         @db.VarChar(150)
+  email          String         @unique @db.VarChar(150)
+  senhaHash      String         @map("senha_hash") @db.VarChar(255)
+  role           Role           @default(FUNCIONARIO)
+  tipoPessoa     TipoPessoa     @default(FISICA) @map("tipo_pessoa")
+  cpf            String?        @db.VarChar(14)
+  cnpj           String?        @db.VarChar(18)
+  dataNascimento DateTime?      @map("data_nascimento") @db.Date
+  telefone       String?        @db.VarChar(20)
+  cep            String?        @db.VarChar(9)
+  endereco       String?        @db.VarChar(255)
+  bairro         String?        @db.VarChar(120)
+  cidade         String?        @db.VarChar(120)
+  estadoId       Int?           @map("estado_id")
+  fotoUrl        String?        @map("foto_url") @db.VarChar(255)
+  status         StatusRegistro @default(ATIVO)
+  criadoEm       DateTime       @default(now()) @map("criado_em")
+  atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
+
+  estado             Estado?                 @relation(fields: [estadoId], references: [id], onDelete: SetNull)
+  historicoAlteracao CertificacaoHistorico[]
+  naoConformidades   NaoConformidade[]
+  certificadosEmitidos Certificado[]
+  documentosEnviados   DocumentoCertificacao[]
+
+  @@index([role, status])
+  @@map("funcionarios")
+}
+
+/// Produto submetido à certificação (legado: tbl_produto).
+model Produto {
+  id             Int            @id @default(autoincrement())
+  clienteId      Int            @map("cliente_id")
+  categoriaId    Int            @map("categoria_id")
+  /// Versão da trilha vigente quando o produto foi submetido.
+  /// É um retrato: não muda sozinha quando a categoria ganha uma versão nova.
+  modeloTrilhaId Int            @map("modelo_trilha_id")
+  nome           String         @db.VarChar(150)
+  descricao      String?        @db.Text
+  preco          Decimal        @default(0) @db.Decimal(12, 2)
+  fotoUrl        String?        @map("foto_url") @db.VarChar(255)
+  status         StatusRegistro @default(ATIVO)
+  criadoEm       DateTime       @default(now()) @map("criado_em")
+  atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
+
+  cliente      Cliente               @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  categoria    CategoriaProduto      @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  modeloTrilha ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Restrict)
+  certificacao CertificacaoProduto[]
+  certificados Certificado[]
+  pagamentos   Pagamento[]
+
+  @@index([clienteId])
+  @@index([categoriaId])
+  @@index([status])
+  @@map("produtos")
+}
+
+/// Catálogo global de etapas do legado (tbl_etapa_certificacao).
+///
+/// OBSOLETO: substituído por CategoriaProduto → ModeloTrilha → ModeloEtapa.
+/// Mantido apenas até `npm run migrate:categorias` transpor os dados; a relação
+/// com CertificacaoProduto já foi cortada para permitir o remapeamento.
+model EtapaCertificacao {
+  id           Int      @id @default(autoincrement())
+  nome         String   @unique @db.VarChar(120)
+  descricao    String?  @db.Text
+  ordem        Int
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@index([ordem])
+  @@map("etapas_certificacao")
+}
+
+/// Família de produtos que compartilha o mesmo processo de certificação
+/// (ex.: EPIs de altura, brinquedos, eletrodomésticos).
+///
+/// Existe porque a trilha de certificação não é universal: cada categoria
+/// responde a normas, ensaios e documentos próprios.
+model CategoriaProduto {
+  id              Int            @id @default(autoincrement())
+  nome            String         @unique @db.VarChar(120)
+  descricao       String?        @db.Text
+  normaReferencia String?        @map("norma_referencia") @db.VarChar(200)
+  /// Validade do certificado emitido para produtos desta categoria, em meses.
+  /// Varia por família (EPI, brinquedo, eletrodoméstico) e por norma.
+  validadeMeses   Int            @default(24) @map("validade_meses")
+  status          StatusRegistro @default(ATIVO)
+  criadoEm        DateTime       @default(now()) @map("criado_em")
+  atualizadoEm    DateTime       @updatedAt @map("atualizado_em")
+
+  modelosTrilha ModeloTrilha[]
+  produtos      Produto[]
+
+  @@index([status])
+  @@map("categorias_produto")
+}
+
+/// Versão imutável da trilha de uma categoria.
+///
+/// Trilhas mudam com o tempo (norma revisada, ensaio novo), mas um produto já
+/// submetido precisa ser avaliado pelas regras vigentes na submissão. Por isso
+/// versiona-se em vez de editar: só a versão sem produtos vinculados é editável.
+model ModeloTrilha {
+  id          Int       @id @default(autoincrement())
+  categoriaId Int       @map("categoria_id")
+  versao      Int
+  ativo       Boolean   @default(true)
+  vigenteDe   DateTime  @default(now()) @map("vigente_de")
+  vigenteAte  DateTime? @map("vigente_ate")
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+
+  categoria CategoriaProduto @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  etapas    ModeloEtapa[]
+  produtos  Produto[]
+
+  @@unique([categoriaId, versao])
+  @@index([categoriaId, ativo])
+  @@map("modelos_trilha")
+}
+
+/// Etapa prevista por uma versão de trilha.
+model ModeloEtapa {
+  id             Int       @id @default(autoincrement())
+  modeloTrilhaId Int       @map("modelo_trilha_id")
+  nome           String    @db.VarChar(120)
+  descricao      String?   @db.Text
+  ordem          Int
+  tipo           TipoEtapa @default(OUTRO)
+  obrigatoria    Boolean   @default(true)
+  prazoSlaDias   Int?      @map("prazo_sla_dias")
+  exigeDocumento Boolean   @default(false) @map("exige_documento")
+
+  modeloTrilha  ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Cascade)
+  certificacoes CertificacaoProduto[]
+
+  @@index([modeloTrilhaId, ordem])
+  @@map("modelos_etapa")
+}
+
+/// Uma etapa aplicada a um produto (legado: tbl_certificacao_produto).
+/// `etapaId` aponta para `ModeloEtapa` — a etapa da versão de trilha que o
+/// produto carrega —, não mais para o catálogo global.
+model CertificacaoProduto {
+  id        Int @id @default(autoincrement())
+  produtoId Int @map("produto_id")
+  etapaId   Int @map("etapa_id")
+  /// Posição desta etapa na trilha DO PRODUTO.
+  ///
+  /// Copiada de `ModeloEtapa.ordem` na abertura da trilha. É um campo próprio
+  /// porque um produto migrado de versão carrega etapas de modelos diferentes,
+  /// cujos `ordem` colidem — a sequência real só existe no nível do produto.
+  ordem        Int
+  status       StatusCertificacao @default(PENDENTE)
+  observacao   String?            @db.Text
+  criadoEm     DateTime           @default(now()) @map("criado_em")
+  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
+
+  produto          Produto                 @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  etapa            ModeloEtapa             @relation(fields: [etapaId], references: [id], onDelete: Restrict)
+  historico        CertificacaoHistorico[]
+  naoConformidades NaoConformidade[]
+
+  @@unique([produtoId, etapaId])
+  @@index([produtoId, ordem])
+  @@index([status])
+  @@map("certificacoes_produto")
+}
+
+/// Não conformidade levantada na avaliação de uma etapa.
+///
+/// Existe para que uma reprovação deixe de ser um status com observação em
+/// texto livre e passe a ser um registro rastreável: o que foi encontrado, com
+/// que gravidade, até quando o cliente tem para responder e o que ele
+/// respondeu. A resolução reabre a etapa para reavaliação.
+model NaoConformidade {
+  id             Int                        @id @default(autoincrement())
+  certificacaoId Int                        @map("certificacao_id")
+  /// Sequencial por ano no formato NC-2026-000123.
+  codigo         String                     @unique @db.VarChar(20)
+  descricao      String                     @db.Text
+  criticidade    CriticidadeNaoConformidade
+  status         StatusNaoConformidade      @default(ABERTA)
+  prazoResposta  DateTime?                  @map("prazo_resposta")
+  respostaCliente String?                   @map("resposta_cliente") @db.Text
+  respondidoEm   DateTime?                  @map("respondido_em")
+  /// Parecer da equipe ao avaliar a resposta.
+  parecer        String?                    @db.Text
+  abertoPorId    Int?                       @map("aberto_por_id")
+  /// Desnormalizado: a autoria sobrevive à exclusão do colaborador.
+  abertoPorNome  String                     @map("aberto_por_nome") @db.VarChar(150)
+  resolvidoEm    DateTime?                  @map("resolvido_em")
+  criadoEm       DateTime                   @default(now()) @map("criado_em")
+  atualizadoEm   DateTime                   @updatedAt @map("atualizado_em")
+
+  certificacao CertificacaoProduto @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
+  abertoPor    Funcionario?        @relation(fields: [abertoPorId], references: [id], onDelete: SetNull)
+
+  @@index([certificacaoId])
+  @@index([status, prazoResposta])
+  @@map("nao_conformidades")
+}
+
+/// Trilha de auditoria imutável (legado: tbl_certificacao_historico).
+model CertificacaoHistorico {
+  id              Int                 @id @default(autoincrement())
+  certificacaoId  Int                 @map("certificacao_id")
+  statusAnterior  StatusCertificacao? @map("status_anterior")
+  statusNovo      StatusCertificacao  @map("status_novo")
+  observacao      String?             @db.Text
+  alteradoPorId   Int?                @map("alterado_por_id")
+  alteradoPorNome String              @map("alterado_por_nome") @db.VarChar(150)
+  alteradoEm      DateTime            @default(now()) @map("alterado_em")
+
+  certificacao CertificacaoProduto     @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
+  alteradoPor  Funcionario?            @relation(fields: [alteradoPorId], references: [id], onDelete: SetNull)
+  documentos   DocumentoCertificacao[]
+
+  @@index([certificacaoId, alteradoEm])
+  @@map("certificacoes_historico")
+}
+
+/// Evidência anexada a uma etapa (laudo de ensaio, relatório de auditoria,
+/// memorial descritivo).
+///
+/// Pendura em `CertificacaoHistorico`, e não em `CertificacaoProduto`, para
+/// preservar o momento: fica registrado em qual ponto da trilha — e por quem —
+/// cada documento entrou. Um anexo enviado antes da aprovação gera o seu
+/// próprio registro de histórico, de modo que todo arquivo tem data e autoria.
+model DocumentoCertificacao {
+  id             Int      @id @default(autoincrement())
+  historicoId    Int      @map("historico_id")
+  /// Nome original enviado pelo usuário, só para exibição/download.
+  nomeArquivo    String   @map("nome_arquivo") @db.VarChar(255)
+  /// Caminho relativo em /uploads (nome real é um UUID).
+  arquivoUrl     String   @map("arquivo_url") @db.VarChar(255)
+  tipoMime       String   @map("tipo_mime") @db.VarChar(100)
+  tamanhoBytes   Int      @map("tamanho_bytes")
+  enviadoPorId   Int?     @map("enviado_por_id")
+  enviadoPorNome String   @map("enviado_por_nome") @db.VarChar(150)
+  criadoEm       DateTime @default(now()) @map("criado_em")
+
+  historico  CertificacaoHistorico @relation(fields: [historicoId], references: [id], onDelete: Cascade)
+  enviadoPor Funcionario?          @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([historicoId])
+  @@map("documentos_certificacao")
+}
+
+/// Certificado de conformidade emitido para um produto.
+///
+/// É o produto final do processo e um documento com efeito externo: por isso
+/// número imutável, validade explícita e um status próprio — suspender ou
+/// cancelar um certificado é diferente de mexer na trilha que o originou.
+model Certificado {
+  id        Int    @id @default(autoincrement())
+  produtoId Int    @map("produto_id")
+  /// Sequencial por ano: PROCERT-2026-000045.
+  numero    String @unique @db.VarChar(30)
+  /// O que exatamente está certificado (modelo, variante, faixa de aplicação).
+  escopo    String @db.Text
+
+  dataEmissao  DateTime          @default(now()) @map("data_emissao")
+  dataValidade DateTime          @map("data_validade")
+  status       StatusCertificado @default(EMITIDO)
+  /// Obrigatório em suspensão e cancelamento.
+  motivoStatus String?           @map("motivo_status") @db.Text
+
+  emitidoPorId   Int?     @map("emitido_por_id")
+  /// Desnormalizado: a autoria sobrevive à exclusão do colaborador.
+  emitidoPorNome String   @map("emitido_por_nome") @db.VarChar(150)
+  /// Caminho relativo em /uploads. Regenerável a partir dos dados do registro.
+  arquivoPdf     String?  @map("arquivo_pdf") @db.VarChar(255)
+  criadoEm       DateTime @default(now()) @map("criado_em")
+  atualizadoEm   DateTime @updatedAt @map("atualizado_em")
+
+  produto    Produto      @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  emitidoPor Funcionario? @relation(fields: [emitidoPorId], references: [id], onDelete: SetNull)
+
+  @@index([produtoId, dataEmissao])
+  @@index([status, dataValidade])
+  @@map("certificados")
+}
+
+/// Pagamentos do processo (legado: tbl_pagamento — antes só era lido).
+model Pagamento {
+  id             Int             @id @default(autoincrement())
+  produtoId      Int             @map("produto_id")
+  valor          Decimal         @default(0) @db.Decimal(12, 2)
+  status         StatusPagamento @default(PENDENTE)
+  dataPagamento  DateTime?       @map("data_pagamento")
+  observacao     String?         @db.Text
+  criadoEm       DateTime        @default(now()) @map("criado_em")
+  atualizadoEm   DateTime        @updatedAt @map("atualizado_em")
+
+  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([produtoId, criadoEm])
+  @@map("pagamentos")
+}
+
+/// Token de redefinição de senha (legado: tbl_reset_senha).
+/// Diferença: guarda o HASH do token, não o token em claro.
+model TokenRedefinicaoSenha {
+  id        Int       @id @default(autoincrement())
+  email     String    @db.VarChar(150)
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiraEm  DateTime  @map("expira_em")
+  usadoEm   DateTime? @map("usado_em")
+  criadoEm  DateTime  @default(now()) @map("criado_em")
+
+  @@index([email])
+  @@map("tokens_redefinicao_senha")
+}
+
+/// Mensagens do formulário público (legado: tbl_contato).
+model MensagemContato {
+  id        Int      @id @default(autoincrement())
+  nome      String   @db.VarChar(150)
+  email     String   @db.VarChar(150)
+  telefone  String?  @db.VarChar(20)
+  assunto   String   @db.VarChar(200)
+  mensagem  String   @db.Text
+  lida      Boolean  @default(false)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  @@map("mensagens_contato")
+}

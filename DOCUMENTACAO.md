@@ -1,0 +1,1514 @@
+# ProCert — Documentação Técnica
+
+Plataforma de **certificação de conformidade de produtos**. Um organismo certificador
+(ProCert / OCP) define trilhas de certificação por categoria de produto, recebe produtos
+dos clientes e conduz cada um pelas etapas previstas — análise documental, ensaios,
+auditoria de fábrica, decisão —, registrando quem alterou o quê e quando, com as evidências
+anexadas e as não conformidades tratadas até a **emissão do certificado**. O cliente
+acompanha os próprios produtos pelo mesmo painel, com escopo restrito, e responde às
+pendências que lhe cabem.
+
+O produto tem duas faces na mesma aplicação: o **site institucional público** em `/`
+(apresentação, serviços, documentos do organismo e formulário de contato) e o **painel
+autenticado** a partir de `/dashboard`.
+
+Este documento descreve a arquitetura, as decisões de projeto, o modelo de dados, a API,
+o frontend, a operação local e o estado real de qualidade do código. O mapeamento
+"arquivo PHP legado → módulo atual" vive em [MIGRACAO.md](./MIGRACAO.md); o passo a passo
+resumido de subida vive em [README.md](./README.md). Aqui está o porquê de cada peça.
+
+---
+
+## Sumário
+
+1. [Visão geral e contexto](#1-visão-geral-e-contexto)
+2. [Arquitetura](#2-arquitetura)
+3. [Stack tecnológica e justificativas](#3-stack-tecnológica-e-justificativas)
+4. [Estrutura de diretórios](#4-estrutura-de-diretórios)
+5. [Modelo de dados](#5-modelo-de-dados)
+6. [Autenticação e autorização](#6-autenticação-e-autorização)
+7. [Módulos do backend](#7-módulos-do-backend)
+8. [Referência da API](#8-referência-da-api)
+9. [Preocupações transversais](#9-preocupações-transversais)
+10. [Arquitetura do frontend](#10-arquitetura-do-frontend)
+11. [Configuração e variáveis de ambiente](#11-configuração-e-variáveis-de-ambiente)
+12. [Ambiente local](#12-ambiente-local)
+13. [Operação e manutenção](#13-operação-e-manutenção)
+14. [Qualidade: testes, lint e lacunas reais](#14-qualidade-testes-lint-e-lacunas-reais)
+15. [Problemas conhecidos e decisões registradas](#15-problemas-conhecidos-e-decisões-registradas)
+16. [Postura de segurança](#16-postura-de-segurança)
+17. [Próximos passos sugeridos](#17-próximos-passos-sugeridos)
+
+---
+
+## 1. Visão geral e contexto
+
+### O domínio
+
+O negócio gira em torno de uma máquina de estados simples, mas auditável:
+
+```
+Categoria de produto  →  Modelo de trilha (versionado)  →  Etapas previstas
+        │                          │
+        └──────────┬───────────────┘
+                   ▼
+Cliente cadastra-se  →  submete Produto (escolhe a categoria)
+                                   ↓
+        o produto congela a versão vigente da trilha e abre suas etapas
+                                   ↓
+      cada etapa: PENDENTE → EM_ANDAMENTO → APROVADO | REPROVADO
+                                   ↓
+   reprovação pode abrir Não conformidade → cliente responde → equipe avalia
+                                   ↓          (resolvida ⇒ etapa reaberta)
+        toda transição gera um registro imutável de histórico,
+             ao qual se prendem as evidências anexadas
+                                   ↓
+   todas as etapas obrigatórias APROVADO  →  Certificado emitido (PDF, validade)
+```
+
+Seis invariantes sustentam o produto:
+
+| Invariante | Onde é garantida |
+|---|---|
+| Um produto nasce com uma linha de certificação para **cada etapa da versão vigente** da trilha da sua categoria | `ProdutosService.criar()`, dentro de uma transação |
+| Um produto é avaliado pela versão da trilha vigente **na submissão**, mesmo que a categoria publique outra depois | `Produto.modeloTrilhaId` é um retrato; mudar de versão exige ação explícita |
+| Uma versão de trilha com produto vinculado é imutável | `ModelosTrilhaService.garantirEditavel()` responde `409` |
+| Nenhuma mudança de status existe sem autoria e carimbo de tempo | `CertificacoesService.salvar()` grava `CertificacaoHistorico` na mesma transação |
+| Uma etapa marcada como `exigeDocumento` não é aprovada sem evidência anexada | validação antes da transação em `salvar()` |
+| Um cliente nunca acessa dados de outro cliente | escopo forçado no servidor em cada service, nunca pelo id da URL |
+
+### Papéis
+
+| Papel | Alcance |
+|---|---|
+| `ADMIN` | Tudo, incluindo gestão da equipe interna, exclusões definitivas e **emissão/suspensão de certificados** |
+| `FUNCIONARIO` | Clientes, produtos, categorias e trilhas, avanço das certificações e abertura/avaliação de não conformidades |
+| `CLIENTE` | Somente os próprios produtos, certificações e certificados — leitura da trilha, com uma exceção de escrita: **responder às não conformidades** |
+
+### Origem: migração de um sistema PHP legado
+
+Esta é a reescrita de um sistema PHP/MySQL com MVC artesanal. A migração não foi uma
+tradução linha a linha — vários defeitos estruturais do legado foram corrigidos por
+construção, e cada correção está anotada em docblock no arquivo correspondente. Os mais
+relevantes:
+
+| Defeito do legado | Correção aqui |
+|---|---|
+| Cadastro usava `password_hash()`, login comparava com `===` → funcionário/admin criado pela interface **nunca conseguia entrar** | `bcrypt.compare()` em `AuthService.login()` |
+| Senhas de cliente em **texto puro** no banco | `senhaHash` bcrypt obrigatório; o ETL re-hasheia o que vinha em claro |
+| Nenhuma guarda de rota: endpoints de exclusão eram **públicos** | `JwtAuthGuard` + `RolesGuard` globais; acesso é opt-out via `@Public()` |
+| `id` vindo da URL sem verificação de posse (IDOR) | `garantirAcesso()` em controllers/services; escopo do CLIENTE derivado do JWT |
+| Upload aceitava qualquer extensão, inclusive `.php` | allowlist de MIME + nome gerado por `randomUUID()` |
+| Card "Certificações aprovadas" sempre exibia 0 (chave `total_aprovados` vs. leitura de `total_certificacao_aprovada`) | agregação recalculada em `DashboardService` |
+| Etapa final fixada como `id_etapa = 4` | "concluído" = **todas** as etapas aprovadas |
+| "Desativar etapa" executava `DELETE` físico, quebrando certificações em andamento | catálogo global substituído por trilhas versionadas por categoria (ver abaixo) |
+| Produto criado fora de transação → produto órfão sem etapas | `prisma.$transaction` |
+| Erro de conexão imprimia host e usuário do banco na tela | `AllExceptionsFilter` padroniza e omite internos |
+| Constantes SMTP existiam mas nunca eram usadas; link de reset apontava para rota inexistente | `MailService` com nodemailer e link real |
+| `if ($_SESSION['id_tipo_usuario'] == '1')` espalhado por 30+ arquivos | `<RotaProtegida papeis={...}>` declarativo, revalidado no backend |
+
+### Evolução além da paridade com o legado
+
+Quatro incrementos posteriores levaram o sistema de "cópia modernizada" a algo utilizável
+por um organismo certificador real. Estão descritos em detalhe nas seções 5, 7 e 8; em
+resumo:
+
+| Incremento | O que resolve |
+|---|---|
+| **Categoria de produto + trilha versionada** | O legado tinha um catálogo único de etapas aplicado a todo produto. Famílias diferentes (EPI, brinquedo, eletrodoméstico) exigem normas e ensaios diferentes — e uma trilha muda com o tempo sem poder alterar a régua de quem já está em avaliação. |
+| **Não conformidade estruturada** | Reprovar era um status com observação em texto livre. Agora a reprovação vira um registro com código, gravidade, prazo, resposta do cliente e parecer — e a resolução reabre a etapa. |
+| **Certificado formal** | O processo terminava sem produzir nada. Agora emite um documento numerado, com validade, PDF e ciclo próprio (suspender, cancelar, vencer). |
+| **Evidências por etapa e notificação** | A avaliação não guardava prova nem avisava o cliente. Agora cada etapa aceita anexos (obrigatórios quando o modelo exige) e cada mudança de status dispara e-mail. |
+
+---
+
+## 2. Arquitetura
+
+### Topologia
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  Navegador                                                             │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ SPA React 19 (Vite)                                              │  │
+│  │  router → RotaProtegida → páginas de feature                      │  │
+│  │  TanStack Query (cache/estado servidor) · RHF+Zod (formulários)   │  │
+│  │  axios interceptors: injeta Bearer, trata 401                     │  │
+│  └───────────────────────────┬──────────────────────────────────────┘  │
+└──────────────────────────────┼─────────────────────────────────────────┘
+                               │  JSON sobre HTTP (dev: proxy /api do Vite)
+┌──────────────────────────────▼─────────────────────────────────────────┐
+│  API NestJS 11  (prefixo global /api)                                  │
+│                                                                        │
+│  helmet → CORS → ValidationPipe global → guards globais                │
+│    guards, na ordem: JwtAuthGuard → RolesGuard → ThrottlerGuard        │
+│                                                                        │
+│  Controller  (HTTP, papéis, DTOs)                                      │
+│      ↓                                                                 │
+│  Service     (regra de negócio, transações, escopo por papel)           │
+│      ↓                                                                 │
+│  PrismaService (client único, ciclo de vida do Nest)                    │
+│                                                                        │
+│  AllExceptionsFilter padroniza toda resposta de erro                   │
+│  /uploads servido como estático                                        │
+│  Swagger em /api/docs                                                  │
+└──────────────────────────────┬─────────────────────────────────────────┘
+                               │  SQL
+                    ┌──────────▼──────────┐        ┌──────────────────┐
+                    │  PostgreSQL 16      │        │ Adminer (dev)    │
+                    │  (Docker, :5433)    │        │ :8080            │
+                    └─────────────────────┘        └──────────────────┘
+```
+
+### Camadas do backend e o que pertence a cada uma
+
+| Camada | Responsabilidade | Não faz |
+|---|---|---|
+| **Controller** | Rotas, verbos, `@Roles`, DTO de entrada, documentação Swagger | Consultar o banco, decidir regra de negócio |
+| **Service** | Regra de negócio, transações, escopo por papel, mensagens de domínio | Conhecer HTTP (exceto lançar `HttpException` semântica) |
+| **DTO** | Contrato de entrada + validação declarativa (class-validator) | Lógica |
+| **PrismaService** | Conexão única e tipada com o banco | Regra |
+| **common/** | Guards, decorators, filtro de exceção, paginação, util de senha | Domínio |
+
+A regra prática: um controller nunca tem `if` de negócio, e um service nunca sabe que
+existe uma requisição HTTP. O `@CurrentUser()` entra no service como um objeto simples
+(`UsuarioAutenticado`), o que mantém os services testáveis sem levantar o Nest.
+
+### Fluxo de uma requisição autenticada
+
+```
+PUT /api/certificacoes/produto/1
+  1. helmet aplica cabeçalhos de segurança
+  2. CORS valida a origem (CORS_ORIGINS)
+  3. JwtAuthGuard        → rota não é @Public(); valida assinatura e expiração do JWT
+     JwtStrategy.validate → RECONSULTA o usuário no banco; se INATIVO, 401 na hora
+  4. RolesGuard          → @Roles(ADMIN, FUNCIONARIO); CLIENTE recebe 403
+  5. ThrottlerGuard      → 120 req/min por padrão
+  6. ValidationPipe      → SalvarCertificacaoDto: whitelist + forbidNonWhitelisted
+  7. Controller          → delega ao service com (produtoId, dto, usuario)
+  8. Service             → transação: UPDATE das etapas + INSERT do histórico
+  9. Resposta            → timeline recalculada
+     Erro em qualquer ponto → AllExceptionsFilter → corpo padronizado
+```
+
+O passo 3 merece destaque: a estratégia JWT **não confia apenas no payload do token**.
+Cada requisição revalida `status = ATIVO` no banco. O custo é uma consulta por request; o
+ganho é revogação imediata ao desativar um cadastro, sem lista de revogação nem
+refresh token.
+
+---
+
+## 3. Stack tecnológica e justificativas
+
+### Backend
+
+| Tecnologia | Versão | Por que |
+|---|---|---|
+| **Node.js + TypeScript** | Node 20+ / TS 5.7 | Tipagem estática de ponta a ponta com o frontend |
+| **NestJS** | 11 | DI, guards/pipes/filtros globais e modularidade prontos — o que o legado improvisava à mão |
+| **Prisma** | 6 | Schema declarativo, migrations versionadas e client tipado; elimina SQL concatenado (vetor de SQLi do legado) |
+| **PostgreSQL** | 16 | ENUMs nativos, FKs confiáveis, transações reais, `citext`/índices ricos |
+| **@nestjs/jwt + passport-jwt** | 11 / 4 | Stateless, adequado a SPA; sem sessão de servidor para escalar |
+| **bcrypt** | 5 | Custo configurável (12 rounds); compatível com hashes `$2y$` do PHP migrado |
+| **class-validator / class-transformer** | 0.14 / 0.5 | Validação declarativa no DTO, aplicada globalmente |
+| **helmet** | 8 | Cabeçalhos de segurança que o legado não tinha |
+| **@nestjs/throttler** | 6 | Rate limit global e por rota (login e reset de senha mais restritos) |
+| **@nestjs/swagger** | 11 | Contrato executável da API, gerado dos próprios DTOs |
+| **nodemailer** | 6 | SMTP real para recuperação de senha e avisos de certificação |
+| **pdfkit** | 0.15 | Geração do PDF do certificado; sem dependência de binário externo ou serviço |
+
+### Frontend
+
+| Tecnologia | Versão | Por que |
+|---|---|---|
+| **React** | 19 | Base do ecossistema; sem framework SSR porque é um painel autenticado |
+| **Vite** | 6 | Dev server instantâneo, HMR, proxy `/api` que dispensa CORS em dev |
+| **TanStack Query** | 5 | Cache, invalidação e estados de carregamento/erro do servidor — remove `useEffect`+`useState` manual |
+| **React Hook Form + Zod** | 7 / 3 | Formulários performáticos com schema tipado; a mesma regra valida no cliente e é reforçada no servidor |
+| **react-router-dom** | 7 | Rotas aninhadas com layout e proteção declarativa por papel |
+| **axios** | 1.7 | Interceptors para Bearer e tratamento central de 401 |
+| **sonner** | 1.7 | Toasts de feedback |
+| **@dnd-kit** | 6 | Reordenação das etapas por arrastar e soltar |
+| **bootstrap-icons** | 1.11 | Ícones da home; mesmos nomes de classe do legado, agora empacotados (sem CDN) |
+| **CSS puro com design tokens** | — | Preserva o tema "liquid glass" do painel e o tema claro da home sem arrastar Bootstrap/AdminLTE |
+
+### Decisões explícitas de arquitetura
+
+- **Monorepo simples de duas pastas**, sem workspaces ou ferramenta de build compartilhada.
+  A superfície é pequena; os tipos são reespelhados em `frontend/src/types/index.ts` em vez
+  de compartilhados via pacote. Custo: duplicação controlada. Ganho: zero configuração de
+  build cruzada. Quando a API crescer, o caminho natural é gerar os tipos do OpenAPI.
+- **Sem refresh token.** Access token de 8h + revalidação no banco a cada request.
+  Adequado ao uso (jornada de trabalho); revisitar se aparecer requisito de sessão longa.
+- **Token no `localStorage`.** Escolha pragmática de SPA sem BFF. Contrapartida: exposto a
+  XSS. Mitigado por React (escapa por padrão), helmet e nenhuma renderização de HTML de
+  usuário. A alternativa correta em produção é cookie `httpOnly` + rota de refresh.
+- **Soft delete por padrão, hard delete só para `ADMIN`** e bloqueado quando há vínculos
+  (`ConflictException` explicando o que impede).
+
+---
+
+## 4. Estrutura de diretórios
+
+```
+procert-app/
+├── docker-compose.yml            PostgreSQL 16 (host :5433) + Adminer (:8080)
+├── README.md                     Guia rápido de subida
+├── MIGRACAO.md                   Mapa arquivo PHP → módulo atual, bugs corrigidos, cutover
+├── DOCUMENTACAO.md               Este documento
+│
+├── backend/
+│   ├── nest-cli.json             deleteOutDir: true, watchAssets
+│   ├── tsconfig.json             strict-ish, decorators, outDir dist, incremental
+│   ├── tsconfig.build.json       exclui test/prisma/spec; incremental: false (ver §15)
+│   ├── prisma/
+│   │   ├── schema.prisma         Fonte da verdade do modelo de dados
+│   │   ├── migrations/           Migrations versionadas (init → … → documentos_certificacao)
+│   │   ├── seed.ts               27 UFs, categoria "Geral" + trilha v1, admin (idempotente)
+│   │   ├── migrate-legacy.ts     ETL MySQL legado → PostgreSQL, com --dry-run
+│   │   └── migrate-categorias.ts Catálogo global de etapas → trilhas por categoria
+│   └── src/
+│       ├── main.ts               Bootstrap: prefixo, helmet, CORS, pipes, estáticos, Swagger
+│       ├── app.module.ts         Composição dos módulos + guards globais
+│       ├── prisma/               PrismaService (OnModuleInit/Destroy)
+│       ├── common/
+│       │   ├── decorators/       @Public, @Roles, @CurrentUser
+│       │   ├── dto/              PaginacaoDto + paginar(), PessoaBaseDto
+│       │   ├── filters/          AllExceptionsFilter
+│       │   ├── guards/           JwtAuthGuard, RolesGuard
+│       │   └── utils/            senha.util (bcrypt, SENHA_REGEX)
+│       └── modules/
+│           ├── auth/             login, /me, esqueci/redefinir/alterar senha, JwtStrategy
+│           ├── clientes/         CRUD + foto + soft delete
+│           ├── funcionarios/     ADMIN e FUNCIONARIO no mesmo módulo
+│           ├── categorias-produto/ CRUD de categorias (famílias de produto)
+│           ├── modelos-trilha/   versões da trilha: criar, editar, reordenar
+│           ├── produtos/         CRUD + abertura da trilha na versão vigente
+│           ├── certificacoes/    painel, timeline, salvar lote, versão da trilha,
+│           │                     reiniciar + documentos.service (evidências)
+│           ├── nao-conformidades/ abertura, resposta do cliente, avaliação
+│           ├── certificados/     emissão, status, expiração + certificado-pdf.service
+│           ├── dashboard/        métricas dos cards
+│           ├── estados/          UFs (controller inline, público)
+│           ├── contato/          formulário público do site + caixa de entrada
+│           ├── mail/             MailService (SMTP ou log simulado)
+│           └── uploads/          UploadsService global (allowlists, troca, remoção segura)
+│
+└── frontend/
+    ├── vite.config.ts            alias @, proxy /api e /uploads, manualChunks
+    ├── index.html                favicon, meta description, fontes do site institucional
+    ├── public/
+    │   ├── img/                  Imagens da home (herdadas do legado) + logos
+    │   └── documentos/           PDFs públicos do organismo certificador
+    └── src/
+        ├── main.tsx              QueryClientProvider → AuthProvider → RouterProvider → Toaster
+        ├── router.tsx            Home pública em "/" + rota de layout protegida por papel
+        ├── auth/                 AuthContext, useAuth, RotaProtegida
+        ├── lib/                  api (axios+interceptors), queryClient (+chaves), formatadores
+        ├── components/           Layout, Sidebar, Campo, Badge, Paginacao, Modal, EstadoVazio…
+        ├── features/
+        │   ├── home/             Site institucional: conteudo.ts, hooks.ts, home.css, secoes/
+        │   ├── categorias-produto/ Listagem, modal, detalhe com versões e editor de etapas
+        │   ├── certificacoes/    Painel, timeline, DocumentosEtapa
+        │   ├── nao-conformidades/ Página do cliente/equipe + CartaoNaoConformidade
+        │   ├── certificados/     Página de certificados + painel dentro do produto
+        │   └── <domínio>/        api.ts (chamadas tipadas) + páginas do domínio
+        ├── pages/                Login, EsqueciSenha, RedefinirSenha, SemPermissao, 404
+        ├── styles/global.css     Design tokens + tema liquid glass do painel
+        └── types/index.ts        Contratos espelhados da API
+```
+
+**Convenção de features (frontend):** cada domínio isola suas chamadas HTTP em `api.ts`,
+com tipos importados de `@/types`. As páginas nunca chamam `axios` diretamente — chamam
+`clientesApi.listar(...)` dentro de `useQuery`/`useMutation`. Isso mantém um único ponto de
+mudança quando um endpoint muda de forma.
+
+---
+
+## 5. Modelo de dados
+
+Fonte da verdade: `backend/prisma/schema.prisma`. Convenções: modelos em PascalCase no
+código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestamps
+`criadoEm`/`atualizadoEm` em toda entidade mutável.
+
+### Diagrama de relacionamentos
+
+```
+  CategoriaProduto ──1:N──► ModeloTrilha (versão) ──1:N──► ModeloEtapa
+          │                        │                            │
+          │                        │                            │ (etapa)
+          ▼                        ▼                            ▼
+        Produto ◄──1:N── Cliente   │                   CertificacaoProduto
+          │  │  └──────── modeloTrilha (retrato da versão) ──┘  │
+          │  │                                                  ├──1:N──► CertificacaoHistorico
+          │  ├──1:N──► Pagamento                                │              │
+          │  └──1:N──► Certificado                              │              └──1:N──► DocumentoCertificacao
+          │                                                     └──1:N──► NaoConformidade
+        Estado ──1:N──► Cliente
+          └────1:N──► Funcionario ──── autoria (SetNull) ────► Historico · NC · Certificado · Documento
+
+    Isoladas: TokenRedefinicaoSenha (por e-mail) · MensagemContato (formulário público)
+```
+
+### Entidades
+
+| Modelo | Tabela | Papel no domínio |
+|---|---|---|
+| `Estado` | `estados` | 27 UFs; referência de endereço |
+| `Cliente` | `clientes` | Quem contrata a certificação; **também é usuário** (login com `role` CLIENTE implícita) |
+| `Funcionario` | `funcionarios` | Equipe interna; guarda `role` = `ADMIN` \| `FUNCIONARIO` |
+| `CategoriaProduto` | `categorias_produto` | Família de produtos com processo próprio; guarda a norma e a `validadeMeses` do certificado |
+| `ModeloTrilha` | `modelos_trilha` | **Versão** da trilha de uma categoria (`versao`, `ativo`, `vigenteDe/Ate`) |
+| `ModeloEtapa` | `modelos_etapa` | Etapa prevista por uma versão (`ordem`, `tipo`, `obrigatoria`, `prazoSlaDias`, `exigeDocumento`) |
+| `Produto` | `produtos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão** |
+| `CertificacaoProduto` | `certificacoes_produto` | Uma etapa aplicada a um produto — o estado corrente, com `ordem` própria |
+| `CertificacaoHistorico` | `certificacoes_historico` | Trilha de auditoria imutável das transições e dos anexos |
+| `DocumentoCertificacao` | `documentos_certificacao` | Evidência anexada, presa ao registro de histórico que a trouxe |
+| `NaoConformidade` | `nao_conformidades` | Achado de uma etapa reprovada: código, gravidade, prazo, resposta e parecer |
+| `Certificado` | `certificados` | Documento formal emitido: número, escopo, validade, status e PDF |
+| `Pagamento` | `pagamentos` | Financeiro do processo (modelado; sem módulo de escrita ainda) |
+| `EtapaCertificacao` | `etapas_certificacao` | **Obsoleto** — catálogo global do legado, mantido só até a conferência do cutover |
+| `TokenRedefinicaoSenha` | `tokens_redefinicao_senha` | Reset de senha; guarda **hash** do token |
+| `MensagemContato` | `mensagens_contato` | Formulário público do site |
+
+### Enums
+
+| Enum | Valores |
+|---|---|
+| `Role` | `ADMIN`, `FUNCIONARIO`, `CLIENTE` |
+| `StatusRegistro` | `ATIVO`, `INATIVO` |
+| `TipoPessoa` | `FISICA`, `JURIDICA` |
+| `TipoEtapa` | `DOCUMENTAL`, `ENSAIO`, `AUDITORIA_FABRICA`, `ANALISE_CRITICA`, `DECISAO`, `OUTRO` |
+| `StatusCertificacao` | `PENDENTE`, `EM_ANDAMENTO`, `APROVADO`, `REPROVADO` |
+| `CriticidadeNaoConformidade` | `MENOR`, `MAIOR` |
+| `StatusNaoConformidade` | `ABERTA`, `EM_TRATATIVA`, `RESOLVIDA`, `REPROVADA` |
+| `StatusCertificado` | `EMITIDO`, `SUSPENSO`, `CANCELADO`, `VENCIDO` |
+| `StatusPagamento` | `PENDENTE`, `PAGO`, `CANCELADO`, `ESTORNADO` |
+
+### Restrições e índices que carregam regra
+
+| Restrição | Efeito |
+|---|---|
+| `@@unique([categoriaId, versao])` em `ModeloTrilha` | Duas versões com o mesmo número são impossíveis |
+| `@@unique([produtoId, etapaId])` em `CertificacaoProduto` | Impossível duplicar uma etapa no mesmo produto — a migração de versão fica idempotente por construção |
+| `codigo @unique` (NC) e `numero @unique` (certificado) | Guardas contra emissões simultâneas com o mesmo sequencial; o filtro traduz para `409` |
+| `email @unique` em `Cliente` **e** em `Funcionario` | Unicidade por tabela; a unicidade **cross-tabela** é verificada em código (`garantirEmailDisponivel`), pois o banco não a expressa |
+| `Produto.cliente` / `.categoria` / `.modeloTrilha` `onDelete: Restrict` | Cliente, categoria ou versão em uso não podem ser apagados — force o soft delete |
+| `ModeloEtapa.modeloTrilha` `onDelete: Cascade` | Apagar uma versão limpa suas etapas |
+| `CertificacaoProduto.produto` `onDelete: Cascade` | Apagar produto limpa trilha, histórico, evidências e NCs |
+| `CertificacaoProduto.etapa` `onDelete: Restrict` | Etapa de modelo em uso não pode ser apagada |
+| `DocumentoCertificacao.historico` `onDelete: Cascade` | Evidência não sobrevive ao registro que a datou |
+| `Certificado.produto` `onDelete: Restrict` | Produto com certificado emitido não pode ser apagado |
+| Autorias `alteradoPor` / `abertoPor` / `emitidoPor` / `enviadoPor` `onDelete: SetNull` | Excluir um colaborador **não apaga a auditoria**: o nome desnormalizado permanece |
+| `TokenRedefinicaoSenha.tokenHash @unique` | Só o hash SHA-256 é persistido; vazamento do banco não revela tokens usáveis |
+| Índices em `[produtoId, ordem]`, `[categoriaId, ativo]`, `[status, prazoResposta]`, `[status, dataValidade]`, `[certificacaoId, alteradoEm]` | Suportam a timeline, a fila de NCs por prazo e a rotina de expiração sem varredura |
+
+**Decisão de modelagem — dois modelos de usuário.** `Cliente` e `Funcionario` são tabelas
+separadas em vez de uma tabela `Usuario` com discriminador. Motivo: herança do legado
+(`tbl_cliente`/`tbl_funcionario`) e ciclos de vida distintos (cliente tem produtos e
+faturamento; funcionário tem autoria de auditoria). Custo assumido: o login consulta as duas
+tabelas e a unicidade de e-mail é validada em código. Se um dia houver um quarto papel,
+vale unificar.
+
+**Desnormalização deliberada.** `alteradoPorNome`, `abertoPorNome`, `emitidoPorNome` e
+`enviadoPorNome` duplicam o nome do autor. É intencional: auditoria precisa sobreviver à
+exclusão do autor.
+
+**Decisão de modelagem — trilha versionada em vez de editável.** Uma versão de trilha com
+produto vinculado nunca é alterada; mudar o processo cria a versão seguinte e encerra a
+anterior (`vigenteAte`, `ativo = false`). Isso mantém uma propriedade que um organismo
+certificador precisa poder afirmar: *este produto foi avaliado por estas regras, nesta
+redação*. O custo é uma tabela a mais e a necessidade de migrar produtos entre versões
+conscientemente (§7, `certificacoes`).
+
+**Decisão de modelagem — `ordem` na trilha do produto.** `CertificacaoProduto.ordem` é
+copiado de `ModeloEtapa.ordem` na abertura, mas vive por conta própria. Um produto migrado
+entre versões carrega etapas de modelos diferentes, cujas ordens colidem; só um campo no
+nível do produto descreve a sequência real. Toda ordenação de timeline usa esse campo.
+
+**Decisão de modelagem — evidência presa ao histórico.** `DocumentoCertificacao` aponta
+para `CertificacaoHistorico`, não para `CertificacaoProduto`, para registrar *em que ponto
+da trilha* cada arquivo entrou. Como consequência, anexar cria um registro de histórico
+próprio (com `statusAnterior === statusNovo`) — uma marcação de trilha, não uma transição.
+A interface reconhece esse caso e mostra "Documento anexado".
+
+---
+
+## 6. Autenticação e autorização
+
+### Fluxo de login
+
+```
+Frontend                            Backend
+────────                            ───────
+POST /api/auth/login                AuthService.login()
+{email, senha}                        1. normaliza e-mail (trim + lowercase)
+                                      2. procura em funcionarios
+                                      3. senão, procura em clientes
+                                      4. garante status ATIVO
+                                      5. bcrypt.compare(senha, senhaHash)
+                                      6. assina JWT {sub, email, role, nome}, 8h
+        ◄─── 200 {accessToken, usuario}
+
+tokenStorage.set(token)             (procert:token no localStorage)
+localStorage[procert:usuario]       (cache do perfil para o primeiro render)
+navigate('/dashboard')
+
+Todo request seguinte:
+  interceptor axios → Authorization: Bearer <token>
+  JwtStrategy.validate → reconsulta o usuário; INATIVO ⇒ 401
+```
+
+**Anti-enumeração de contas.** Quando o e-mail não existe, o service ainda executa um
+`bcrypt.compare` contra um hash inválido antes de responder `401`. Isso equaliza o tempo de
+resposta entre "e-mail inexistente" e "senha errada", e a mensagem é a mesma nos dois casos
+(`E-mail ou senha incorretos.`). O mesmo princípio rege `esqueci-senha`, que **sempre**
+responde a mesma frase de sucesso.
+
+### Autorização em duas camadas
+
+| Camada | Mecanismo | Vale para |
+|---|---|---|
+| Frontend | `<RotaProtegida papeis={['ADMIN']}>` + filtro de itens da Sidebar | Experiência: esconder o que não se pode usar |
+| Backend | `JwtAuthGuard` + `RolesGuard` globais, `@Roles(...)` por rota/classe | **Segurança**: é a fronteira real |
+
+O frontend nunca é a fronteira de segurança. Digitar `/clientes` na barra de endereços com
+uma sessão de cliente resulta em redirecionamento para `/sem-permissao` **e** `403` na API
+se a requisição partir.
+
+### Escopo do papel CLIENTE
+
+Três padrões, aplicados de forma consistente:
+
+```ts
+// 1. Listagens: o escopo vem do token, não do query param
+const clienteId = usuario.role === Role.CLIENTE ? usuario.id : filtros.clienteId;
+
+// 2. Detalhes: verificação de posse antes de devolver
+if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) throw new ForbiddenException(...);
+
+// 3. Escrita de domínio: negada explicitamente
+if (usuario.role === Role.CLIENTE) throw new ForbiddenException('Clientes podem acompanhar, mas não alterar…');
+```
+
+Consequência: um cliente **pode** ler e editar o próprio cadastro (`GET`/`PATCH
+/clientes/:id` com `id` igual ao seu), ler os próprios produtos, trilhas, certificados e
+evidências, e **responder às próprias não conformidades** — a única escrita de domínio que
+lhe cabe. Não consegue listar clientes, ver o catálogo de categorias e trilhas, avançar
+certificações, avaliar NCs nem emitir ou suspender certificados.
+
+O catálogo de categorias e modelos de trilha é **integralmente restrito à equipe, leitura
+inclusive**: é configuração interna do organismo, e as normas e prazos de cada família não
+são informação do cliente. Ele continua vendo a categoria do próprio produto, que vem
+embutida no payload de `/produtos`.
+
+No dashboard, `totalClientes` devolve a constante `1` para um CLIENTE — não é a contagem
+real da base. É proposital, para o card não vazar o tamanho da carteira.
+
+### Recuperação de senha
+
+```
+POST /auth/esqueci-senha  →  gera token aleatório de 32 bytes
+                              persiste APENAS sha256(token) + expiraEm (1h)
+                              invalida pedidos anteriores em aberto (usadoEm = now)
+                              envia link FRONTEND_URL/redefinir-senha?token=<claro>
+                              responde sempre a mesma mensagem neutra
+
+POST /auth/redefinir-senha →  busca por sha256(token); rejeita se usado ou expirado
+                              transação: atualiza senhaHash (funcionario ou cliente)
+                                         + marca token como usado
+```
+
+Uso único, validade de 1 hora, só o hash no banco, e falha de SMTP nunca propaga para o
+fluxo de autenticação (seria um canal lateral de enumeração).
+
+### Política de senha
+
+`SENHA_REGEX = /^(?=.*[A-Za-zÀ-ÿ])(?=.*\d).{8,}$/` — mínimo 8 caracteres, com letra e
+número, acentos contam como letra. Aplicada nos DTOs de criação/alteração. Hash bcrypt com
+`BCRYPT_SALT_ROUNDS` (padrão 12). Hashes `$2y$` herdados do PHP são normalizados para
+`$2b$` na comparação, então usuários migrados entram com a mesma senha de sempre.
+
+---
+
+## 7. Módulos do backend
+
+### `auth`
+Login unificado (cliente ou equipe), perfil da sessão, recuperação e troca de senha.
+`JwtStrategy` revalida o usuário a cada request. Rate limit mais apertado que o global:
+10/min no login, 5/min nos fluxos de senha.
+
+### `clientes`
+CRUD com paginação e busca por nome/e-mail/CPF/CNPJ. `SELECT_CLIENTE` é uma allowlist de
+campos — **`senhaHash` nunca sai do service**, nem por acidente em um `include`. Soft delete
+via `status`; hard delete só `ADMIN` e bloqueado com `409` se houver produtos vinculados.
+`GET /clientes/resumo` devolve a lista enxuta para popular selects.
+
+### `funcionarios`
+`ADMIN` e `FUNCIONARIO` no mesmo módulo (o legado tinha dois controllers e dois models
+quase idênticos). Duas salvaguardas operacionais: ninguém desativa ou exclui o próprio
+cadastro, e o sistema **impede ficar sem nenhum ADMIN ativo** (`garantirOutroAdminAtivo`).
+
+### `categorias-produto`
+CRUD das famílias de produto, com a norma de referência e a `validadeMeses` usada no cálculo
+do vencimento do certificado. Soft delete via `status`; hard delete só `ADMIN` e bloqueado
+com `409` se houver produtos vinculados (as versões de trilha caem junto, em transação).
+`GET /categorias-produto/resumo` devolve a lista para selects **já com o modelo vigente**,
+para o formulário de produto saber, antes de o usuário preencher tudo, que a categoria não
+aceita submissão. Módulo inteiro restrito a `ADMIN`/`FUNCIONARIO`, leitura inclusive.
+
+### `modelos-trilha`
+Versões da trilha de uma categoria. A regra central é a imutabilidade:
+
+- `POST /categorias-produto/:id/modelos-trilha` — cria a próxima versão. Sem `etapas` no
+  corpo, **copia as da vigente** (o caso comum é partir do processo atual e ajustar).
+  Encerra a anterior (`vigenteAte`, `ativo = false`) na mesma transação, de modo que a
+  categoria nunca tenha duas versões vigentes.
+- `PATCH /modelos-trilha/:id/etapas` — substitui a lista inteira; `409` se a versão já tem
+  produto, com a mensagem orientando versionar.
+- `PATCH /modelos-trilha/:id/etapas/ordem` — persiste o drag-and-drop em transação.
+
+`resolverVigente()` é exposto para o `ProdutosService` não duplicar a regra de qual versão
+vale no momento da submissão.
+
+### `produtos`
+CRUD + upload de foto. Na criação exige `categoriaId`, resolve a versão vigente da trilha
+daquela categoria e abre uma linha de certificação para cada etapa dela — tudo na **mesma
+transação**. Sem modelo vigente, responde `400` orientando cadastrar a trilha primeiro; com
+categoria inativa, `400`. O `AtualizarProdutoDto` **omite `categoriaId`**: trocar a
+categoria depois da submissão mudaria a régua de um produto em avaliação, o que é
+reabertura de processo, não edição de cadastro. Todo payload vem enriquecido com
+`resumoCertificacao` e o último pagamento, evitando N+1 no frontend. `Decimal` do Prisma é
+convertido para `number` na borda.
+
+### `certificacoes`
+O coração do produto.
+
+- `GET /certificacoes` — painel consolidado: uma linha por produto com etapa atual,
+  status e progresso. Substitui as subqueries correlacionadas do legado.
+- `GET /certificacoes/produto/:id` — timeline completa: etapas na ordem do produto, cada
+  uma com evidências, não conformidades e histórico decrescente, mais um `resumo` agregado
+  (inclui `obrigatoriasAprovadas`, que habilita a emissão do certificado).
+- `PUT /certificacoes/produto/:id` — **salvamento em lote**. Valida que toda etapa enviada
+  pertence ao produto, recusa aprovar etapa que exige evidência sem anexo, recusa NC fora de
+  reprovação, ignora as que não mudaram e, para cada mudança, grava `UPDATE` + `INSERT` de
+  histórico (+ NC quando enviada) na mesma transação. Autoria vem da sessão, nunca de campo
+  editável. Depois do commit, dispara a notificação por e-mail sem bloquear a resposta.
+- `GET .../versao-trilha` — consulta pura: diz se o produto ficou preso a uma versão antiga
+  e **o que a migração faria**, sem efeito colateral.
+- `POST .../migrar-versao-trilha` — migra para a versão vigente adicionando só as etapas
+  ausentes (comparadas por nome, já que cada versão tem `ModeloEtapa` próprias), grava
+  histórico com autoria e **renumera a trilha inteira** conforme a ordem do modelo vigente.
+  Etapas que a versão nova não prevê vão para o fim, preservando a sequência relativa.
+- `POST .../reiniciar` — só `ADMIN`: recria a trilha do zero pela versão que o produto
+  carrega (trocar de versão é decisão à parte), apagando o histórico em cascata.
+- `POST .../etapas/:etapaId/documento` e `GET /certificacoes/documentos/:id/arquivo` —
+  evidências, em `documentos.service.ts`.
+
+"Etapa atual" é derivada, não armazenada: primeira `EM_ANDAMENTO`, senão primeira
+`PENDENTE`, senão a última. Progresso = aprovadas / total.
+
+### `nao-conformidades`
+Transforma a reprovação em registro rastreável. Código sequencial por ano
+(`NC-2026-000001`) derivado do **maior código do ano**, não de `COUNT` — contar linhas
+reutilizaria um número já emitido após uma exclusão.
+
+Ciclo: a equipe abre a NC (avulsa em etapa reprovada, ou junto da reprovação no lote) →
+o cliente responde, e a NC passa a `EM_TRATATIVA` → a equipe avalia. `RESOLVIDA` devolve a
+etapa a `EM_ANDAMENTO` — precisa ser **reavaliada**, não é aprovada automaticamente — e
+registra a transição no histórico; `REPROVADA` encerra mantendo a etapa reprovada.
+
+Duas guardas que a máquina de estados exige: `ABERTA` é recusada na avaliação (reabrir
+apagaria rastro — registre uma NC nova), e NC encerrada não aceita nova resposta nem
+reavaliação. `criarRegistro()` aceita um `TransactionClient` para nascer no mesmo commit da
+reprovação.
+
+### `certificados`
+Emissão formal. Exige todas as etapas **obrigatórias** aprovadas (opcionais pendentes não
+bloqueiam) e recusa com `409` se o produto já tem certificado vigente. Número sequencial por
+ano (`PROCERT-2026-000001`), validade de `categoria.validadeMeses` salvo data explícita.
+
+O PDF é gerado **depois do commit**, de propósito: escrita em disco não participa de
+transação de banco e o arquivo é derivável do registro. Se falhar, o certificado existe e o
+PDF nasce no primeiro download — `obterPdf()` também regenera se o arquivo sumiu do disco.
+
+`PATCH /certificados/:id/status` suspende, cancela ou reativa, com motivo obrigatório ao
+encerrar. `VENCIDO` não é aceito ali: vencimento decorre da data, aplicado por
+`POST /certificados/expirar-vencidos`, pensado para um agendador externo. Também bloqueia
+reativar fora da validade e mexer em cancelado.
+
+`CertificadoPdfService` é isolado e não conhece o Prisma: recebe os dados e devolve um
+Buffer, para que o layout possa mudar sem tocar no domínio.
+
+### `dashboard`
+`GET /dashboard/metricas`: total de clientes e produtos, contagem por situação
+(concluídas/em andamento/pendentes), percentual de pendentes e as 8 últimas movimentações.
+A classificação é calculada em memória sobre um único `findMany` enxuto
+(`select: {id, certificacao: {status}}`) — mais previsível que quatro `count` com filtros
+correlacionados. Se a base crescer muito, este é o primeiro ponto a virar agregação SQL.
+
+### `estados`
+Controller inline no módulo, `@Public()`: a lista de UFs alimenta formulários antes do login.
+
+### `contato`
+`POST /contato` público (5/min) grava a mensagem e notifica por e-mail, com escape de HTML
+no corpo. `GET /contato` e `PATCH /contato/:id/lida` para a equipe. No legado o model
+existia mas nenhum controller o usava.
+
+### `mail`
+`MailService` com nodemailer. **Sem SMTP configurado, não quebra**: registra o e-mail no log
+com `[SIMULADO]` — é o comportamento em desenvolvimento. Falhas de envio são logadas, nunca
+propagadas.
+
+Dois templates: redefinição de senha e **atualização da certificação** (nome da etapa, novo
+status e link para o painel), este agrupando todas as etapas alteradas em uma mensagem só.
+Nome de produto e de etapa vêm do banco e entram no corpo HTML, então passam por escape.
+
+### `uploads`
+`@Global()`, injetado nos módulos que gravam arquivo. Três caminhos, com allowlists
+distintos:
+
+| Método | Allowlist | Uso |
+|---|---|---|
+| `salvarImagem` | `jpeg`/`png`/`webp`/`gif` | Fotos de cliente, colaborador e produto |
+| `salvarDocumento` | imagens + PDF, Word e Excel | Evidências de etapa |
+| `salvarArquivoGerado` | — (conteúdo é do próprio sistema) | PDF de certificado |
+
+Em todos: extensão derivada do MIME e não do nome enviado, nome gerado por `randomUUID()`,
+limite de `UPLOAD_MAX_SIZE_MB` e guarda de path traversal (`normalize` + verificação de
+prefixo) antes de qualquer leitura ou `unlink`. `substituirImagem` remove o arquivo anterior;
+`caminhoAbsoluto` resolve o caminho para leitura autenticada.
+
+---
+
+## 8. Referência da API
+
+Base: `http://localhost:3000/api` · Swagger navegável: `/api/docs`
+Autenticação: `Authorization: Bearer <accessToken>` em tudo que não esteja marcado como
+público. Toda rota autenticada devolve `401` sem token válido e `403` quando o papel não
+autoriza.
+
+### Auth — `/auth`
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| POST | `/login` | Público · 10/min | Autentica cliente ou equipe; devolve `{accessToken, usuario}` |
+| GET | `/me` | Autenticado | Perfil completo da sessão (sem `senhaHash`) |
+| POST | `/esqueci-senha` | Público · 5/min | Dispara link de redefinição; resposta sempre neutra |
+| POST | `/redefinir-senha` | Público · 5/min | Consome o token e grava a nova senha |
+| PATCH | `/alterar-senha` | Autenticado | Troca a senha exigindo a atual |
+
+### Clientes — `/clientes`
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/` | ADMIN, FUNCIONARIO | Lista paginada; filtros `busca`, `status` |
+| GET | `/resumo` | ADMIN, FUNCIONARIO | Lista enxuta para selects |
+| GET | `/:id` | Autenticado (CLIENTE só o próprio) | Detalhe |
+| POST | `/` | ADMIN, FUNCIONARIO | Cadastra (senha obrigatória, validada) |
+| PATCH | `/:id` | Autenticado (CLIENTE só o próprio) | Atualiza; senha só se enviada |
+| PATCH | `/:id/status` | ADMIN, FUNCIONARIO | Ativa/desativa (soft delete) |
+| POST | `/:id/foto` | Autenticado (CLIENTE só o próprio) | `multipart/form-data`, campo `foto` |
+| DELETE | `/:id` | ADMIN | Exclusão definitiva; `409` se houver produtos |
+
+### Funcionários — `/funcionarios`
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/` | ADMIN, FUNCIONARIO | Lista paginada; filtros `busca`, `status`, `role` |
+| GET | `/:id` | ADMIN, FUNCIONARIO | Detalhe |
+| POST | `/` | ADMIN | Cadastra integrante |
+| PATCH | `/:id` | ADMIN | Atualiza; protege o último ADMIN |
+| PATCH | `/:id/status` | ADMIN | Ativa/desativa; não permite auto-desativação |
+| POST | `/:id/foto` | ADMIN, FUNCIONARIO | Foto do integrante |
+| DELETE | `/:id` | ADMIN | Exclusão definitiva; preserva a auditoria |
+
+### Produtos — `/produtos`
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/` | Autenticado (CLIENTE escopado) | Lista paginada; filtros `busca`, `status`, `clienteId`, `categoriaId` |
+| GET | `/:id` | Autenticado (CLIENTE só os seus) | Detalhe com `resumoCertificacao`, categoria e versão da trilha |
+| POST | `/` | ADMIN, FUNCIONARIO | Cadastra (exige `categoriaId`) **e abre a trilha na versão vigente** |
+| PATCH | `/:id` | ADMIN, FUNCIONARIO | Atualiza; `categoriaId` não é aceito |
+| PATCH | `/:id/status` | ADMIN, FUNCIONARIO | Ativa/desativa |
+| POST | `/:id/foto` | ADMIN, FUNCIONARIO | Foto do produto |
+| DELETE | `/:id` | ADMIN | Exclusão definitiva (cascata na trilha) |
+| GET | `/:id/certificados` | Autenticado (CLIENTE só os seus) | Certificados do produto |
+| POST | `/:id/certificados` | ADMIN | **Emite** o certificado |
+
+### Categorias e trilhas *(módulos inteiros: ADMIN, FUNCIONARIO — leitura inclusive)*
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/categorias-produto` | Equipe | Lista paginada, com a versão vigente resumida |
+| GET | `/categorias-produto/resumo` | Equipe | Lista para selects, com o modelo vigente |
+| GET | `/categorias-produto/:id` | Equipe | Detalhe |
+| POST | `/categorias-produto` | Equipe | Cadastra (nome, norma, `validadeMeses`) |
+| PATCH | `/categorias-produto/:id` | Equipe | Atualiza |
+| PATCH | `/categorias-produto/:id/status` | Equipe | Ativa/desativa (soft delete) |
+| DELETE | `/categorias-produto/:id` | ADMIN | Exclusão; `409` se houver produtos |
+| GET | `/categorias-produto/:id/modelos-trilha` | Equipe | Versões da trilha, com etapas |
+| POST | `/categorias-produto/:id/modelos-trilha` | Equipe | **Nova versão**; copia a vigente e a encerra |
+| GET | `/modelos-trilha/:id` | Equipe | Detalhe de uma versão |
+| PATCH | `/modelos-trilha/:id/etapas` | Equipe | Substitui as etapas; `409` se já tem produtos |
+| PATCH | `/modelos-trilha/:id/etapas/ordem` | Equipe | Reordena (drag-and-drop) |
+
+### Certificações — `/certificacoes`
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/` | Autenticado (CLIENTE escopado) | Painel: uma linha por produto, com progresso |
+| GET | `/produto/:produtoId` | Autenticado (CLIENTE só os seus) | Timeline: etapas, evidências, NCs e histórico |
+| PUT | `/produto/:produtoId` | ADMIN, FUNCIONARIO | Salva o lote, grava auditoria, abre NC e notifica |
+| GET | `/produto/:produtoId/versao-trilha` | ADMIN, FUNCIONARIO | Diz se há versão mais nova e o que mudaria |
+| POST | `/produto/:produtoId/migrar-versao-trilha` | ADMIN, FUNCIONARIO | Migra e renumera a trilha |
+| POST | `/produto/:produtoId/reiniciar` | ADMIN | Recria a trilha do zero |
+| POST | `/produto/:produtoId/etapas/:etapaId/documento` | ADMIN, FUNCIONARIO | Anexa evidência (`multipart`, campo `documento`) |
+| GET | `/certificacoes/documentos/:id/arquivo` | Autenticado (CLIENTE só os seus) | Baixa a evidência |
+
+### Não conformidades
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| POST | `/certificacoes/:certificacaoId/nao-conformidades` | ADMIN, FUNCIONARIO | Abre NC em etapa **reprovada** |
+| GET | `/nao-conformidades` | Autenticado (CLIENTE escopado) | Lista ordenada por prazo; filtros `status`, `criticidade`, `produtoId`, `pendentes` |
+| GET | `/nao-conformidades/:id` | Autenticado (CLIENTE só as suas) | Detalhe |
+| PATCH | `/nao-conformidades/:id/resposta` | **CLIENTE** | Registra a correção; NC vai a `EM_TRATATIVA` |
+| PATCH | `/nao-conformidades/:id/status` | ADMIN, FUNCIONARIO | Avalia; `RESOLVIDA` reabre a etapa |
+
+### Certificados — `/certificados`
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/` | Autenticado (CLIENTE escopado) | Lista; filtros `status`, `produtoId`, `clienteId`, `busca` |
+| GET | `/:id` | Autenticado (CLIENTE só os seus) | Detalhe |
+| GET | `/:id/pdf` | Autenticado (CLIENTE só os seus) | PDF; gerado sob demanda se faltar |
+| PATCH | `/:id/status` | ADMIN | Suspende, cancela ou reativa; motivo obrigatório ao encerrar |
+| POST | `/expirar-vencidos` | ADMIN | Rotina de expiração (agendador externo) |
+
+### Dashboard, Estados e Contato
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/dashboard/metricas` | Autenticado (CLIENTE escopado) | Cards e últimas movimentações |
+| GET | `/estados` | **Público** | 27 UFs |
+| POST | `/contato` | **Público** · 5/min | Recebe mensagem do site |
+| GET | `/contato` | ADMIN, FUNCIONARIO | Caixa de entrada paginada |
+| PATCH | `/contato/:id/lida` | ADMIN, FUNCIONARIO | Marca como lida |
+
+> `POST /contato` é consumido pelo formulário da home pública. Não existe ainda uma tela
+> no painel para ler a caixa de entrada — os dois endpoints de leitura estão disponíveis
+> apenas via API/Swagger.
+
+### Contratos de payload
+
+**Listagem paginada** (envelope de toda listagem):
+
+```json
+{ "dados": [ ... ], "total": 42, "pagina": 1, "limite": 20, "totalPaginas": 3 }
+```
+
+Query params comuns: `pagina` (≥1, padrão 1), `limite` (1–100, padrão 20), `busca` (≤120 chars).
+
+**Erro** (padronizado pelo `AllExceptionsFilter`):
+
+```json
+{
+  "statusCode": 400,
+  "message": ["senha: A senha deve ter ao menos 8 caracteres, incluindo letras e números."],
+  "error": "Bad Request",
+  "path": "/api/clientes",
+  "timestamp": "2026-08-12T14:52:10.412Z"
+}
+```
+
+**Salvar certificação** (`PUT /certificacoes/produto/:id`) — a não conformidade é opcional e
+só aceita quando a etapa vai como `REPROVADO`:
+
+```json
+{
+  "etapas": [
+    { "id": 1, "status": "APROVADO", "observacao": "Documentação conforme." },
+    {
+      "id": 2,
+      "status": "REPROVADO",
+      "observacao": "Ensaio fora do especificado.",
+      "naoConformidade": {
+        "descricao": "Carga de ruptura 3% abaixo do mínimo normativo.",
+        "criticidade": "MAIOR",
+        "prazoResposta": "2026-09-30"
+      }
+    }
+  ]
+}
+```
+
+**Nova versão de trilha** (`POST /categorias-produto/:id/modelos-trilha`) — corpo vazio
+(`{}`) copia as etapas da versão vigente:
+
+```json
+{
+  "etapas": [
+    { "nome": "Ensaio dinâmico", "tipo": "ENSAIO", "prazoSlaDias": 30, "exigeDocumento": true },
+    { "nome": "Decisão de certificação", "tipo": "DECISAO", "obrigatoria": true }
+  ]
+}
+```
+
+**Emitir certificado** (`POST /produtos/:id/certificados`) — `dataValidade` sobrescreve a
+validade padrão da categoria:
+
+```json
+{ "escopo": "Cinturão tipo paraquedista, modelos CS-100 e CS-120.", "dataValidade": "2028-08-12" }
+```
+
+### Códigos de status
+
+| Código | Quando |
+|---|---|
+| `200` / `201` | Sucesso |
+| `400` | Validação de DTO, enum inválido, regra de negócio (categoria sem trilha vigente, etapa que exige evidência sem anexo, NC fora de reprovação, emissão com etapa obrigatória pendente, último ADMIN) |
+| `401` | Sem token, token inválido/expirado, senha atual incorreta, cadastro inativo |
+| `403` | Papel sem permissão, ou cliente tentando acessar dado de outro |
+| `404` | Registro inexistente (`P2025` do Prisma também cai aqui) |
+| `409` | Duplicidade (`P2002`), vínculo que impede a exclusão (`P2003`), versão de trilha em uso, certificado vigente já existente |
+| `429` | Rate limit excedido |
+| `500` | Erro inesperado — detalhes ficam no log do servidor, não na resposta |
+
+---
+
+## 9. Preocupações transversais
+
+### Validação de entrada
+
+`ValidationPipe` global com três flags que definem a postura:
+
+```ts
+whitelist: true,              // remove propriedades não declaradas no DTO
+forbidNonWhitelisted: true,   // e responde 400 em vez de descartar em silêncio
+transform: true,              // instancia o DTO e converte tipos (enableImplicitConversion)
+```
+
+O efeito prático mais importante é **anti-mass-assignment**: enviar `{"role": "ADMIN"}` em
+um cadastro de cliente não é ignorado — é rejeitado com `400 property role should not
+exist`. A escalada de privilégio por campo extra no JSON deixa de ser possível sem que cada
+service precise se defender.
+
+### Tratamento de erros
+
+`AllExceptionsFilter` (`@Catch()` sem argumento, pega tudo):
+`HttpException` preserva status e mensagem; erros conhecidos do Prisma são traduzidos
+(`P2002` → 409, `P2003` → 409, `P2025` → 404); qualquer outra coisa vira `500` genérico com
+stack **apenas no log**. Nada de host, usuário ou query do banco na resposta.
+
+### Paginação e busca
+
+`PaginacaoDto` centraliza `pagina`/`limite`/`busca` com limites sanos (`limite ≤ 100`
+impede um `?limite=999999` que derrubaria a API) e expõe `skip` calculado. O helper
+`paginar()` monta o envelope. Buscas textuais usam `mode: 'insensitive'` do Prisma.
+
+### Rate limiting
+
+Global: 120 requisições/minuto. Reforçado por rota nos pontos sensíveis a força bruta e a
+abuso de e-mail: login 10/min, esqueci/redefinir senha 5/min, contato 5/min.
+
+### Cabeçalhos e CORS
+
+`helmet` com `crossOriginResourcePolicy: 'cross-origin'` — necessário para que as imagens de
+`/uploads` sejam consumidas pelo frontend em outra origem. CORS lê `CORS_ORIGINS` (lista
+separada por vírgula), com `credentials: true`.
+
+### Arquivos estáticos e downloads autenticados
+
+`UPLOAD_DIR` (padrão `./uploads`) é criado no bootstrap e servido em `/uploads/` com
+`index: false`. Em dev, o Vite faz proxy de `/uploads` para a API, então o mesmo caminho
+relativo funciona nos dois ambientes.
+
+Fotos são consumidas direto por esse caminho. **Evidências de etapa e PDFs de certificado
+têm rotas próprias e autenticadas** (`/certificacoes/documentos/:id/arquivo`,
+`/certificados/:id/pdf`), que aplicam o escopo do CLIENTE e devolvem o arquivo como blob.
+O download vem com `Content-Disposition: attachment` para que um SVG ou HTML anexado não
+execute no domínio da API. Ver a ressalva em §15 sobre o static continuar acessível.
+
+### Notificações por e-mail
+
+Mudanças de status na certificação avisam o cliente. O envio acontece **depois do commit e
+sem `await`**, com try/catch que só registra em log: um e-mail que não saiu não pode
+invalidar uma avaliação técnica já gravada, nem atrasar a resposta HTTP. Sem SMTP
+configurado, o `MailService` loga `[SIMULADO]`.
+
+### Logging
+
+Logger do Nest (`error`, `warn`, `log`). Prisma loga `warn`+`error` em desenvolvimento e só
+`error` fora dele. `500` sempre registra método, URL e stack. Nenhuma senha, hash ou token
+é logado.
+
+---
+
+## 10. Arquitetura do frontend
+
+### Composição da aplicação
+
+```tsx
+QueryClientProvider   // cache de servidor
+  └─ AuthProvider     // sessão: usuario, entrar, sair, temPapel
+      ├─ RouterProvider  // rotas
+      └─ Toaster         // feedback (sonner)
+```
+
+### Camadas
+
+| Camada | Arquivos | Responsabilidade |
+|---|---|---|
+| Transporte | `lib/api.ts` | axios, Bearer, tratamento de 401, `mensagemDeErro()` |
+| Contratos | `types/index.ts` | Espelho tipado dos payloads da API |
+| Acesso por domínio | `features/<x>/api.ts` | Funções tipadas por endpoint |
+| Estado de servidor | `lib/queryClient.ts` | Config do Query + **chaves de cache centralizadas** |
+| Sessão | `auth/*` | Contexto, `useAuth`, `RotaProtegida` |
+| Apresentação | `components/*`, `features/<x>/*Page.tsx` | UI e composição |
+
+### Sessão e revalidação
+
+`AuthProvider` hidrata o usuário de `localStorage` para o primeiro render (sem flash de
+tela vazia) e, em seguida, **revalida contra `GET /auth/me`**. Se o token não valer mais,
+limpa tudo e derruba a sessão. Ou seja: o cache local acelera, mas o servidor decide.
+
+O interceptor de resposta do axios fecha o ciclo: qualquer `401` com token presente limpa o
+storage e redireciona para `/login?sessao=expirada`.
+
+### Roteamento
+
+Rotas públicas: `/` (site institucional), `/login`, `/esqueci-senha`,
+`/redefinir-senha`, `/sem-permissao`.
+
+O painel vive em uma **rota de layout sem `path`** — ela envolve
+`<RotaProtegida><LayoutPainel/></RotaProtegida>` sem ocupar a raiz, que pertence à home.
+Os filhos declaram caminhos absolutos, com proteções adicionais por papel nas subárvores:
+
+| Rota | Quem vê |
+|---|---|
+| `dashboard`, `certificacoes`, `certificacoes/produto/:id`, `produtos`, `nao-conformidades`, `certificados` | Autenticados (o backend escopa o CLIENTE) |
+| `produtos/novo`, `produtos/:id/editar`, `clientes/*`, `categorias`, `categorias/:id` | Equipe |
+| `equipe/*` | Só `ADMIN` |
+
+`*` cai em `NaoEncontradaPage`.
+
+### Telas por domínio
+
+| Tela | O que faz |
+|---|---|
+| `categorias-produto/CategoriasPage` | Lista com a versão vigente destacada e alerta de categoria **sem trilha** (que não aceita produto) |
+| `categorias-produto/CategoriaDetalhePage` | Versões da trilha e editor de etapas com drag-and-drop, bloqueado quando a versão já tem produtos; botão "Nova versão" com confirmação |
+| `certificacoes/CertificacaoDetalhePage` | Timeline com status, evidências, NCs, aviso de versão defasada, painel do certificado e histórico |
+| `certificacoes/DocumentosEtapa` | Evidências da etapa: lista com tamanho, download e anexo; marca "obrigatória para aprovar" |
+| `nao-conformidades/NaoConformidadesPage` | Para o cliente abre em "Aguardando ação" com resposta inline; para a equipe, a mesma lista com cliente e produto |
+| `certificados/CertificadosPage` | Filtros por situação, download do PDF e ações de suspender/cancelar/reativar (ADMIN) |
+| `certificados/PainelCertificadoProduto` | Emissão dentro da tela do produto — o desfecho da trilha fica onde a trilha está |
+
+Downloads autenticados (PDF de certificado e evidências) passam pelo axios como **blob**:
+um link direto não serve, porque a rota exige o `Authorization` que só o interceptor injeta.
+
+### Site institucional (`features/home`)
+
+A home pública é a recriação do `app/views/home.php` do legado — mesmas seções, mesmo
+conteúdo e mesma identidade visual do template "Gp" (acento `#0076A8`, Roboto/Raleway/
+Poppins) —, agora **sem Bootstrap, AdminLTE, AOS, Swiper, GLightbox, Isotope nem
+PureCounter**. A página não faz nenhuma requisição a CDN de script.
+
+| Arquivo | Papel |
+|---|---|
+| `HomePage.tsx` | Composição das seções, na ordem do legado |
+| `conteudo.ts` | **Todo o texto e os dados** (empresa, serviços, depoimentos, PDFs) |
+| `secoes/*.tsx` | Uma seção por arquivo: Cabeçalho, Hero, Sobre, Diferenciais, Serviços, ChamadaAcao, Números, Depoimentos, Contato, Rodapé, BotõesFlutuantes |
+| `hooks.ts` | Substitutos das bibliotecas do legado (abaixo) |
+| `Revelar.tsx` | Wrapper declarativo do efeito de entrada (`data-aos="fade-up"`) |
+| `api.ts` | `POST /api/contato` |
+| `home.css` | Tema institucional, escopado em `.home` |
+
+Substituições de biblioteca — ~80 linhas de hook contra ~200 KB de JS externo:
+
+| Legado | Aqui |
+|---|---|
+| AOS (revelar ao rolar) | `useRevelar` com `IntersectionObserver`, respeitando `prefers-reduced-motion` |
+| PureCounter (contagem animada) | `useContador` com `requestAnimationFrame` e easing |
+| Swiper (carrossel) | `useCarrossel`: rotação a cada 5s, pausa no hover/foco, marcadores clicáveis |
+| `main.js` (classe `.scrolled` no body) | `useRolagem` |
+
+**Convivência dos dois temas.** O painel é escuro e seu CSS é global; a home é clara.
+Em vez de disputar especificidade, `useTemaInstitucional` adiciona
+`body.tema-institucional` enquanto a rota está montada e remove ao desmontar. Todo o
+`home.css` está escopado em `.home`, então nada vaza para o painel.
+
+**Conteúdo dinâmico.** O formulário de contato usa React Hook Form + Zod com o schema
+espelhando o `CriarMensagemContatoDto` (nome ≥3, e-mail válido, assunto ≥3, mensagem ≥10)
+e envia para a rota pública `POST /api/contato`. Campos opcionais vazios são omitidos —
+`forbidNonWhitelisted` no servidor não tolera lixo no payload.
+
+**Diferenças conscientes em relação ao legado:**
+
+- o formulário **realmente envia**; antes apontava para `forms/contact.php`, arquivo
+  ausente do repositório — nenhuma mensagem do site chegava a lugar algum
+- o item "Portfólio" saiu do menu: a seção correspondente já havia sido removida da
+  página, deixando o link morto (o rodapé apontava para `#portifolio`, com typo)
+- o botão "Login" vira "Painel" quando existe sessão ativa
+- o mapa do Google usa o endereço real; o embed do legado apontava para um lugar de
+  teste ("Trabalho Laisla")
+- ícones de redes sociais sem perfil definido ficam desabilitados em vez de `href=""`
+  (que recarregava a página)
+- a imagem da chamada para ação era `position: fixed` e vazava sobre outras seções em
+  telas curtas; agora fica contida
+- o menu móvel ganhou cortina que fecha ao toque fora e trava a rolagem do fundo
+- o botão do WhatsApp tem um pulso discreto (respiro + anel a cada 3s), suspenso no hover
+  e desligado sob `prefers-reduced-motion`
+
+### Estado de servidor
+
+`staleTime` de 30s, sem refetch ao focar a janela, e retry inteligente: erros `4xx`
+**não** são repetidos (insistir em um `403` é ruído), `5xx` tentam até 2 vezes. Mutations
+não repetem. As chaves de cache ficam todas em `chaves` — sem strings soltas pelo código,
+o que torna a invalidação após mutação previsível.
+
+### Formulários
+
+React Hook Form + Zod via `@hookform/resolvers`. O schema Zod é a fonte de verdade no
+cliente e reflete o DTO do servidor; o servidor valida de novo, sempre. Erros da API são
+traduzidos por `mensagemDeErro()`, que também detecta `ERR_NETWORK` e diz "verifique se o
+backend está no ar" em vez de exibir um erro técnico.
+
+### UI e tema
+
+CSS puro com design tokens em `:root` (`--cor-*`, `--vidro-*`, `--raio`, `--espaco`), tema
+escuro "liquid glass" herdado do legado — mas sem Bootstrap nem AdminLTE. A classe `.vidro`
+concentra o efeito de vidro. Componentes reutilizáveis: `LayoutPainel`, `Sidebar`
+(itens filtrados por papel), `CabecalhoPagina`, `Campo`, `CampoBusca`, `Badge`,
+`Progresso`, `Paginacao`, `ModalConfirmacao`, `EstadoVazio`, `Carregando`.
+
+### Build
+
+Vite com alias `@` → `src`, proxy de `/api` e `/uploads` para a porta 3000 (por isso não há
+CORS em dev), e `manualChunks` separando `vendor` (react, router), `query` e `forms` —
+mantém o chunk principal pequeno e melhora o cache entre deploys.
+
+---
+
+## 11. Configuração e variáveis de ambiente
+
+### Backend — `backend/.env` (modelo em `.env.example`)
+
+| Variável | Padrão | Função |
+|---|---|---|
+| `NODE_ENV` | `development` | Verbosidade do log do Prisma |
+| `PORT` | `3000` | Porta HTTP da API |
+| `API_PREFIX` | `api` | Prefixo global (e base do Swagger) |
+| `CORS_ORIGINS` | `http://localhost:5173` | Origens liberadas, separadas por vírgula |
+| `DATABASE_URL` | — | String de conexão PostgreSQL (**local: porta `5433`**) |
+| `JWT_SECRET` | — | **Obrigatória** (`getOrThrow`); gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `JWT_EXPIRES_IN` | `8h` | Validade do access token |
+| `BCRYPT_SALT_ROUNDS` | `12` | Custo do bcrypt |
+| `UPLOAD_DIR` | `./uploads` | Raiz dos arquivos enviados |
+| `UPLOAD_MAX_SIZE_MB` | `5` | Tamanho máximo por imagem |
+| `PUBLIC_URL` | `http://localhost:3000` | Base pública dos arquivos |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_SECURE` | `smtp.hostinger.com` / `465` / `true` | SMTP |
+| `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | vazio | Credenciais; **vazio ⇒ e-mail apenas logado** |
+| `FRONTEND_URL` | `http://localhost:5173` | Base do link de redefinição de senha |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `admin@procertocp.com.br` / `Procert@2026` | Admin criado pelo seed |
+| `LEGACY_MYSQL_*` | vazio | Conexão com o MySQL legado, só para o ETL |
+| `LEGACY_DEFAULT_PASSWORD` | `ProcertTrocar@2026` | Senha provisória de usuários migrados sem hash aproveitável |
+
+### Frontend — `frontend/.env`
+
+| Variável | Padrão | Função |
+|---|---|---|
+| `VITE_API_URL` | `/api` | Base das chamadas. Em dev, caminho relativo usando o proxy do Vite; em produção, a URL absoluta da API |
+
+`.env` **não** é versionado; `.env.example` é o contrato. `JWT_SECRET` sem valor derruba o
+boot intencionalmente — falhar cedo é melhor que rodar com segredo padrão.
+
+---
+
+## 12. Ambiente local
+
+### Pré-requisitos
+
+Node.js 20+, Docker Desktop, npm.
+
+### Subida completa
+
+```bash
+# 1. Banco (na raiz do projeto)
+docker compose up -d
+#    PostgreSQL em localhost:5433  ·  Adminer em http://localhost:8080
+
+# 2. Backend
+cd backend
+cp .env.example .env          # ajuste DATABASE_URL para a porta 5433 e gere o JWT_SECRET
+npm install
+npx prisma migrate dev        # aplica as migrations
+npm run seed                  # 27 UFs, 4 etapas padrão, admin inicial
+npm run start:dev             # API em watch mode
+
+# 3. Frontend (outro terminal)
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+### Endereços e credenciais
+
+| Serviço | Endereço |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API | http://localhost:3000/api |
+| Swagger | http://localhost:3000/api/docs |
+| Adminer | http://localhost:8080 (server `postgres`, user/pass/db `procert`) |
+| PostgreSQL | `localhost:5433` |
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Administrador (seed) | `admin@procertocp.com.br` | `Procert@2026` |
+
+> **Porta 5433, não 5432.** O container foi remapeado em `docker-compose.yml`
+> (`'5433:5432'`) porque uma instância nativa de PostgreSQL já ocupava a 5432 nesta
+> máquina — o sintoma era `P1000: Authentication failed`, já que o Prisma conectava no
+> servidor errado. `DATABASE_URL` precisa refletir isso. O `README.md` ainda menciona 5432.
+
+### Verificação rápida por linha de comando
+
+```bash
+# login e captura do token
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@procertocp.com.br","senha":"Procert@2026"}' \
+  | grep -o '"accessToken":"[^"]*' | cut -d'"' -f4)
+
+curl -s http://localhost:3000/api/auth/me           -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:3000/api/dashboard/metricas -H "Authorization: Bearer $TOKEN"
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/dashboard/metricas   # 401
+```
+
+---
+
+## 13. Operação e manutenção
+
+### Scripts — backend
+
+| Comando | Ação |
+|---|---|
+| `npm run start:dev` | API em watch mode |
+| `npm run build` + `npm run start:prod` | Build e execução de produção |
+| `npm run seed` | UFs, categoria "Geral" com trilha v1 e admin (idempotente via upsert) |
+| `npm run prisma:migrate` | Cria/aplica migration em desenvolvimento |
+| `npm run prisma:deploy` | Aplica migrations em produção (não gera novas) |
+| `npm run prisma:generate` | Regenera o client tipado |
+| `npm run prisma:studio` | Explorador visual do banco |
+| `npm run migrate:legacy` | ETL do MySQL legado (aceita `-- --dry-run`) |
+| `npm run migrate:categorias` | Catálogo global → trilhas por categoria (aceita `-- --dry-run`) |
+| `npm test` / `npm run lint` | Ver §14 — ambos falham hoje |
+
+> **Não rode `npm run build` com o `start:dev` ativo.** O `deleteOutDir` do nest-cli apaga
+> o `dist/` embaixo do processo em watch e o derruba.
+
+### Rotina agendada
+
+`POST /api/certificados/expirar-vencidos` marca como `VENCIDO` os certificados fora da
+validade. Não há agendador embutido: a chamada é feita por um cron externo, uma vez ao dia,
+autenticado como `ADMIN`. É idempotente — rodar duas vezes no mesmo dia não muda nada.
+
+### Scripts — frontend
+
+| Comando | Ação |
+|---|---|
+| `npm run dev` | Vite dev server |
+| `npm run build` | `tsc -b` + build de produção em `dist/` |
+| `npm run preview` | Serve o build localmente |
+| `npm run lint` | ESLint (config existe neste pacote) |
+
+### Fluxo de mudança no schema
+
+```
+edita prisma/schema.prisma
+  → npx prisma migrate dev --name descricao_curta
+      (gera SQL versionado em prisma/migrations/ e regenera o client)
+  → ajusta services/DTOs afetados
+  → espelha o contrato em frontend/src/types/index.ts
+```
+
+Em produção: `prisma migrate deploy`. Nunca editar uma migration já aplicada — crie outra.
+
+### ETL do legado
+
+`prisma/migrate-legacy.ts` (~500 linhas) carrega na ordem das FKs:
+`estados → clientes → funcionários → produtos → etapas → certificações → histórico →
+pagamentos`, mantendo mapas de `id` antigo → novo. Tratamento de senhas: texto puro é
+re-hasheado com bcrypt (o usuário continua entrando com a mesma senha), hash `$2y$` do PHP
+é aproveitado, e ausência de senha recebe `LEGACY_DEFAULT_PASSWORD`. Sempre rode primeiro
+com `--dry-run`.
+
+### Transposição para trilhas por categoria
+
+`prisma/migrate-categorias.ts` move uma base do catálogo global para o modelo versionado:
+cria a categoria "Geral", a versão 1 da sua trilha, copia cada etapa do catálogo (inclusive
+as inativas que ainda estejam em uso, como não obrigatórias), aponta os produtos existentes
+e remapeia `certificacoes_produto.etapa_id`. É idempotente e aceita `-- --dry-run`.
+
+A transição foi feita em **três passos**, porque a FK antiga impedia o remapeamento:
+
+```
+1. migration `categorias_e_modelos_trilha`  (aditiva: tabelas novas, colunas NULLABLE,
+                                             derruba a FK para o catálogo global)
+2. npm run migrate:categorias                (transpõe os dados)
+3. migration `fecha_transicao_trilhas`       (NOT NULL + FK para modelos_etapa)
+```
+
+Uma armadilha que o script documenta: `etapas_certificacao` e `modelos_etapa` têm sequências
+de id independentes que costumam se sobrepor (1..4 → 1..4 numa base recém-semeada). Por isso
+a checagem de "já migrado" é feita **no nível da execução**, não linha a linha — o teste por
+id daria falso positivo e pularia o remapeamento em silêncio.
+
+O model `EtapaCertificacao` continua no schema, marcado como obsoleto, para permitir
+conferência pós-cutover. O módulo `etapas` do backend e a feature correspondente do frontend
+já foram removidos.
+
+### Encerrando o ambiente
+
+```bash
+docker compose down          # containers (o volume procert-pgdata persiste)
+docker compose down -v       # apaga também os dados
+```
+
+No Windows, processos `node` iniciados por wrappers de shell podem sobreviver ao
+encerramento do terminal. Se a porta continuar ocupada:
+`netstat -ano | findstr :3000` e `taskkill /PID <pid> /F`.
+
+---
+
+## 14. Qualidade: testes, lint e lacunas reais
+
+Estado verificado nesta data, sem maquiagem:
+
+| Item | Situação |
+|---|---|
+| Compilação do backend (`tsc`) | ✅ 0 erros |
+| Build do frontend (`tsc -b && vite build`) | ✅ compila |
+| **`npm test` (backend)** | ❌ **falha: não existe nenhum arquivo `.spec.ts`** — Jest está configurado (`testRegex: .*\.spec\.ts$`, `ts-jest`), a suíte está vazia |
+| **`npm run lint` (backend)** | ❌ **falha: não existe `eslint.config.js`** em `backend/` — ESLint 9 exige flat config; as dependências estão instaladas |
+| `npm run lint` (frontend) | ✅ `eslint.config.js` presente |
+| Testes e2e | ❌ script `test:e2e` aponta para `test/jest-e2e.json`, que não existe |
+| Validação funcional | ✅ feita manualmente a cada incremento: login→dashboard, RBAC por papel, escopo de cliente, versionamento de trilha, ciclo completo de NC, emissão/suspensão/expiração de certificado, evidências obrigatórias, mass-assignment, 400/401/403/404/409 |
+
+**Estas são as duas lacunas mais relevantes do projeto — e cresceram.** A superfície de
+regras multiplicou com as quatro etapas de evolução (imutabilidade de versão, renumeração
+de trilha, máquina de estados da NC, ciclo do certificado, exigência de evidência), e nada
+disso está protegido por regressão automatizada. Prioridade sugerida:
+
+1. `backend/eslint.config.js` (flat config, `@typescript-eslint`), destravando `npm run lint`.
+2. Testes unitários dos services com maior densidade de regra, mockando `PrismaService`:
+   - `AuthService` — login válido/inválido, cadastro inativo, anti-enumeração, ciclo de reset
+   - `ModelosTrilhaService` — cópia de etapas na nova versão, encerramento da anterior, `409` na versão em uso
+   - `CertificacoesService.salvar` — etapa de outro produto, no-op sem histórico, bloqueio por evidência ausente, NC fora de reprovação
+   - `CertificacoesService.migrarParaVersaoVigente` — etapas adicionadas por nome e **renumeração** (o caso da etapa inserida no meio)
+   - `NaoConformidadesService` — sequencial por ano, reabertura da etapa em `RESOLVIDA`, recusa de reavaliação
+   - `CertificadosService` — etapas obrigatórias, `409` de certificado vigente, cálculo de validade (incluindo fim de mês), expiração
+   - `ProdutosService.criar` — abertura da trilha e erro sem modelo vigente
+   - `FuncionariosService` — proteção do último ADMIN, auto-desativação
+   - `DashboardService` — classificação concluída/em andamento/pendente e escopo do CLIENTE
+3. E2E com Supertest sobre a matriz de papéis × endpoints — é o que garante que um `@Roles`
+   removido por acidente não passe em revisão.
+
+---
+
+## 15. Problemas conhecidos e decisões registradas
+
+### Build incremental × `deleteOutDir` (corrigido)
+
+`nest-cli.json` define `deleteOutDir: true`, que apaga `dist/` a cada start. Com
+`incremental: true` herdado do `tsconfig.json`, o `tsc` consultava
+`tsconfig.build.tsbuildinfo`, concluía que nada havia mudado e **não emitia nada** — o
+start então falhava com `Cannot find module '…/dist/main'`, logo após imprimir
+"Found 0 errors". Reproduzia em toda execução após a primeira.
+
+Correção aplicada: `"incremental": false` em `backend/tsconfig.build.json`, com comentário
+explicando o motivo. O build de desenvolvimento (`tsconfig.json`) segue incremental.
+Se o sintoma reaparecer: `rm -rf dist tsconfig.build.tsbuildinfo` e reinicie.
+
+### Porta do PostgreSQL
+
+Container mapeado em `5433:5432` para conviver com uma instância nativa na 5432. O
+`README.md` ainda documenta 5432 — vale alinhar.
+
+### `README.md` desatualizado em dois pontos
+
+Porta do banco (5432 → 5433) e a afirmação implícita de que `npm test`/`npm run lint`
+funcionam no backend.
+
+### Modelo de sessão
+
+Access token de 8h no `localStorage`, sem refresh token e sem revogação por lista. A
+revalidação no banco a cada request cobre desativação de conta, mas **não** invalida um
+token vazado antes de expirar. Para produção, o caminho é cookie `httpOnly` + `SameSite` e
+uma rota de refresh.
+
+### `Pagamento` modelado sem módulo de escrita
+
+A tabela existe, os produtos expõem `ultimoPagamento`, mas não há controller/service de
+pagamentos. É uma extensão prevista, não um bug — só não deve ser confundida com
+funcionalidade entregue.
+
+### `/uploads` continua servido sem autenticação
+
+Evidências e PDFs de certificado têm rotas autenticadas com verificação de posse, mas o
+diretório inteiro segue exposto como estático — quem tiver a URL acessa direto, sem token.
+Os nomes são UUID (não adivinháveis) e nenhuma tela expõe esses caminhos, mas isso é
+obscuridade, não controle de acesso.
+
+Correção recomendada: restringir o `useStaticAssets` a `/uploads/produtos|clientes|funcionarios`
+e servir `certificados/` e `certificacoes/` apenas pelas rotas autenticadas.
+
+### Produtos migrados não têm `exigeDocumento`
+
+O script de transposição copiou as etapas do catálogo global, que não tinha esse conceito —
+todas nasceram com `exigeDocumento: false`. Para passar a exigir evidência nesses produtos é
+preciso criar uma versão nova da trilha da categoria e migrar cada produto, já que a versão
+em uso é imutável por construção.
+
+### Vulnerabilidades do `npm audit` (backend)
+
+4 *high* + 1 *critical*, todas em dependências transitivas pré-existentes:
+`bcrypt` → `node-pre-gyp` → `tar`, `nodemailer` e `@nestjs/swagger` → `js-yaml`. O `pdfkit`,
+adicionado para o PDF do certificado, não introduziu nenhuma. Merece um `npm audit fix` em
+trabalho separado, com verificação de quebra de API.
+
+### Ordenação após migração de versão (resolvido)
+
+Um produto migrado carrega etapas de modelos diferentes, cujos `ordem` colidem. A primeira
+implementação ordenava pela `ordem` do modelo com desempate por id, o que produzia sequências
+plausíveis mas erradas (uma etapa nova inserida no meio aparecia no fim). Resolvido com
+`CertificacaoProduto.ordem`: campo próprio do produto, copiado do modelo na abertura e
+**renumerado 1..N dentro da transação de migração**, posicionando as etapas novas conforme o
+modelo vigente. Toda ordenação de timeline passou a usá-lo.
+
+### `DashboardService` calcula em memória
+
+`findMany` enxuto + agregação em JavaScript. Correto e legível na escala atual; com dezenas
+de milhares de produtos, migre para agregação SQL.
+
+### Peso dos assets da home
+
+As imagens vieram do legado sem reprocessamento e algumas são grandes para uso web:
+`depoimentos-bg.png` tem **2,4 MB** e `cta-bg.jpg` 340 KB. Todas carregam com
+`loading="lazy"` (exceto o hero, que usa `fetchPriority="high"`), mas o certo é converter
+para WebP/AVIF e redimensionar — provavelmente 90% de redução sem perda perceptível.
+
+O `servico.jpg` original tinha **13,4 MB** e foi **substituído** por `services.jpg`
+(54 KB, mesma temática) na seção de diferenciais. Publicar a original seria um defeito de
+performance, não fidelidade.
+
+O `bootstrap-icons.css` completo (~106 KB, 19,7 KB gzip) é carregado por ~28 ícones. Se o
+peso incomodar, o caminho é gerar um subset ou inlinar os SVGs usados.
+
+### Dados de contato divergentes entre seções
+
+O legado exibia **três** números: `11 94230-7431` na seção de contato, `11 91443-3414` no
+rodapé e `5511914433414` no link do WhatsApp. Os textos foram preservados como estavam
+(em `conteudo.ts`, campos `telefoneContato` e `telefoneRodape`) porque não há como
+inferir qual é o correto — precisa de confirmação do cliente.
+
+### Menu móvel: armadilhas de empilhamento
+
+Duas correções que valem registro, porque voltam a morder em qualquer refatoração do
+cabeçalho:
+
+- **O botão de fechar sumia atrás do painel.** O painel de navegação é `z-index: 998` e o
+  cabeçalho, `997` — o X ficava por baixo. O botão agora é `z-index: 999`.
+- **Aberto, o botão vira `position: fixed` no canto superior direito.** Sem isso ele
+  permanece na posição original do cabeçalho, onde cai sobre a cortina escura em vez do
+  painel branco — um X escuro invisível sobre fundo escuro. Fixá-lo garante que ele
+  sempre pouse sobre o branco, em qualquer largura.
+
+A lista suspensa "Links Úteis" precisou de `.home__nav .home__nav-suspenso` (e não apenas
+`.home__nav-suspenso`): a regra base `.home__nav ul` tem especificidade maior e impunha
+`display: flex` em linha com `align-items: center`, deixando o menu horizontal e com os
+itens encolhidos ao tamanho do texto.
+
+> **Como o layout móvel foi verificado:** a janela do Chrome estava maximizada e não
+> aceitou redimensionamento, então o breakpoint de `home.css` foi elevado temporariamente
+> para ativar as regras móveis reais na largura corrente — abertura, X, acordeão dos
+> documentos, cortina e liberação da rolagem — e devolvido a `1199px` em seguida. Vale
+> ainda uma passada manual em um aparelho real.
+
+### Duas fontes de verdade para os tipos
+
+`schema.prisma` (backend) e `types/index.ts` (frontend) são mantidos manualmente em sincronia.
+Divergência silenciosa é possível. Mitigação futura: gerar tipos do OpenAPI que o Swagger
+já expõe.
+
+---
+
+## 16. Postura de segurança
+
+| Controle | Implementação |
+|---|---|
+| Senhas | bcrypt, 12 rounds, nunca em texto; `senhaHash` fora de todo `select` de resposta |
+| Política de senha | ≥8 caracteres com letra e número, validada no DTO |
+| Autenticação | JWT assinado, expiração obrigatória, `JWT_SECRET` obrigatório no boot |
+| Revogação | Revalidação do usuário no banco a cada request (cadastro inativo cai na hora) |
+| Autorização | Guards globais; acesso é opt-out via `@Public()`, nunca opt-in |
+| Multi-tenant | Escopo do CLIENTE derivado do token; verificação de posse em detalhes e uploads |
+| Mass assignment | `whitelist` + `forbidNonWhitelisted` → `{"role":"ADMIN"}` recebe `400` |
+| SQL injection | Prisma parametriza tudo; não há SQL concatenado |
+| Upload | Allowlists de MIME por finalidade (imagem × documento), extensão derivada do MIME, nome `randomUUID()`, limite de tamanho, guarda de path traversal |
+| Download de evidência | Rota autenticada com verificação de posse; `Content-Disposition: attachment` para não executar SVG/HTML no domínio da API |
+| Injeção em e-mail | Nome de produto e etapa escapados antes de entrar no corpo HTML |
+| Imutabilidade de processo | Versão de trilha em uso não pode ser editada; certificado cancelado não muda de estado; NC encerrada não é reaberta |
+| Força bruta | Throttle 10/min no login, 5/min em senha e contato, 120/min global |
+| Enumeração de contas | Mensagem e tempo de resposta uniformes no login; resposta neutra em `esqueci-senha`; falha de SMTP não propaga |
+| Reset de senha | Token de 32 bytes, **só o SHA-256 é persistido**, uso único, validade de 1h, pedidos anteriores invalidados |
+| Cabeçalhos | helmet |
+| CORS | Allowlist explícita via `CORS_ORIGINS` |
+| Vazamento em erro | `AllExceptionsFilter` padroniza; stack só no log |
+| Auditoria | Histórico imutável com autoria da sessão; sobrevive à exclusão do autor (`SetNull` + nome desnormalizado) |
+| Integridade operacional | Impossível remover o último ADMIN ativo ou desativar a si mesmo |
+
+**Pendências conscientes:** token em `localStorage` (exposto a XSS), ausência de refresh
+token, `/uploads` servido sem autenticação (§15), vulnerabilidades transitivas do
+`npm audit` (§15) e — o item mais crítico — nenhum teste automatizado cobrindo a matriz de
+autorização, de modo que hoje uma regressão de RBAC passaria em silêncio.
+
+---
+
+## 17. Próximos passos sugeridos
+
+Em ordem de retorno sobre esforço:
+
+1. **`backend/eslint.config.js`** — destrava `npm run lint`; barato e imediato.
+2. **Suíte de testes dos services** conforme §14 — protege as regras que hoje só existem em
+   código e na cabeça de quem escreveu.
+3. **E2E de autorização** (Supertest sobre papéis × endpoints) — a rede de segurança do RBAC.
+4. **Fechar o `/uploads` estático** para certificados e evidências (§15) — pequeno e com
+   ganho direto de segurança.
+5. **Alinhar o `README.md`** (porta 5433, estado real de test/lint, novos módulos).
+6. **`npm audit fix` no backend**, verificando quebra de API nas dependências afetadas.
+7. **Agendar a expiração de certificados** — cron externo chamando
+   `POST /certificados/expirar-vencidos`; sem isso, certificados vencidos só mudam de status
+   quando alguém chama a rota.
+8. **Otimizar as imagens da home** — WebP/AVIF e redimensionamento; hoje `depoimentos-bg.png`
+   sozinho custa 2,4 MB.
+9. **Tela de caixa de entrada** no painel para as mensagens de `/contato`, que hoje só
+   podem ser lidas via API.
+10. **Aviso de prazo de NC vencido** — hoje o vencimento é visível na tela, mas não dispara
+    e-mail nem aparece no dashboard.
+11. **Módulo de pagamentos** — a tabela e a exposição no produto já existem.
+12. **Endurecer a sessão** — cookie `httpOnly` + refresh token, se houver requisito de
+    sessão longa ou exposição pública.
+13. **Gerar tipos do frontend a partir do OpenAPI** — elimina a sincronização manual.
+14. **CI** (GitHub Actions): `build` + `lint` + `test` nos dois pacotes, com Postgres de
+    serviço para os e2e.
+15. **Observabilidade** — health check (`/api/health`), logs estruturados e métricas antes de
+    ir a produção.
+
+---
+
+*Documento baseado na leitura direta do código em `backend/` e `frontend/`, com o ambiente
+local em execução e os fluxos principais verificados por API e navegador.*

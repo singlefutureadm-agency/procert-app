@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80" role="img" aria-label="Sem imagem do produto">
+  <rect width="80" height="80" rx="12" fill="#1e293b"/>
+  <path d="M40 14 66 27v26L40 66 14 53V27z" fill="none" stroke="#64748b" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M14 27l26 13 26-13M40 40v26" fill="none" stroke="#64748b" stroke-width="3" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Ambiente — NUNCA versionar credenciais (lição do legado: config.php versionado)
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Uploads de usuário
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
