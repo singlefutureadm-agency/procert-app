@@ -4,6 +4,21 @@
    agora com design tokens, sem Bootstrap e sem AdminLTE.
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   Design tokens
+
+   Estes valores são o preset "Padrão ProCert" e existem por dois motivos:
+   servem de fallback síncrono antes de `GET /api/aparencia` responder (evita
+   flash de página sem estilo), e são o que a página /dashboard/aparencia
+   restaura. O espelho no servidor é `modules/aparencia/aparencia.defaults.ts`
+   — mudou aqui, mude lá, senão "Restaurar padrão" passa a mentir.
+
+   Em runtime, `lib/tema.ts` sobrescreve cada um destes no
+   `document.documentElement`. Nenhuma regra abaixo pode ter cor literal, ou
+   ela não reage ao tema — em especial no modo claro, onde os antigos
+   `rgba(255,255,255,…)` sumiam contra o fundo.
+   -------------------------------------------------------------------------- */
+
 :root {
   /* Cores */
   --cor-primaria: #0d6efd;
@@ -13,24 +28,26 @@
   --cor-erro: #dc2626;
   --cor-info: #0ea5e9;
 
+  /* Fundo — o gradiente é composto a partir dos tokens, não chumbado */
   --fundo: #0b1220;
-  --fundo-gradiente: radial-gradient(
-      1200px 600px at 15% -10%,
-      rgba(13, 110, 253, 0.35),
-      transparent 60%
-    ),
-    radial-gradient(900px 500px at 100% 0%, rgba(14, 165, 233, 0.25), transparent 55%),
-    linear-gradient(160deg, #0b1220 0%, #111a2e 55%, #0b1220 100%);
+  --fundo-degrade: #111a2e;
+  --fundo-brilho-1: rgba(13, 110, 253, 0.35);
+  --fundo-brilho-2: rgba(14, 165, 233, 0.25);
 
   --texto: #f8fafc;
   --texto-suave: rgba(248, 250, 252, 0.72);
   --texto-fraco: rgba(248, 250, 252, 0.5);
+  /* Superfícies pintadas com a primária não invertem junto com o tema, então
+     o texto sobre elas não pode herdar --texto. */
+  --texto-sobre-primaria: #ffffff;
 
   /* Vidro */
   --vidro-fundo: rgba(255, 255, 255, 0.07);
   --vidro-fundo-forte: rgba(255, 255, 255, 0.12);
   --vidro-borda: rgba(255, 255, 255, 0.18);
-  --vidro-sombra: 0 8px 32px rgba(2, 6, 23, 0.45);
+  --sombra-cor: rgba(2, 6, 23, 0.45);
+  --overlay-modal: rgba(2, 6, 23, 0.72);
+  --vidro-blur: 14px;
 
   /* Métrica */
   --raio: 16px;
@@ -39,6 +56,36 @@
   --largura-sidebar: 268px;
 
   --fonte: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Derivados — recalculam sozinhos quando os tokens acima mudam. */
+  --fundo-gradiente: radial-gradient(
+      1200px 600px at 15% -10%,
+      var(--fundo-brilho-1),
+      transparent 60%
+    ),
+    radial-gradient(900px 500px at 100% 0%, var(--fundo-brilho-2), transparent 55%),
+    linear-gradient(
+      160deg,
+      var(--fundo) 0%,
+      var(--fundo-degrade) 55%,
+      var(--fundo) 100%
+    );
+  --vidro-sombra: 0 8px 32px var(--sombra-cor);
+
+  color-scheme: dark;
+}
+
+/*
+ * `color-scheme` precisa acompanhar o modo, senão o navegador pinta scrollbars,
+ * caret e controles nativos com o esquema errado — o sintoma clássico é um
+ * `<select>` de sistema escuro dentro de um painel claro.
+ * `lib/tema.ts` alterna estas classes no <html>.
+ */
+:root.tema-claro {
+  color-scheme: light;
+}
+
+:root.tema-escuro {
   color-scheme: dark;
 }
 
@@ -62,6 +109,33 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Papel de parede em camada própria, atrás do conteúdo e à frente do gradiente.
+ *
+ * Um `::before` fixo em vez de mais uma camada em `background-image` do body
+ * porque a opacidade precisa ser independente: aplicada no `background` ela
+ * apagaria o gradiente junto. Fica sempre montado, com opacidade 0 e
+ * `--papel-parede: none` quando não há imagem — assim ligar e desligar no
+ * preview é só trocar duas variáveis, sem reflow.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--papel-parede, none);
+  background-size: var(--papel-parede-ajuste, cover);
+  background-repeat: var(--papel-parede-repeticao, no-repeat);
+  background-position: center;
+  opacity: var(--papel-parede-opacidade, 0);
+}
+
+/* A home institucional tem fundo próprio e não usa o papel de parede do painel. */
+body.tema-institucional::before {
+  display: none;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -77,8 +151,8 @@ h1, h2, h3, h4 {
 
 .vidro {
   background: var(--vidro-fundo);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(var(--vidro-blur));
+  -webkit-backdrop-filter: blur(var(--vidro-blur));
   border: 1px solid var(--vidro-borda);
   border-radius: var(--raio);
   box-shadow: var(--vidro-sombra);
@@ -113,6 +187,13 @@ h1, h2, h3, h4 {
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+/* Logo enviada pelo admin: altura fixa, largura livre, sem distorcer. */
+.sidebar__logo {
+  max-height: 40px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .sidebar__grupo {
@@ -294,7 +375,7 @@ table.tabela {
   border-radius: var(--raio-sm);
   border: 1px solid var(--vidro-borda);
   background: var(--vidro-fundo);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--vidro-blur));
   color: var(--texto);
   font: inherit;
   font-size: 0.9rem;
@@ -319,20 +400,27 @@ table.tabela {
 .btn--primario {
   background: var(--cor-primaria);
   border-color: transparent;
+  color: var(--texto-sobre-primaria);
 }
 
 .btn--primario:hover:not(:disabled) {
   background: var(--cor-primaria-escura);
 }
 
+/*
+ * Estados semânticos saem de `color-mix` sobre o token, em vez de rgba fixo.
+ * Assim uma cor de erro nova se propaga para fundo, borda e texto sem precisar
+ * de três tokens extras — e o texto continua legível nos dois modos, porque a
+ * mistura é feita contra `--texto`, que inverte junto com o tema.
+ */
 .btn--perigo {
-  background: rgba(220, 38, 38, 0.18);
-  border-color: rgba(220, 38, 38, 0.45);
-  color: #fecaca;
+  background: color-mix(in srgb, var(--cor-erro) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cor-erro) 45%, transparent);
+  color: color-mix(in srgb, var(--cor-erro) 35%, var(--texto));
 }
 
 .btn--perigo:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.3);
+  background: color-mix(in srgb, var(--cor-erro) 30%, transparent);
 }
 
 .btn--icone {
@@ -469,7 +557,7 @@ table.tabela {
 .nc__bloco {
   padding: 8px 10px;
   border-left: 2px solid var(--cor-primaria);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--vidro-fundo);
   border-radius: 0 var(--raio-sm) var(--raio-sm) 0;
 }
 
@@ -541,7 +629,7 @@ table.tabela {
   padding: 11px 13px;
   border-radius: var(--raio-sm);
   border: 1px solid var(--vidro-borda);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--vidro-fundo);
   color: var(--texto);
   font: inherit;
   font-size: 0.92rem;
@@ -557,12 +645,13 @@ table.tabela {
 .campo select:focus,
 .campo textarea:focus {
   outline: none;
-  border-color: rgba(13, 110, 253, 0.75);
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.22);
+  border-color: color-mix(in srgb, var(--cor-primaria) 75%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-primaria) 22%, transparent);
 }
 
+/* O <option> nativo não aceita fundo translúcido: precisa de cor sólida. */
 .campo select option {
-  background: #111a2e;
+  background: var(--fundo-degrade);
   color: var(--texto);
 }
 
@@ -573,13 +662,18 @@ table.tabela {
 
 .campo__erro {
   font-size: 0.79rem;
-  color: #fca5a5;
+  color: color-mix(in srgb, var(--cor-erro) 45%, var(--texto));
 }
 
 .campo--invalido input,
 .campo--invalido select,
 .campo--invalido textarea {
-  border-color: rgba(220, 38, 38, 0.7);
+  border-color: color-mix(in srgb, var(--cor-erro) 70%, transparent);
+}
+
+/* Marcador de campo obrigatório — era um hex inline no Campo.tsx. */
+.campo__obrigatorio {
+  color: color-mix(in srgb, var(--cor-erro) 45%, var(--texto));
 }
 
 .form-acoes {
@@ -618,28 +712,29 @@ fieldset.secao-form legend {
   white-space: nowrap;
 }
 
+/* Pendente é o único sem cor semântica própria: deriva do texto (neutro). */
 .badge--pendente {
-  background: rgba(148, 163, 184, 0.18);
-  border-color: rgba(148, 163, 184, 0.4);
-  color: #e2e8f0;
+  background: color-mix(in srgb, var(--texto) 14%, transparent);
+  border-color: color-mix(in srgb, var(--texto) 30%, transparent);
+  color: var(--texto-suave);
 }
 
 .badge--andamento {
-  background: rgba(13, 110, 253, 0.2);
-  border-color: rgba(13, 110, 253, 0.5);
-  color: #bfdbfe;
+  background: color-mix(in srgb, var(--cor-primaria) 20%, transparent);
+  border-color: color-mix(in srgb, var(--cor-primaria) 50%, transparent);
+  color: color-mix(in srgb, var(--cor-primaria) 35%, var(--texto));
 }
 
 .badge--aprovado {
-  background: rgba(22, 163, 74, 0.2);
-  border-color: rgba(22, 163, 74, 0.5);
-  color: #bbf7d0;
+  background: color-mix(in srgb, var(--cor-sucesso) 20%, transparent);
+  border-color: color-mix(in srgb, var(--cor-sucesso) 50%, transparent);
+  color: color-mix(in srgb, var(--cor-sucesso) 35%, var(--texto));
 }
 
 .badge--reprovado {
-  background: rgba(220, 38, 38, 0.2);
-  border-color: rgba(220, 38, 38, 0.5);
-  color: #fecaca;
+  background: color-mix(in srgb, var(--cor-erro) 20%, transparent);
+  border-color: color-mix(in srgb, var(--cor-erro) 50%, transparent);
+  color: color-mix(in srgb, var(--cor-erro) 35%, var(--texto));
 }
 
 /* ------------------------------ Progresso -------------------------------- */
@@ -647,7 +742,7 @@ fieldset.secao-form legend {
 .progresso {
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--vidro-fundo-forte);
   overflow: hidden;
   min-width: 90px;
 }
@@ -676,7 +771,7 @@ fieldset.secao-form legend {
   top: 46px;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--vidro-fundo-forte);
 }
 
 .timeline__progresso {
@@ -707,8 +802,8 @@ fieldset.secao-form legend {
   place-items: center;
   font-size: 1.05rem;
   font-weight: 700;
-  border: 3px solid rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.12);
+  border: 3px solid color-mix(in srgb, var(--texto) 85%, transparent);
+  background: var(--vidro-fundo-forte);
   margin: 0 auto;
 }
 
@@ -732,9 +827,9 @@ fieldset.secao-form legend {
 }
 
 @keyframes pulsar {
-  0% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.45); }
-  70% { box-shadow: 0 0 0 14px rgba(13, 110, 253, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(13, 110, 253, 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cor-primaria) 45%, transparent); }
+  70% { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 
 .historico {
@@ -748,7 +843,7 @@ fieldset.secao-form legend {
 .historico li {
   padding: 10px 12px;
   border-left: 3px solid var(--vidro-borda);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--vidro-fundo);
   border-radius: 0 var(--raio-sm) var(--raio-sm) 0;
   font-size: 0.84rem;
 }
@@ -765,7 +860,7 @@ fieldset.secao-form legend {
 .modal-fundo {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.72);
+  background: var(--overlay-modal);
   backdrop-filter: blur(4px);
   display: grid;
   place-items: center;
@@ -823,7 +918,7 @@ fieldset.secao-form legend {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 3px solid rgba(255, 255, 255, 0.18);
+  border: 3px solid var(--vidro-borda);
   border-top-color: var(--cor-primaria);
   animation: girar 0.8s linear infinite;
 }

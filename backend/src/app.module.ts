@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
+import { AparenciaModule } from './modules/aparencia/aparencia.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CategoriasProdutoModule } from './modules/categorias-produto/categorias-produto.module';
 import { CertificacoesModule } from './modules/certificacoes/certificacoes.module';
@@ -41,6 +42,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     EstadosModule,
     DashboardModule,
     ContatoModule,
+    AparenciaModule,
   ],
   providers: [
     // Ordem importa: autentica, depois autoriza por papel, depois limita taxa.

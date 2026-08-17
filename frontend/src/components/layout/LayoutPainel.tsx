@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
+import { useTema } from '@/features/aparencia/useTema';
 import { Sidebar } from './Sidebar';
 
 export function LayoutPainel() {
   const { usuario, sair } = useAuth();
+  const { modo, podeAlternar, alternarModo } = useTema();
   const [menuAberto, setMenuAberto] = useState(false);
 
   return (
@@ -26,6 +28,21 @@ export function LayoutPainel() {
           <strong>Painel ProCert</strong>
 
           <div className="topo__usuario">
+            {/* O admin pode travar o painel no modo padrão; aí o botão some. */}
+            {podeAlternar && (
+              <button
+                type="button"
+                className="btn btn--icone"
+                onClick={alternarModo}
+                aria-label={
+                  modo === 'ESCURO' ? 'Mudar para o modo claro' : 'Mudar para o modo escuro'
+                }
+                title={modo === 'ESCURO' ? 'Modo claro' : 'Modo escuro'}
+              >
+                {modo === 'ESCURO' ? '☀️' : '🌙'}
+              </button>
+            )}
+
             <div className="texto-direita">
               <div>{usuario?.nome}</div>
               <div className="texto-pequeno texto-fraco">

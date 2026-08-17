@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
+import { useTema } from '@/features/aparencia/useTema';
 import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
 import { useRolagem } from '../hooks';
 
@@ -13,6 +14,7 @@ import { useRolagem } from '../hooks';
 export function CabecalhoSite() {
   const rolou = useRolagem(80);
   const { autenticado } = useAuth();
+  const { aparencia } = useTema();
   const [menuAberto, setMenuAberto] = useState(false);
   const [linksAbertos, setLinksAbertos] = useState(false);
 
@@ -35,8 +37,13 @@ export function CabecalhoSite() {
         <a href="#hero" className="home__marca" onClick={fechar}>
           {/* Versão branca: o logo padrão é escuro e some sobre o hero.
               Sem o texto ao lado, a imagem passa a ser o nome acessível
-              da marca — por isso `alt` preenchido em vez de decorativa. */}
-          <img src="/img/logo-branco.png" alt={EMPRESA.nome} />
+              da marca — por isso `alt` preenchido em vez de decorativa.
+
+              A logo enviada em /dashboard/aparencia substitui esta. Atenção:
+              o cabeçalho é transparente sobre o hero escuro, então uma logo
+              de traço escuro fica ilegível até a página rolar. O aviso está
+              na própria tela de Aparência. */}
+          <img src={aparencia?.logoUrl ?? '/img/logo-branco.png'} alt={EMPRESA.nome} />
 
         </a>
 

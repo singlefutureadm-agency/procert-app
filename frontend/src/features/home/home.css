@@ -20,6 +20,10 @@ body.tema-institucional {
   background-image: none;
   color: #444444;
   font-family: var(--home-fonte-corpo);
+  /* O painel pode estar em modo escuro e deixa `color-scheme: dark` no <html>.
+     A home é sempre clara: sem isto, os controles nativos do formulário de
+     contato viriam escuros dentro de uma página branca. */
+  color-scheme: light;
 }
 
 .home {

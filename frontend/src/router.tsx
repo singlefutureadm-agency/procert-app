@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 
 import { RotaProtegida } from '@/auth/RotaProtegida';
 import { LayoutPainel } from '@/components/layout/LayoutPainel';
+import { AparenciaPage } from '@/features/aparencia/AparenciaPage';
 import { CategoriaDetalhePage } from '@/features/categorias-produto/CategoriaDetalhePage';
 import { CategoriasPage } from '@/features/categorias-produto/CategoriasPage';
 import { CertificacaoDetalhePage } from '@/features/certificacoes/CertificacaoDetalhePage';
@@ -135,6 +136,17 @@ export const router = createBrowserRouter([
         element: (
           <RotaProtegida papeis={['ADMIN']}>
             <FuncionarioFormPage />
+          </RotaProtegida>
+        ),
+      },
+
+      // Design tokens do painel — somente administradores.
+      // O backend repete a checagem em PUT/POST: esconder o menu não é controle.
+      {
+        path: 'dashboard/aparencia',
+        element: (
+          <RotaProtegida papeis={['ADMIN']}>
+            <AparenciaPage />
           </RotaProtegida>
         ),
       },

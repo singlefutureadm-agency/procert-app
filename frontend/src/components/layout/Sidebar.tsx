@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
+import { useTema } from '@/features/aparencia/useTema';
 import type { Role } from '@/types';
 
 interface ItemMenu {
@@ -47,6 +48,17 @@ const MENU: GrupoMenu[] = [
       { para: '/equipe', rotulo: 'Equipe interna', icone: '👥', papeis: ['ADMIN'] },
     ],
   },
+  {
+    titulo: 'Configurações',
+    itens: [
+      {
+        para: '/dashboard/aparencia',
+        rotulo: 'Aparência',
+        icone: '🎨',
+        papeis: ['ADMIN'],
+      },
+    ],
+  },
 ];
 
 interface Props {
@@ -56,6 +68,7 @@ interface Props {
 
 export function Sidebar({ aberta, aoNavegar }: Props) {
   const { usuario } = useAuth();
+  const { aparencia } = useTema();
 
   const podeVer = (item: ItemMenu) =>
     !item.papeis || (usuario && item.papeis.includes(usuario.role));
@@ -63,8 +76,16 @@ export function Sidebar({ aberta, aoNavegar }: Props) {
   return (
     <aside className={`sidebar vidro ${aberta ? 'sidebar--aberta' : ''}`}>
       <div className="sidebar__marca">
-        <span aria-hidden>🛡️</span>
-        <span>ProCert</span>
+        {/* Com logo enviada, ela substitui o emblema e o nome vira alt: repetir
+            "ProCert" ao lado de uma logo que já diz isso é ruído. */}
+        {aparencia?.logoUrl ? (
+          <img className="sidebar__logo" src={aparencia.logoUrl} alt="ProCert" />
+        ) : (
+          <>
+            <span aria-hidden>🛡️</span>
+            <span>ProCert</span>
+          </>
+        )}
       </div>
 
       <nav>

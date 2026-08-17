@@ -21,6 +21,7 @@ export const chaves = {
   perfil: ['perfil'] as const,
   dashboard: ['dashboard'] as const,
   estados: ['estados'] as const,
+  aparencia: ['aparencia'] as const,
   clientes: (filtros?: unknown) => ['clientes', filtros ?? {}] as const,
   cliente: (id: number) => ['clientes', id] as const,
   clientesResumo: ['clientes', 'resumo'] as const,

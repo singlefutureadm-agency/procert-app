@@ -1,0 +1,209 @@
+/* ==========================================================================
+   Página de aparência
+
+   Escopada em `.aparencia__*` e `.campo-cor` para não vazar no resto do
+   painel. Como toda regra usa `var(--token)`, esta tela também é repintada
+   pelo preview — que é o ponto: o admin vê o resultado no lugar real.
+   ========================================================================== */
+
+.aparencia__aviso {
+  padding: 12px 16px;
+  border-left: 3px solid var(--cor-alerta);
+  font-size: 0.9rem;
+}
+
+.aparencia__grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.campo-cor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.campo-cor__rotulo {
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+  font-weight: 550;
+}
+
+.campo-cor__controles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* O seletor nativo vem com moldura grossa e cantos quadrados em quase todo
+   navegador: normaliza para acompanhar o raio configurado. */
+.campo-cor__seletor {
+  width: 44px;
+  height: 34px;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+  cursor: pointer;
+}
+
+.campo-cor__seletor::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.campo-cor__seletor::-webkit-color-swatch {
+  border: none;
+  border-radius: calc(var(--raio-sm) - 3px);
+}
+
+.campo-cor__alfa {
+  flex: 1;
+  min-width: 60px;
+}
+
+/* O valor é texto imprevisível (`rgba(255, 255, 255, 0.07)`): trunca. */
+.campo-cor__valor {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--texto-fraco);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+/* Controles à esquerda, prévia à direita; empilha quando não cabe. */
+.aparencia__com-previa {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 0.85fr);
+  gap: 20px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+@media (max-width: 1100px) {
+  .aparencia__com-previa {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aparencia__com-previa .aparencia__grade {
+  margin-top: 0;
+}
+
+/*
+ * A prévia carrega os tokens em edição nas próprias custom properties, então
+ * não pode herdar nada de cor daqui — só geometria e espaçamento.
+ */
+.previa {
+  position: relative;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--vidro-borda);
+  overflow: hidden;
+  background-attachment: local;
+}
+
+.previa__titulo {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.previa__conteudo {
+  display: grid;
+  gap: 12px;
+}
+
+.previa__linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Botões da prévia são ilustrativos: `disabled` não deve apagá-los. */
+.previa .btn:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.previa__lado-a-lado {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+/* ------------------------------- Imagens --------------------------------- */
+
+.campo-imagem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.campo-imagem__amostra {
+  width: 132px;
+  height: 76px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px dashed var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+}
+
+.campo-imagem__amostra img {
+  max-width: 100%;
+  max-height: 100%;
+  /* Logo inteira à vista; papel de parede pode cortar, é o uso real dele. */
+  object-fit: cover;
+}
+
+.campo-imagem__amostra--contida img {
+  object-fit: contain;
+}
+
+.campo-imagem__acoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aparencia__contraste {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.aparencia__contraste li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+}
+
+.aparencia__contraste .badge {
+  min-width: 74px;
+  justify-content: center;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}

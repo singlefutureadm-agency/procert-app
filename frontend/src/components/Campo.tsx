@@ -14,7 +14,11 @@ export function Campo({ label, erro, obrigatorio, dica, children }: Props) {
     <div className={`campo ${erro ? 'campo--invalido' : ''}`}>
       <label>
         {label}
-        {obrigatorio && <span aria-hidden style={{ color: '#fca5a5' }}> *</span>}
+        {obrigatorio && (
+          <span aria-hidden className="campo__obrigatorio">
+            {' *'}
+          </span>
+        )}
       </label>
       {children}
       {dica && !erro && <span className="texto-pequeno texto-fraco">{dica}</span>}

@@ -358,3 +358,60 @@ export interface RespostaPaginada<T> {
   limite: number;
   totalPaginas: number;
 }
+
+/* --------------------------- Aparência do painel -------------------------- */
+
+export type ModoTema = 'CLARO' | 'ESCURO';
+
+/**
+ * Espelho de `TokensTemaDto` no backend. Os três últimos são numéricos (px);
+ * o resto é cor em hex ou rgb()/rgba().
+ */
+export interface TokensTema {
+  corPrimaria: string;
+  corPrimariaEscura: string;
+  corSucesso: string;
+  corAlerta: string;
+  corErro: string;
+  corInfo: string;
+
+  fundo: string;
+  fundoDegrade: string;
+  fundoBrilho1: string;
+  fundoBrilho2: string;
+
+  texto: string;
+  textoSuave: string;
+  textoFraco: string;
+  /** Texto do botão primário — não herda `texto`, que inverte com o tema. */
+  textoSobrePrimaria: string;
+
+  vidroFundo: string;
+  vidroFundoForte: string;
+  vidroBorda: string;
+  sombraCor: string;
+  overlayModal: string;
+
+  vidroBlur: number;
+  raio: number;
+  raioSm: number;
+}
+
+export type AjustePapelParede = 'COBRIR' | 'CONTER' | 'REPETIR';
+
+export interface Aparencia {
+  temaClaro: TokensTema;
+  temaEscuro: TokensTema;
+  /** Id do catálogo em `features/aparencia/fontes.ts`, não a pilha CSS. */
+  fonte: string;
+  temaPadrao: ModoTema;
+  permitirAlternancia: boolean;
+  logoUrl: string | null;
+  papelParedeUrl: string | null;
+  papelParedeOpacidade: number;
+  papelParedeAjuste: AjustePapelParede;
+  atualizadoEm: string | null;
+  atualizadoPor: string | null;
+  /** false = rodando no preset de fábrica, nunca foi salva. */
+  personalizada: boolean;
+}

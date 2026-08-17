@@ -159,6 +159,7 @@ model Funcionario {
   naoConformidades   NaoConformidade[]
   certificadosEmitidos Certificado[]
   documentosEnviados   DocumentoCertificacao[]
+  aparenciaAtualizada  ConfiguracaoAparencia[]
 
   @@index([role, status])
   @@map("funcionarios")
@@ -464,4 +465,48 @@ model MensagemContato {
   criadoEm  DateTime @default(now()) @map("criado_em")
 
   @@map("mensagens_contato")
+}
+
+/// Qual dos dois conjuntos de tokens o painel usa quando o usuário nunca escolheu.
+enum TemaPadrao {
+  CLARO
+  ESCURO
+}
+
+/// Design tokens do painel, editáveis pelo ADMIN em /dashboard/aparencia.
+///
+/// Linha única (id fixo em 1): é configuração global do organismo, não
+/// preferência por usuário — o que o admin salva vale para todo mundo.
+/// Se a linha não existir, o service serve os defaults do `global.css`,
+/// então uma instalação nova funciona sem seed.
+///
+/// Os tokens ficam em `Json` para não exigir migration a cada token novo.
+/// A segurança disso não vem da coluna e sim do DTO: `TokensTemaDto` é uma
+/// allowlist fechada de chaves, cada uma com regex de cor ou faixa numérica,
+/// e o ValidationPipe global roda com `forbidNonWhitelisted`. Json livre aqui
+/// seria injeção de CSS direto no `style` do documento.
+model ConfiguracaoAparencia {
+  id                  Int        @id @default(1)
+  temaClaro           Json       @map("tema_claro")
+  temaEscuro          Json       @map("tema_escuro")
+  /// Id do catálogo de fontes, não a pilha CSS (ver `aparencia.defaults.ts`).
+  fonte               String     @db.VarChar(60)
+  temaPadrao          TemaPadrao @default(ESCURO) @map("tema_padrao")
+  /// Se false, o usuário fica travado em `temaPadrao` e o botão some do topo.
+  permitirAlternancia Boolean    @default(true) @map("permitir_alternancia")
+
+  /// Logo do organismo: sidebar do painel e cabeçalho do site público.
+  logoUrl              String? @map("logo_url") @db.VarChar(255)
+  /// Imagem de fundo do painel. Global aos dois modos.
+  papelParedeUrl       String? @map("papel_parede_url") @db.VarChar(255)
+  /// 0–100. Em 0 o papel de parede some sem perder o arquivo enviado.
+  papelParedeOpacidade Int     @default(35) @map("papel_parede_opacidade")
+  /// COBRIR | CONTER | REPETIR
+  papelParedeAjuste    String  @default("COBRIR") @map("papel_parede_ajuste") @db.VarChar(20)
+  atualizadoPorId     Int?       @map("atualizado_por_id")
+  atualizadoEm        DateTime   @updatedAt @map("atualizado_em")
+
+  atualizadoPor Funcionario? @relation(fields: [atualizadoPorId], references: [id], onDelete: SetNull)
+
+  @@map("configuracao_aparencia")
 }

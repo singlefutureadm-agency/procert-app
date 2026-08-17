@@ -9,7 +9,9 @@ export type PastaUpload =
   | 'funcionarios'
   | 'produtos'
   | 'certificados'
-  | 'certificacoes';
+  | 'certificacoes'
+  /** Logo e papel de parede definidos pelo ADMIN na tela de Aparência. */
+  | 'aparencia';
 
 const MIMES_PERMITIDOS: Record<string, string> = {
   'image/jpeg': '.jpg',
