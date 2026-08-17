@@ -406,9 +406,10 @@ abordagem nova.
   versão nova da trilha e migrar cada produto — a versão em uso é imutável por construção.
 - **`DashboardService` agrega em memória** (`findMany` enxuto + JS). Correto na escala
   atual; com dezenas de milhares de produtos, migre para agregação SQL.
-- **`npm audit` do backend**: 4 high + 1 critical em dependências transitivas
-  (`bcrypt`→`node-pre-gyp`→`tar`, `nodemailer`, `@nestjs/swagger`→`js-yaml`). Merece
-  trabalho separado com verificação de quebra de API.
+- **`npm audit` do backend**: 3 high residuais, todas a mesma advisory de `deepmerge-ts`
+  via `prisma` → `@prisma/config` (devDependency, **sem correção publicada** — o
+  `@prisma/config` mais novo ainda depende da versão vulnerável). `npm audit fix`, mesmo
+  com `--force`, já não propõe nada. Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
 - **Assets da home são pesados** e vieram do legado sem reprocessamento
   (`depoimentos-bg.png` tem 2,4 MB). O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.

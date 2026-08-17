@@ -1417,12 +1417,44 @@ todas nasceram com `exigeDocumento: false`. Para passar a exigir evidência ness
 preciso criar uma versão nova da trilha da categoria e migrar cada produto, já que a versão
 em uso é imutável por construção.
 
-### Vulnerabilidades do `npm audit` (backend)
+### Vulnerabilidades do `npm audit` (backend) — tratadas em 17/08/2026
 
-4 *high* + 1 *critical*, todas em dependências transitivas pré-existentes:
-`bcrypt` → `node-pre-gyp` → `tar`, `nodemailer` e `@nestjs/swagger` → `js-yaml`. O `pdfkit`,
-adicionado para o PDF do certificado, não introduziu nenhuma. Merece um `npm audit fix` em
-trabalho separado, com verificação de quebra de API.
+Antes: **8 vulnerabilidades (7 *high*, 1 *critical*)** — o inventário havia crescido em
+relação às 5 registradas antes, porque o banco de advisories avançou (entrou o
+`deepmerge-ts` via `@prisma/config`).
+
+Depois: **3 *high*, 0 *critical***. Em três passos:
+
+1. `npm audit fix` (sem `--force`) — subiu `@nestjs/swagger` 11.4.6 → 11.4.7 e, com ele,
+   `js-yaml` 5.2.1 → 5.3.0. Patch, sem mudança de API.
+2. **`bcrypt` 5.1.1 → 6.0.0** (major, instalado explicitamente). O 6.0.0 **abandonou o
+   `@mapbox/node-pre-gyp`** em favor de `node-gyp-build` + `node-addon-api`, o que remove
+   da árvore o `node-pre-gyp` (*high*) e o `tar` (*critical*) de uma vez. A API usada em
+   `senha.util.ts` (`hash`, `compare`) não mudou. **O `npm audit fix --force` não faria
+   isso** — ele não enxergava o `bcrypt` como caminho de correção.
+3. **`nodemailer` 6.10.1 → 9.0.5** (major, o único que o `--force` proporia). Fecha oito
+   advisories, entre elas injeção de comando SMTP e injeção de cabeçalho por CRLF. O
+   `MailService` usa apenas `createTransport({host, port, secure, auth})` e
+   `sendMail({from, to, subject, html})`, estáveis nos três majors; o caminho `[SIMULADO]`
+   (sem `MAIL_HOST`/`MAIL_USER`) nem instancia o transporter.
+
+**Residual — 3 *high*, todas a mesma advisory:** `deepmerge-ts <8.0.0` (stack exhaustion ao
+mesclar grafos recursivos), alcançada por `prisma` → `@prisma/config` → `deepmerge-ts`.
+Ficam por três motivos somados:
+
+- `prisma` é **devDependency**: é a CLI de migration/generate, não entra no bundle da API.
+- **Não há correção disponível.** `@prisma/config@7.9.1` — o mais novo — ainda depende de
+  `deepmerge-ts@7.1.5`. Subir para `prisma@7` custaria a migração de `package.json#prisma`
+  para `prisma.config.ts` **sem fechar a advisory**.
+- `npm audit fix` e `npm audit fix --force` já não propõem mudança alguma (`up to date`).
+
+O caminho é aguardar o `@prisma/config` subir para `deepmerge-ts@8`. Enquanto isso, o vetor
+exige um arquivo de configuração hostil — que é do próprio repositório.
+
+Verificado após a mudança: `nest build` sem erros; login do seed (`bcrypt` 6 conferindo o
+hash gravado pelo `bcrypt` 5); hash legado `$2y$` do PHP ainda aceito pela normalização de
+`conferirSenha` (vetor `password_hash("rasmuslerdorf", PASSWORD_DEFAULT)` da documentação
+do PHP); upload de foto; download autenticado do PDF; e-mail em modo `[SIMULADO]`.
 
 ### Ordenação após migração de versão (resolvido)
 
@@ -1517,7 +1549,8 @@ já expõe.
 | Integridade operacional | Impossível remover o último ADMIN ativo ou desativar a si mesmo |
 
 **Pendências conscientes:** token em `localStorage` (exposto a XSS), ausência de refresh
-token, vulnerabilidades transitivas do `npm audit` (§15) e — o item mais crítico — nenhum
+token, a advisory de `deepmerge-ts` que o `prisma` (devDependency) ainda arrasta e para a
+qual não há correção publicada (§15) e — o item mais crítico — nenhum
 teste automatizado cobrindo a matriz de autorização, de modo que hoje uma regressão de RBAC
 passaria em silêncio. **O fechamento do estático de `/uploads` (§15) é exatamente o tipo de
 mudança que precisaria de um e2e travando os quatro casos** (404 privado, 200 público, 403
@@ -1537,7 +1570,8 @@ Em ordem de retorno sobre esforço:
 4. ~~**Fechar o `/uploads` estático** para certificados e evidências~~ — feito em
    17/08/2026 (§9 e §15). Falta o e2e que trava o comportamento.
 5. **Alinhar o `README.md`** (porta 5433, estado real de test/lint, novos módulos).
-6. **`npm audit fix` no backend**, verificando quebra de API nas dependências afetadas.
+6. ~~**`npm audit fix` no backend**~~ — feito em 17/08/2026 (§15). Resta acompanhar o
+   `@prisma/config` até que ele suba para `deepmerge-ts@8`.
 7. **Agendar a expiração de certificados** — cron externo chamando
    `POST /certificados/expirar-vencidos`; sem isso, certificados vencidos só mudam de status
    quando alguém chama a rota.
