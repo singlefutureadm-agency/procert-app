@@ -24,6 +24,9 @@
  * O script é idempotente: rodar duas vezes não duplica categoria, modelo nem
  * etapas, e produtos/certificações já migrados são ignorados.
  */
+// Precisa vir antes de qualquer outro import: `ts-node` não carrega o `.env`.
+import 'dotenv/config';
+
 import { PrismaClient, TipoEtapa } from '@prisma/client';
 
 const prisma = new PrismaClient();

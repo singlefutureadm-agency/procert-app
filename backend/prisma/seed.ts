@@ -9,6 +9,11 @@
  * É idempotente: pode ser executado quantas vezes forem necessárias.
  *   npm run seed
  */
+// Precisa vir antes de qualquer outro import: o `prisma migrate` carrega o
+// `.env` sozinho, mas `ts-node` não — sem isto o script morre com
+// "Environment variable not found: DATABASE_URL".
+import 'dotenv/config';
+
 import { PrismaClient, Role, TipoEtapa, TipoPessoa } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 

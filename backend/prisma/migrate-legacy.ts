@@ -19,6 +19,11 @@
  *                    com bcrypt do Node; o prefixo é normalizado para $2b$)
  *   • vazio/nulo   → senha provisória de LEGACY_DEFAULT_PASSWORD
  */
+// Precisa vir antes de qualquer outro import: `ts-node` não carrega o `.env`,
+// e este script depende dele tanto para o DATABASE_URL quanto para as
+// LEGACY_MYSQL_* e o BCRYPT_SALT_ROUNDS lidos logo abaixo.
+import 'dotenv/config';
+
 import {
   PrismaClient,
   Role,
