@@ -921,15 +921,41 @@ separada por vírgula), com `credentials: true`.
 
 ### Arquivos estáticos e downloads autenticados
 
-`UPLOAD_DIR` (padrão `./uploads`) é criado no bootstrap e servido em `/uploads/` com
-`index: false`. Em dev, o Vite faz proxy de `/uploads` para a API, então o mesmo caminho
-relativo funciona nos dois ambientes.
+`UPLOAD_DIR` (padrão `./uploads`) tem **todas** as subpastas criadas no bootstrap, públicas
+e privadas — os métodos do `UploadsService` já fazem `mkdir` recursivo na gravação, mas a
+criação antecipada garante o diretório existente desde a subida.
 
-Fotos são consumidas direto por esse caminho. **Evidências de etapa e PDFs de certificado
-têm rotas próprias e autenticadas** (`/certificacoes/documentos/:id/arquivo`,
-`/certificados/:id/pdf`), que aplicam o escopo do CLIENTE e devolvem o arquivo como blob.
-O download vem com `Content-Disposition: attachment` para que um SVG ou HTML anexado não
-execute no domínio da API. Ver a ressalva em §15 sobre o static continuar acessível.
+A divisão entre o que é servido como estático e o que não é vive em
+`modules/uploads/uploads.constantes.ts`, fonte única de `main.ts` e do tipo `PastaUpload`:
+
+| Constante | Pastas | Servida em `/uploads/…` |
+|---|---|---|
+| `PASTAS_PUBLICAS` | `clientes`, `funcionarios`, `produtos`, `aparencia` | ✅ um `useStaticAssets` por pasta, com `prefix` próprio e `index: false` |
+| `PASTAS_PRIVADAS` | `certificados`, `certificacoes` | ❌ nunca — só pelas rotas autenticadas |
+
+`aparencia` é pública por necessidade: o logo aparece no cabeçalho do site institucional e
+na tela de login, ambos antes de existir sessão, e o papel de parede entra como
+`background-image` — não há como exigir `Bearer` em `<img src>` nem em `url()` de CSS. O
+mesmo vale para as fotos de cliente, funcionário e produto.
+
+Antes dos mounts, um middleware em `/uploads` **nega qualquer pasta fora de
+`PASTAS_PUBLICAS`** com o mesmo corpo de erro 404 do resto da API. Não montar as pastas
+privadas já bastaria para produzir 404 (a requisição cairia no roteador do Nest, que não
+tem rota para `/uploads`), mas seria um 404 por acidente de roteamento: o middleware torna
+a negação explícita e, por estar registrado antes, continua valendo se alguém remontar o
+diretório inteiro como estático no futuro.
+
+**Evidências de etapa e PDFs de certificado só saem por rota autenticada**
+(`/certificacoes/documentos/:id/arquivo`, `/certificados/:id/pdf`), que aplicam o escopo do
+CLIENTE e devolvem o arquivo como blob. O download da evidência vem com
+`Content-Disposition: attachment` para que um SVG ou HTML anexado não execute no domínio
+da API.
+
+Em dev, o Vite faz proxy de `/uploads` para a API, então o mesmo caminho relativo funciona
+nos dois ambientes — inclusive o 404 das pastas privadas.
+
+`helmet` continua com `crossOriginResourcePolicy: 'cross-origin'`: as fotos e o logo são
+consumidos pelo frontend em outra origem.
 
 ### Notificações por e-mail
 
@@ -1356,15 +1382,33 @@ A tabela existe, os produtos expõem `ultimoPagamento`, mas não há controller/
 pagamentos. É uma extensão prevista, não um bug — só não deve ser confundida com
 funcionalidade entregue.
 
-### `/uploads` continua servido sem autenticação
+### `/uploads` servido sem autenticação (corrigido em 17/08/2026)
 
-Evidências e PDFs de certificado têm rotas autenticadas com verificação de posse, mas o
-diretório inteiro segue exposto como estático — quem tiver a URL acessa direto, sem token.
-Os nomes são UUID (não adivinháveis) e nenhuma tela expõe esses caminhos, mas isso é
-obscuridade, não controle de acesso.
+O `main.ts` montava o diretório inteiro de `UPLOAD_DIR` em `/uploads/` com um único
+`useStaticAssets`. PDF de certificado e evidência de etapa — documento formal e dado de
+cliente — eram baixáveis por qualquer um que tivesse a URL, sem token. Os nomes em UUID
+não são adivinháveis e nenhuma tela expõe esses caminhos, mas isso é obscuridade, não
+controle de acesso.
 
-Correção recomendada: restringir o `useStaticAssets` a `/uploads/produtos|clientes|funcionarios`
-e servir `certificados/` e `certificacoes/` apenas pelas rotas autenticadas.
+Correção aplicada: um `useStaticAssets` **por pasta pública** (`PASTAS_PUBLICAS` em
+`modules/uploads/uploads.constantes.ts`) e um middleware de negação em `/uploads`,
+registrado antes dos mounts, que devolve 404 para qualquer outra pasta. Detalhe em §9.
+
+Duas decisões que valem registro:
+
+- **`aparencia` entrou nas públicas**, embora a correção prevista falasse só em
+  `produtos|clientes|funcionarios`. O logo e o papel de parede do painel são consumidos por
+  `<img src>` e por `url()` de CSS, inclusive no site institucional e na tela de login,
+  antes de existir sessão — fechá-los quebraria a marca do painel sem ganho de segurança:
+  são arquivos que o próprio ADMIN publica para exibição pública.
+- **O middleware foi mantido mesmo sendo redundante hoje.** Sem mount, a requisição já
+  cairia no roteador do Nest e viraria 404. A negação explícita existe para que remontar o
+  estático por engano no futuro não reabra a exposição em silêncio.
+
+Verificado com a API no ar: PDF de certificado e evidência em `/uploads/…` respondem 404
+com o arquivo presente em disco (o mesmo arquivo respondia 200 antes da mudança), foto de
+produto segue em 200, e as rotas autenticadas continuam devolvendo 401 sem token, 200 para
+o cliente dono e 403 para cliente alheio.
 
 ### Produtos migrados não têm `exigeDocumento`
 
@@ -1459,7 +1503,8 @@ já expõe.
 | Mass assignment | `whitelist` + `forbidNonWhitelisted` → `{"role":"ADMIN"}` recebe `400` |
 | SQL injection | Prisma parametriza tudo; não há SQL concatenado |
 | Upload | Allowlists de MIME por finalidade (imagem × documento), extensão derivada do MIME, nome `randomUUID()`, limite de tamanho, guarda de path traversal |
-| Download de evidência | Rota autenticada com verificação de posse; `Content-Disposition: attachment` para não executar SVG/HTML no domínio da API |
+| Estático de `/uploads` | Allowlist de pastas (`PASTAS_PUBLICAS`), um mount por pasta + middleware que nega o resto com 404; `certificados/` e `certificacoes/` nunca são servidos como estático |
+| Download de evidência e de PDF | Rota autenticada com verificação de posse; `Content-Disposition: attachment` na evidência para não executar SVG/HTML no domínio da API |
 | Injeção em e-mail | Nome de produto e etapa escapados antes de entrar no corpo HTML |
 | Imutabilidade de processo | Versão de trilha em uso não pode ser editada; certificado cancelado não muda de estado; NC encerrada não é reaberta |
 | Força bruta | Throttle 10/min no login, 5/min em senha e contato, 120/min global |
@@ -1472,9 +1517,12 @@ já expõe.
 | Integridade operacional | Impossível remover o último ADMIN ativo ou desativar a si mesmo |
 
 **Pendências conscientes:** token em `localStorage` (exposto a XSS), ausência de refresh
-token, `/uploads` servido sem autenticação (§15), vulnerabilidades transitivas do
-`npm audit` (§15) e — o item mais crítico — nenhum teste automatizado cobrindo a matriz de
-autorização, de modo que hoje uma regressão de RBAC passaria em silêncio.
+token, vulnerabilidades transitivas do `npm audit` (§15) e — o item mais crítico — nenhum
+teste automatizado cobrindo a matriz de autorização, de modo que hoje uma regressão de RBAC
+passaria em silêncio. **O fechamento do estático de `/uploads` (§15) é exatamente o tipo de
+mudança que precisaria de um e2e travando os quatro casos** (404 privado, 200 público, 403
+de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impede que um
+`useStaticAssets` amplo volte no próximo refactor.
 
 ---
 
@@ -1486,8 +1534,8 @@ Em ordem de retorno sobre esforço:
 2. **Suíte de testes dos services** conforme §14 — protege as regras que hoje só existem em
    código e na cabeça de quem escreveu.
 3. **E2E de autorização** (Supertest sobre papéis × endpoints) — a rede de segurança do RBAC.
-4. **Fechar o `/uploads` estático** para certificados e evidências (§15) — pequeno e com
-   ganho direto de segurança.
+4. ~~**Fechar o `/uploads` estático** para certificados e evidências~~ — feito em
+   17/08/2026 (§9 e §15). Falta o e2e que trava o comportamento.
 5. **Alinhar o `README.md`** (porta 5433, estado real de test/lint, novos módulos).
 6. **`npm audit fix` no backend**, verificando quebra de API nas dependências afetadas.
 7. **Agendar a expiração de certificados** — cron externo chamando

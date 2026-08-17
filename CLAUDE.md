@@ -195,11 +195,14 @@ allowlist de MIME (imagens; documentos de etapa aceitam também PDF/DOC/XLS). Pr
 contra path traversal em `remover` e `caminhoAbsoluto`. Devolve sempre URL relativa
 `/uploads/<pasta>/<uuid>.<ext>`.
 
-> ⚠️ **`/uploads` inteiro é servido como estático sem autenticação.** PDFs de certificado e
-> evidências têm rotas autenticadas com verificação de posse, mas quem tiver a URL acessa
-> direto. Nomes UUID são obscuridade, não controle de acesso. Correção prevista: restringir
-> o `useStaticAssets` e servir `certificados/` e `certificacoes/` só pelas rotas
-> autenticadas.
+> **Só as pastas públicas são servidas como estático.** `uploads.constantes.ts` é a fonte
+> única: `PASTAS_PUBLICAS` (`clientes`, `funcionarios`, `produtos`, `aparencia`) ganha um
+> `useStaticAssets` cada em `main.ts`; `PASTAS_PRIVADAS` (`certificados`, `certificacoes`)
+> não é montada e só sai por `GET /certificados/:id/pdf` e
+> `GET /certificacoes/documentos/:id/arquivo`, que verificam a posse. Um middleware em
+> `/uploads`, registrado **antes** dos mounts, devolve 404 para qualquer pasta fora da
+> allowlist — é redundante hoje, e existe para que remontar o estático por engano não
+> reabra a exposição. **Ao criar uma pasta nova, decida de que lado da linha ela fica.**
 
 ---
 

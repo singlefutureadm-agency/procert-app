@@ -4,14 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
-export type PastaUpload =
-  | 'clientes'
-  | 'funcionarios'
-  | 'produtos'
-  | 'certificados'
-  | 'certificacoes'
-  /** Logo e papel de parede definidos pelo ADMIN na tela de Aparência. */
-  | 'aparencia';
+import type { PastaUpload } from './uploads.constantes';
+
+/** Reexportado para não quebrar quem já importava o tipo daqui. */
+export type { PastaUpload };
 
 const MIMES_PERMITIDOS: Record<string, string> = {
   'image/jpeg': '.jpg',
