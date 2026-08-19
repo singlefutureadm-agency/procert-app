@@ -8,11 +8,15 @@ coverage/
 .env
 .env.local
 .env.*.local
+# Ambiente do e2e: o exemplo (.env.test.example) e versionado, o real nao.
+.env.test
 *.pem
 
 # Uploads de usuário
 backend/uploads/*
 !backend/uploads/.gitkeep
+# Arquivos escritos pelo e2e (UPLOAD_DIR do .env.test)
+backend/uploads-test/
 
 # Logs
 *.log
