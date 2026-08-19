@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { PrismaModule } from './prisma/prisma.module';
@@ -27,6 +28,9 @@ import { UploadsModule } from './modules/uploads/uploads.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, cache: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    // Rotinas agendadas em processo. Hoje só a expiração de certificados
+    // (modules/certificados/expiracao.cron.ts) — ver DOCUMENTACAO.md §9.
+    ScheduleModule.forRoot(),
     PrismaModule,
     MailModule,
     UploadsModule,

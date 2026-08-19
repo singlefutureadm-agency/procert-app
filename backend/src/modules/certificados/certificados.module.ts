@@ -6,10 +6,15 @@ import {
   CertificadosProdutoController,
 } from './certificados.controller';
 import { CertificadosService } from './certificados.service';
+import { ExpiracaoCertificadosCron } from './expiracao.cron';
 
 @Module({
   controllers: [CertificadosProdutoController, CertificadosController],
-  providers: [CertificadosService, CertificadoPdfService],
+  providers: [
+    CertificadosService,
+    CertificadoPdfService,
+    ExpiracaoCertificadosCron,
+  ],
   exports: [CertificadosService],
 })
 export class CertificadosModule {}

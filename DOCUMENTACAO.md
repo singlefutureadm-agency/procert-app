@@ -1238,9 +1238,48 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/dashboard/met
 
 ### Rotina agendada
 
-`POST /api/certificados/expirar-vencidos` marca como `VENCIDO` os certificados fora da
-validade. Não há agendador embutido: a chamada é feita por um cron externo, uma vez ao dia,
-autenticado como `ADMIN`. É idempotente — rodar duas vezes no mesmo dia não muda nada.
+**Expiração de certificados — agendada dentro da API desde 19/08/2026.**
+
+`ExpiracaoCertificadosCron` (`modules/certificados/expiracao.cron.ts`) roda todo dia às
+**03:00** no fuso do processo e chama `CertificadosService.expirarVencidos()` **direto, sem
+passar por HTTP**. Marca como `VENCIDO` tudo que está `EMITIDO` ou `SUSPENSO` com
+`dataValidade` no passado; `CANCELADO` não muda, por ser estado terminal.
+
+Antes disso a rotina existia mas **ninguém a chamava**: certificado fora da validade
+continuava constando como `EMITIDO` até alguém acionar a rota na mão. Para um organismo de
+certificação isso não é detalhe de interface — é exibir como válido um documento que não
+é mais.
+
+**Por que dentro da API, e não num cron externo chamando a rota**
+
+O cron externo é a solução mais limpa em separação de responsabilidades e roda uma vez só
+mesmo com várias instâncias. O custo é a credencial: ele precisaria de um token de `ADMIN`
+de longa duração guardado numa variável de ambiente do agendador. Esse token dá poder total
+sobre a API — excluir cliente, emitir e cancelar certificado —, fica fora do sistema, sem
+rotação, e a sessão hoje **não tem lista de revogação** (ver §15, "Modelo de sessão"): se
+vazar, só o vencimento o encerra.
+
+Trocar essa exposição permanente por um `updateMany` diário resolvido em processo é o
+negócio melhor. O custo do caminho escolhido é o inverso e é conhecido: **com múltiplas
+instâncias da API, o job dispara em todas**. É tolerável porque `expirarVencidos()` é um
+único `updateMany` idempotente cujo `where` já exclui o que ele acabou de mudar — a segunda
+execução afeta zero linhas. Não é gratuito (N conexões, N linhas de log), e por isso o
+comportamento é controlado por `EXPIRACAO_CRON_ATIVA`.
+
+| Variável | Padrão | Efeito |
+|---|---|---|
+| `EXPIRACAO_CRON_ATIVA` | `true` | Só o valor literal `false` desliga. Ao passar a rodar em mais de uma instância, deixe `true` em exatamente uma. Desligado, o serviço registra isso no boot apontando a rota manual — desligar em silêncio seria pior que o problema original. |
+
+`POST /api/certificados/expirar-vencidos` (ADMIN) **continua existindo** para acionamento
+manual e para quem preferir o agendador externo. O log do resultado
+(`N certificado(s) marcado(s) como vencido(s).`, nível `log`) vive no service e não no
+agendador, de modo que os dois caminhos deixam o mesmo rastro.
+
+O agendamento é um provider separado do `CertificadosService` de propósito: agendamento é
+infraestrutura, e o service continua testável sem levantar o Nest nem o `ScheduleModule`.
+Coberto por `expiracao.cron.spec.ts`, que inclui um caso levantando o Nest de verdade para
+conferir que o job está registrado no `SchedulerRegistry` — instanciar a classe na mão não
+exercita o decorator, e um `@Cron` removido por acidente passaria despercebido.
 
 ### Scripts — frontend
 

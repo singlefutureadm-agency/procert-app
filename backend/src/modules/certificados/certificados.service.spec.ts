@@ -83,6 +83,10 @@ describe('CertificadosService', () => {
       uploads,
       pdf,
     );
+
+    // `expirarVencidos` registra o resultado em nível `log`; sem silenciar, a
+    // saída da suíte fica poluída pelo Logger do Nest.
+    jest.spyOn(servico['logger'], 'log').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -530,6 +534,11 @@ describe('CertificadosService', () => {
         mensagem: '3 certificado(s) marcado(s) como vencido(s).',
         atualizados: 3,
       });
+      // O resultado precisa deixar rastro em log qualquer que seja o
+      // acionador — o agendador diário ou a rota manual.
+      expect(servico['logger'].log).toHaveBeenCalledWith(
+        '3 certificado(s) marcado(s) como vencido(s).',
+      );
     });
 
     it('é idempotente: a segunda passada não encontra nada e não é erro', async () => {

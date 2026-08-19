@@ -311,8 +311,13 @@ export class CertificadosService {
   /**
    * Marca como VENCIDO os certificados cuja validade passou.
    *
-   * Pensado para ser chamado por um agendador externo (cron do sistema
-   * chamando o endpoint). Suspensos também vencem; cancelados não mudam.
+   * Suspensos também vencem; cancelados não mudam (é estado terminal).
+   *
+   * Dois acionadores, ambos legítimos: o `ExpiracaoCertificadosCron` chama este
+   * método diretamente uma vez por dia, e `POST /certificados/expirar-vencidos`
+   * permite disparar na mão ou por um agendador externo. Um único `updateMany`
+   * idempotente — o `where` já exclui o que ele acabou de mudar —, então rodar
+   * duas vezes seguidas não é problema.
    */
   async expirarVencidos(): Promise<{ mensagem: string; atualizados: number }> {
     const { count } = await this.prisma.certificado.updateMany({
@@ -323,13 +328,17 @@ export class CertificadosService {
       data: { status: StatusCertificado.VENCIDO },
     });
 
-    return {
-      mensagem:
-        count === 0
-          ? 'Nenhum certificado vencido a atualizar.'
-          : `${count} certificado(s) marcado(s) como vencido(s).`,
-      atualizados: count,
-    };
+    const mensagem =
+      count === 0
+        ? 'Nenhum certificado vencido a atualizar.'
+        : `${count} certificado(s) marcado(s) como vencido(s).`;
+
+    // Fica no service, e não no agendador, para que o acionamento manual
+    // deixe o mesmo rastro do automático — um OCP precisa saber quando um
+    // certificado deixou de valer, e por qual caminho isso foi registrado.
+    this.logger.log(mensagem);
+
+    return { mensagem, atualizados: count };
   }
 
   // ---------------------------------------------------------------- privados
