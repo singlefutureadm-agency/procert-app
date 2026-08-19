@@ -58,10 +58,11 @@ npm run dev                   # http://localhost:5173
 
 | Armadilha | Detalhe |
 |---|---|
-| **Porta 5433, não 5432** | O container é mapeado `5433:5432` para conviver com um PostgreSQL nativo já instalado na máquina em 5432. O `DATABASE_URL` do `.env` precisa refletir isso. O `README.md` ainda diz 5432 — está desatualizado. |
+| **Porta 5433, não 5432** | O container é mapeado `5433:5432` para conviver com um PostgreSQL nativo já instalado na máquina em 5432. O `README.md` sempre esteve certo; quem trazia `5432` era o `backend/.env.example` — corrigido em 19/08/2026. |
 | **Não rode `npm run build` com o `start:dev` ativo** | `nest-cli.json` tem `deleteOutDir: true` e apaga o `dist/` embaixo do processo em watch. |
 | **`Cannot find module '.../dist/main'` após "Found 0 errors"** | Sintoma do conflito `deleteOutDir` × build incremental. Corrigido com `"incremental": false` em `tsconfig.build.json`. Se voltar: apague `dist/` e `tsconfig.build.tsbuildinfo` e reinicie. |
 | **SMTP não configurado** | `MAIL_USER`/`MAIL_PASS` vazios no `.env` → o `MailService` só registra os e-mails no log em vez de enviar. É o comportamento esperado em dev. |
+| **`npm run test:e2e` sem `.env.test`** | Falha na hora, com a mensagem certa. Copie de `.env.test.example`. |
 
 ### Scripts
 
@@ -75,9 +76,11 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:legacy` | ETL MySQL legado → PostgreSQL (exige as vars `LEGACY_MYSQL_*`) |
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
-| `npm run lint` | ❌ **não funciona** — não existe `backend/eslint.config.js` (ESLint 9 exige flat config) |
-| `npm test` | ❌ **não funciona** — **zero arquivos `.spec.ts`** no projeto |
-| `npm run test:e2e` | ❌ aponta para `test/jest-e2e.json`, diretório que não existe |
+| `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
+| `npm test` | ✅ 152 unitários, 8 suítes, Prisma mockado |
+| `npm run test:cov` | ✅ idem, com cobertura |
+| `npm run test:e2e` | ✅ 59 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
 
@@ -87,10 +90,37 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **Não há suíte de testes em nenhum dos dois pacotes.** Toda validação até aqui foi
-> manual. Ao mexer em regra de negócio, não conte com rede de segurança automatizada —
-> e considere que adicionar testes é a lacuna nº 1 do projeto (ver `DOCUMENTACAO.md` §14
-> para a lista priorizada de services que mais precisam).
+> **O backend tem rede de segurança; o frontend não.** 152 unitários + 59 e2e cobrem
+> auth, certificados, certificações (incluindo a renumeração da migração de trilha),
+> modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
+> **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
+> `DOCUMENTACAO.md` §14 para o estado medido e o que falta.
+
+#### Rodando o e2e
+
+```bash
+cd backend
+cp .env.test.example .env.test    # não versionado
+npm run test:e2e
+```
+
+Banco **dedicado** `procert_test`, criado automaticamente pelo `globalSetup` no mesmo
+container. A suíte **trunca as tabelas** entre arquivos — há uma trava que recusa qualquer
+`DATABASE_URL` cujo banco não termine em `_test`, justamente para não apagar o seu ambiente
+de desenvolvimento.
+
+Ao escrever teste novo, três pontos que custaram tempo e estão documentados no código:
+
+- **`src/testing/prisma.mock.ts`** entrega ao callback de `$transaction` um cliente
+  separado (`tx`). Assertar em `tx.modelo.metodo` prova que a escrita rodou dentro do
+  commit; um mock ingênuo (`$transaction: (cb) => cb(prisma)`) faria o teste passar sem
+  proteger nada.
+- **`expect.anything()` não funciona contra mock do `jest-mock-extended`.** O `mockDeep`
+  cria qualquer propriedade sob demanda, inclusive `asymmetricMatch`, e o Jest passa a
+  tratar o mock como um matcher. Use `mock.calls[n][i]` com `toBe`/`not.toBeUndefined()`.
+- No e2e, **travessia de caminho exige `requisicaoCrua()`**, não supertest: todo cliente
+  HTTP conforme a especificação resolve `..` (mesmo escrito `%2e%2e`) antes de conectar, e
+  o teste passaria por engano.
 
 ### Fluxo de mudança no schema
 
@@ -118,7 +148,10 @@ dto/<dominio>.dto.ts      class-validator + @ApiProperty. Entrada e saída.
 
 ### Fluxo de uma requisição
 
-`main.ts` monta a cadeia global (a ordem importa):
+`src/bootstrap.ts` monta a cadeia global (a ordem importa). O `main.ts` é fino e só chama
+`configurarApp(app)` — **a mesma função que o e2e usa**, para que o teste levante a
+aplicação real, e não uma versão sem `ValidationPipe` nem mounts de `/uploads`. Ao
+acrescentar configuração global, coloque em `configurarApp`, não no `main.ts`:
 
 1. **helmet** — cabeçalhos de segurança
 2. **CORS** — origens de `CORS_ORIGINS`
@@ -203,6 +236,13 @@ contra path traversal em `remover` e `caminhoAbsoluto`. Devolve sempre URL relat
 > `/uploads`, registrado **antes** dos mounts, devolve 404 para qualquer pasta fora da
 > allowlist — é redundante hoje, e existe para que remontar o estático por engano não
 > reabra a exposição. **Ao criar uma pasta nova, decida de que lado da linha ela fica.**
+>
+> A decisão passa por `pastaPublicaDaRota()`, que **decodifica o caminho uma vez** antes de
+> olhar a allowlist — a mesma decodificação que o `serve-static` faz — e recusa qualquer
+> segmento `..`/`.` ou codificação inválida. Ler o texto cru deixava
+> `/uploads/produtos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como se
+> `%2e%2e%2fcertificados` fosse nome de pasta (ver `DOCUMENTACAO.md` §15). Coberto por
+> `test/uploads.e2e-spec.ts`.
 
 ---
 
@@ -273,8 +313,12 @@ silenciosa: `verificarVersaoTrilha` é uma consulta pura, e a migração exige P
 - Número sequencial por ano `PROCERT-2026-000045`, mesma estratégia da NC.
 - PDF (pdfkit) é gerado **depois do commit**; se falhar, o certificado existe e o PDF é
   regerado no primeiro download.
-- `VENCIDO` nunca é aplicado manualmente — decorre da data, via
-  `POST /certificados/expirar-vencidos` (pensado para um cron externo).
+- `VENCIDO` nunca é aplicado manualmente — decorre da data. `ExpiracaoCertificadosCron`
+  roda todo dia às 03:00 **dentro da API**, chamando o service direto (sem HTTP e sem token
+  de serviço). Desligável por `EXPIRACAO_CRON_ATIVA=false`; a rota
+  `POST /certificados/expirar-vencidos` (ADMIN) segue disponível para acionamento manual.
+  Com múltiplas instâncias o job dispara em todas — é `updateMany` idempotente, mas deixe a
+  variável em `true` em exatamente uma. Razão da escolha em `DOCUMENTACAO.md` §9.
 - `CANCELADO` é terminal.
 
 ### Evidências
@@ -469,9 +513,13 @@ abordagem nova.
 - **`DashboardService` agrega em memória** (`findMany` enxuto + JS). Correto na escala
   atual; com dezenas de milhares de produtos, migre para agregação SQL.
 - **`npm audit` do backend**: 3 high residuais, todas a mesma advisory de `deepmerge-ts`
-  via `prisma` → `@prisma/config` (devDependency, **sem correção publicada** — o
-  `@prisma/config` mais novo ainda depende da versão vulnerável). `npm audit fix`, mesmo
-  com `--force`, já não propõe nada. Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
+  via `prisma` → `@prisma/config`, **sem correção publicada** — o `@prisma/config` mais
+  novo ainda depende da versão vulnerável. `npm audit fix`, mesmo com `--force`, já não
+  propõe nada. Atenção ao número: `npm audit --omit=dev` devolve **as mesmas 3**. O
+  `prisma` está em `devDependencies`, mas `@prisma/client` (produção) o declara como
+  `peerDependency` opcional, então ele entra na árvore de produção resolvida. O estado
+  auditável de produção é 3, não zero — um gate de CI em `npm audit` precisa tolerá-las.
+  Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
 - **Assets da home são pesados** e vieram do legado sem reprocessamento
   (`depoimentos-bg.png` tem 2,4 MB). O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.
@@ -486,17 +534,41 @@ abordagem nova.
 
 ## 7. Estado atual do trabalho
 
-O repositório tem dois commits em `main`:
+O fluxo do repo é **direto em `main`**, sem branches de feature.
 
-1. `feat: migração do ProCert para NestJS + React` — a migração completa do legado.
-2. `feat: tela de aparência com design tokens do painel` — a tela de design tokens do
-   painel para ADMIN (`backend/src/modules/aparencia/`, duas migrations,
-   `frontend/src/features/aparencia/`, `frontend/src/lib/tema.ts` e os ajustes que ela
-   exigiu em `main.tsx`, `router.tsx`, `Sidebar.tsx`, `LayoutPainel.tsx`, `Campo.tsx`,
-   `global.css`, `home.css`, `index.html`, `types/index.ts`).
+**Produto** (funcional, verificado manualmente):
 
-Ambas funcionais e verificadas manualmente. O fluxo do repo é **direto em `main`**, sem
-branches de feature.
+1. `6371a0d` migração completa do legado para NestJS + React.
+2. `a27a18a` tela de aparência com design tokens do painel (ADMIN).
+3. `7653264` acessibilidade e responsividade do painel.
+
+**Segurança e dependências** (17–19/08/2026):
+
+4. `7102845` fecha `/uploads` para `certificados/` e `certificacoes/`.
+5. `ed279ee` zera as vulnerabilidades corrigíveis do backend.
+6. `1793963` carrega o `.env` nos scripts `ts-node` do Prisma.
+7. `a4a4585` reauditoria da travessia: a allowlist passou a decidir sobre o caminho
+   **decodificado**. Antes, quem negava travessia era a confinação de raiz do
+   `serve-static`, não o middleware — o que não valeria se alguém remontasse o diretório
+   inteiro.
+
+**Rede de segurança** (19/08/2026) — era a lacuna nº 1 e deixou de ser:
+
+8. `0966e96` `eslint.config.js` + `typecheck:scripts`.
+9. `3a4d779` 152 testes unitários nos sete services prioritários.
+10. `bd1771a` 59 testes e2e de autorização, com `src/bootstrap.ts` extraído para que o
+    teste levante a mesma aplicação do `main.ts`.
+11. `9edc8a8` expiração de certificados agendada dentro da API.
+
+**A próxima coisa a fazer é o CI** (GitHub Actions: build + lint + test nos dois pacotes,
+com PostgreSQL de serviço). É o que impede a regressão de tudo isso — hoje nada obriga
+ninguém a rodar a suíte antes de empurrar para `main`. Ver `DOCUMENTACAO.md` §17, que traz
+o backlog inteiro priorizado, cada item com o gatilho que o promove.
+
+**Riscos abertos e conscientemente não corrigidos** (todos em `DOCUMENTACAO.md` §15, com a
+correção proposta): CRLF em assunto de e-mail no `nodemailer` 9; `esqueciSenha` propagando
+falha do `MailService` (oráculo de enumeração, fechado na prática mas frágil); e o ETL
+`migrate-legacy.ts`, que não compila nem roda.
 
 ---
 
@@ -504,10 +576,12 @@ branches de feature.
 
 - **`DOCUMENTACAO.md`** (~85 KB, 17 seções) — a referência completa: arquitetura, modelo de
   dados campo a campo, referência da API endpoint a endpoint com contratos de payload,
-  decisões de projeto, §14 (lacunas de qualidade com lista priorizada de testes a escrever),
-  §15 (problemas conhecidos), §16 (postura de segurança). **Consulte antes de decidir
-  arquitetura** — a maioria das perguntas de "por que está assim?" já está respondida lá.
+  decisões de projeto, §9 (estáticos, downloads autenticados e a rotina agendada), §14
+  (estado medido de lint/testes e cobertura por service), §15 (problemas conhecidos e
+  riscos abertos), §16 (postura de segurança), §17 (backlog priorizado com gatilhos).
+  **Consulte antes de decidir arquitetura** — a maioria das perguntas de "por que está
+  assim?" já está respondida lá.
 - **`MIGRACAO.md`** — mapa "arquivo PHP → módulo atual" e os bugs do legado corrigidos.
   Útil ao encontrar um comentário citando o legado.
-- **`README.md`** — guia de subida. Desatualizado em dois pontos: diz porta 5432 (é 5433) e
-  sugere que `npm test`/`npm run lint` do backend funcionam (não funcionam).
+- **`README.md`** — guia de subida, incluindo como rodar o e2e. Está correto e alinhado
+  com o repositório desde 19/08/2026.

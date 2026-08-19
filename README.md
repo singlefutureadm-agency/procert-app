@@ -25,6 +25,7 @@ procert-app/
 ├── DOCUMENTACAO.md           Documentação técnica completa (arquitetura, API, decisões)
 ├── MIGRACAO.md               Guia de migração (de/para, correções, plano de cutover)
 ├── backend/                  API NestJS
+│   ├── test/                 Suíte e2e (Supertest) e o cenário de autorização
 │   ├── prisma/
 │   │   ├── schema.prisma     Modelo de dados PostgreSQL
 │   │   ├── seed.ts           Dados base (UFs, categoria + trilha padrão, admin)
@@ -33,10 +34,13 @@ procert-app/
 │   └── src/
 │       ├── common/           Guards, decorators, filtros, paginação
 │       ├── prisma/           PrismaService
+│       ├── bootstrap.ts      configurarApp(): prefixo, helmet, CORS, validação,
+│       │                     filtro de erros e estáticos de /uploads
+│       ├── testing/          Mocks e fixtures dos testes unitários
 │       └── modules/          auth, clientes, funcionarios, categorias-produto,
 │                             modelos-trilha, produtos, certificacoes,
 │                             nao-conformidades, certificados, estados,
-│                             dashboard, uploads, mail, contato
+│                             dashboard, uploads, mail, contato, aparencia
 └── frontend/                 SPA React 19 + Vite
     ├── public/               Imagens e PDFs do site institucional
     └── src/
@@ -106,10 +110,27 @@ Aplicação em **http://localhost:5173**
 | `npm run migrate:legacy` | ETL do MySQL legado para o PostgreSQL |
 | `npm run migrate:categorias` | Catálogo global de etapas → trilhas por categoria |
 | `npm run prisma:studio` | Interface visual do banco |
-| `npm run lint` / `npm test` | **Ainda não funcionam** — sem `eslint.config.js` e sem suíte de testes (ver `DOCUMENTACAO.md` §14) |
+| `npm run lint` | ESLint 9 (flat config), com `--fix` |
+| `npm test` | Unitários dos services (Prisma mockado) |
+| `npm run test:cov` | Idem, com relatório de cobertura |
+| `npm run test:e2e` | e2e de autorização (Supertest + PostgreSQL) — exige `.env.test`, ver abaixo |
+| `npm run typecheck:scripts` | Type-check de `prisma/` (**falha hoje**: o ETL do legado está desatualizado — `DOCUMENTACAO.md` §15) |
 
 > Não rode `npm run build` com o `start:dev` ativo: o `deleteOutDir` apaga o `dist/`
 > embaixo do processo em watch e o derruba.
+
+#### Rodando o e2e
+
+```bash
+cd backend
+cp .env.test.example .env.test    # não é versionado
+npm run test:e2e
+```
+
+Ele usa um banco **dedicado** (`procert_test`), criado automaticamente no mesmo container.
+A suíte **trunca as tabelas** entre arquivos, então há uma trava que recusa qualquer
+`DATABASE_URL` cujo banco não termine em `_test` — apontá-lo para `procert` apagaria o seu
+ambiente de desenvolvimento.
 
 ### Frontend
 | Comando | Ação |
@@ -118,6 +139,9 @@ Aplicação em **http://localhost:5173**
 | `npm run build` | Build de produção (`dist/`) |
 | `npm run preview` | Serve o build localmente |
 | `npm run lint` | ESLint |
+
+> Não há testes automatizados no frontend — é a próxima lacuna depois do CI
+> (`DOCUMENTACAO.md` §17).
 
 ---
 
@@ -151,6 +175,16 @@ validade por categoria e PDF).
 | `ADMIN` | Acesso total, incluindo gestão de administradores e emissão/suspensão de certificados |
 | `FUNCIONARIO` | Clientes, produtos, categorias e trilhas, certificações e não conformidades |
 | `CLIENTE` | Somente os próprios produtos, certificações e certificados (escopo forçado no servidor); pode responder às suas não conformidades |
+
+---
+
+## Rotinas automáticas
+
+Todo dia às **03:00**, a API marca como `VENCIDO` os certificados fora da validade. Ligada
+por padrão; desligue com `EXPIRACAO_CRON_ATIVA=false` se preferir um agendador externo
+chamando `POST /api/certificados/expirar-vencidos` (ADMIN). Rodando a API em mais de uma
+instância, deixe a variável em `true` em exatamente uma. Detalhes e o porquê da escolha em
+`DOCUMENTACAO.md` §9.
 
 ---
 

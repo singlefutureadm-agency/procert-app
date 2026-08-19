@@ -1355,38 +1355,90 @@ encerramento do terminal. Se a porta continuar ocupada:
 
 ## 14. Qualidade: testes, lint e lacunas reais
 
-Estado verificado nesta data, sem maquiagem:
+Estado medido em **19/08/2026**, com a saída real de cada comando — não por leitura de
+código.
 
 | Item | Situação |
 |---|---|
-| Compilação do backend (`tsc`) | ✅ 0 erros |
-| Build do frontend (`tsc -b && vite build`) | ✅ compila |
-| **`npm test` (backend)** | ❌ **falha: não existe nenhum arquivo `.spec.ts`** — Jest está configurado (`testRegex: .*\.spec\.ts$`, `ts-jest`), a suíte está vazia |
-| **`npm run lint` (backend)** | ❌ **falha: não existe `eslint.config.js`** em `backend/` — ESLint 9 exige flat config; as dependências estão instaladas |
-| `npm run lint` (frontend) | ✅ `eslint.config.js` presente |
-| Testes e2e | ❌ script `test:e2e` aponta para `test/jest-e2e.json`, que não existe |
-| Validação funcional | ✅ feita manualmente a cada incremento: login→dashboard, RBAC por papel, escopo de cliente, versionamento de trilha, ciclo completo de NC, emissão/suspensão/expiração de certificado, evidências obrigatórias, mass-assignment, 400/401/403/404/409 |
+| Compilação do backend (`tsc --noEmit -p tsconfig.build.json`) | ✅ 0 erros |
+| `npm run build` (backend) | ✅ 0 erros |
+| `npm run build` (frontend) | ✅ `tsc -b && vite build`, 239 módulos |
+| **`npm run lint` (backend)** | ✅ **executa e sai 0** — `eslint.config.js` criado em `0966e96` |
+| `npm run lint` (frontend) | ✅ |
+| **`npm test` (backend)** | ✅ **152 testes, 8 suítes** |
+| **`npm run test:e2e` (backend)** | ✅ **59 testes, 2 suítes**, contra PostgreSQL de verdade |
+| `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
+| Testes no frontend | ❌ **inexistentes** — é a lacuna que sobrou |
+| Validação funcional manual | ✅ mantida a cada incremento |
 
-**Estas são as duas lacunas mais relevantes do projeto — e cresceram.** A superfície de
-regras multiplicou com as quatro etapas de evolução (imutabilidade de versão, renumeração
-de trilha, máquina de estados da NC, ciclo do certificado, exigência de evidência), e nada
-disso está protegido por regressão automatizada. Prioridade sugerida:
+### Cobertura dos services alvo
 
-1. `backend/eslint.config.js` (flat config, `@typescript-eslint`), destravando `npm run lint`.
-2. Testes unitários dos services com maior densidade de regra, mockando `PrismaService`:
-   - `AuthService` — login válido/inválido, cadastro inativo, anti-enumeração, ciclo de reset
-   - `ModelosTrilhaService` — cópia de etapas na nova versão, encerramento da anterior, `409` na versão em uso
-   - `CertificacoesService.salvar` — etapa de outro produto, no-op sem histórico, bloqueio por evidência ausente, NC fora de reprovação
-   - `CertificacoesService.migrarParaVersaoVigente` — etapas adicionadas por nome e **renumeração** (o caso da etapa inserida no meio)
-   - `NaoConformidadesService` — sequencial por ano, reabertura da etapa em `RESOLVIDA`, recusa de reavaliação
-   - `CertificadosService` — etapas obrigatórias, `409` de certificado vigente, cálculo de validade (incluindo fim de mês), expiração
-   - `ProdutosService.criar` — abertura da trilha e erro sem modelo vigente
-   - `FuncionariosService` — proteção do último ADMIN, auto-desativação
-   - `DashboardService` — classificação concluída/em andamento/pendente e escopo do CLIENTE
-3. E2E com Supertest sobre a matriz de papéis × endpoints — é o que garante que um `@Roles`
-   removido por acidente não passe em revisão.
+`npm run test:cov`, statements. A meta declarada é **por service coberto**, não um número
+global: uma média que inclui `aparencia` e `clientes` (ainda sem teste) não diria nada
+sobre o que foi protegido.
 
----
+| Alvo | Statements | Branches |
+|---|---|---|
+| `common/utils/senha.util.ts` | 100% | 100% |
+| `modules/auth/auth.service.ts` | 100% | 100% |
+| `modules/mail/mail.service.ts` | 100% | 83,33% |
+| `modules/nao-conformidades/nao-conformidades.service.ts` | 98,14% | 81,25% |
+| `modules/modelos-trilha/modelos-trilha.service.ts` | 90,47% | 90,47% |
+| `modules/certificacoes/certificacoes.service.ts` | 84,84% | 67,50% |
+| `modules/certificados/certificados.service.ts` | 81,05% | 77,77% |
+
+Somados aos 59 casos de e2e, cobrem as regras que a evolução do sistema acumulou:
+imutabilidade de versão de trilha, renumeração 1..N na migração, máquina de estados da NC,
+ciclo do certificado, exigência de evidência e o escopo do CLIENTE.
+
+### Como os testes estão organizados
+
+**Unitários** (`npm test`, Prisma mockado, sem banco):
+
+- `src/testing/prisma.mock.ts` — `PrismaService` mockado com um `$transaction` que **abre
+  mesmo a transação**, entregando ao callback um cliente separado (`tx`) inalcançável de
+  fora. Uma chamada registrada em `tx.*` só pode ter acontecido lá dentro; se o
+  `$transaction` sumir do service, a chamada aparece em `prisma.*` e o teste quebra. Um
+  mock ingênuo (`$transaction: (cb) => cb(prisma)`) faria todos esses testes passarem sem
+  proteger nada. `chamadasNaTransacao` registra as operações em ordem, o que permite
+  afirmar que duas escritas caíram no **mesmo** commit.
+- `src/testing/usuarios.fixture.ts` — `admin()`, `funcionario()`, `cliente(id)`. Cada spec
+  tem ao menos um caso de escopo de papel: autorização é testada junto da regra, não numa
+  suíte à parte.
+- Armadilha registrada no próprio helper: **`expect.anything()` não funciona contra um mock
+  do `jest-mock-extended`**. O `mockDeep` cria qualquer propriedade sob demanda, inclusive
+  `asymmetricMatch` — o Jest checa exatamente essa propriedade para descobrir se o valor
+  recebido é um matcher, encontra uma função, trata o mock como matcher e o resultado
+  aparece como `undefined`.
+
+**E2E** (`npm run test:e2e`, PostgreSQL real):
+
+- Banco dedicado `procert_test`, criado pelo `globalSetup` com `prisma migrate deploy` — o
+  mesmo comando do ambiente real, então o schema sob teste é o de produção.
+- Duas travas contra apagar dados por engano (a suíte trunca as tabelas): tanto o
+  `setup-env.ts` quanto o `globalSetup` recusam `DATABASE_URL` cujo banco não termine em
+  `_test`.
+- `src/bootstrap.ts` é chamado pelo `main.ts` **e** pelo e2e. Sem isso, o teste levantaria
+  uma aplicação sem `ValidationPipe`, sem filtro de exceções e sem os mounts de `/uploads`
+  — justamente as peças que ele existe para cobrir.
+- Os arquivos são gravados de verdade em disco antes das asserções de 404, e há um bloco de
+  pré-condição que confere presença e tamanho: um 404 só prova negação se o arquivo estiver
+  lá.
+- `requisicaoCrua()` envia o caminho literalmente, como o `curl --path-as-is`. É necessário
+  porque todo cliente HTTP conforme a especificação de URL resolve segmentos `..` — mesmo
+  escritos como `%2e%2e` — antes de abrir a conexão; usar o supertest nos testes de
+  travessia daria falso verde. Foi exatamente esse erro que invalidou a verificação manual
+  de 17/08 (§15).
+
+### O que ainda falta
+
+1. **CI** — GitHub Actions com build + lint + test nos dois pacotes e PostgreSQL de
+   serviço. É o que impede a regressão de tudo isto. Primeiro da fila (§17).
+2. **Testes no frontend** — zero. As telas de trilha (drag-and-drop, renumeração) e o
+   cálculo de contraste de `lib/tema.ts` são os candidatos com mais regra por linha.
+3. Services ainda sem unitário: `ProdutosService.criar` (abertura da trilha),
+   `FuncionariosService` (proteção do último ADMIN), `DashboardService` (classificação e
+   escopo), `AparenciaService` (allowlist de tokens), `UploadsService`.
 
 ## 15. Problemas conhecidos e decisões registradas
 
@@ -1402,15 +1454,19 @@ Correção aplicada: `"incremental": false` em `backend/tsconfig.build.json`, co
 explicando o motivo. O build de desenvolvimento (`tsconfig.json`) segue incremental.
 Se o sintoma reaparecer: `rm -rf dist tsconfig.build.tsbuildinfo` e reinicie.
 
-### Porta do PostgreSQL
+### Porta do PostgreSQL (resolvido em 19/08/2026)
 
-Container mapeado em `5433:5432` para conviver com uma instância nativa na 5432. O
-`README.md` ainda documenta 5432 — vale alinhar.
+Container mapeado em `5433:5432` para conviver com uma instância nativa na 5432.
 
-### `README.md` desatualizado em dois pontos
+**Correção de uma afirmação desta documentação.** Estava registrado aqui, e no §17, que o
+`README.md` documentava 5432 e que dava a entender que `npm test` e `npm run lint`
+funcionavam. Conferido: o `README.md` **já dizia 5433** e **já dizia explicitamente** que os
+dois comandos não funcionavam. Quem estava errada era esta documentação, não o README.
 
-Porta do banco (5432 → 5433) e a afirmação implícita de que `npm test`/`npm run lint`
-funcionam no backend.
+O que de fato estava errado era o **`backend/.env.example`**, que trazia
+`localhost:5432` — e é ele que o guia manda copiar para `.env`. Era a causa real do
+`P1000: Authentication failed` de quem seguia o passo a passo. Corrigido em 19/08/2026, com o motivo
+em comentário no próprio arquivo.
 
 ### Modelo de sessão
 
@@ -1425,7 +1481,7 @@ A tabela existe, os produtos expõem `ultimoPagamento`, mas não há controller/
 pagamentos. É uma extensão prevista, não um bug — só não deve ser confundida com
 funcionalidade entregue.
 
-### `/uploads` servido sem autenticação (corrigido em 17/08/2026)
+### `/uploads` servido sem autenticação — ✅ RESOLVIDO (17/08/2026 `7102845`, reauditado e endurecido em 19/08/2026 `a4a4585`)
 
 O `main.ts` montava o diretório inteiro de `UPLOAD_DIR` em `/uploads/` com um único
 `useStaticAssets`. PDF de certificado e evidência de etapa — documento formal e dado de
@@ -1515,7 +1571,7 @@ todas nasceram com `exigeDocumento: false`. Para passar a exigir evidência ness
 preciso criar uma versão nova da trilha da categoria e migrar cada produto, já que a versão
 em uso é imutável por construção.
 
-### Vulnerabilidades do `npm audit` (backend) — tratadas em 17/08/2026
+### Vulnerabilidades do `npm audit` (backend) — ✅ RESOLVIDO no que tem correção (17/08/2026 `ed279ee`), remedido o número em 19/08/2026 (`a4a4585`)
 
 Antes: **8 vulnerabilidades (7 *high*, 1 *critical*)** — o inventário havia crescido em
 relação às 5 registradas antes, porque o banco de advisories avançou (entrou o
@@ -1805,34 +1861,85 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 
 ## 17. Próximos passos sugeridos
 
-Em ordem de retorno sobre esforço:
+### Concluído nas sessões de 17 e 19/08/2026
 
-1. **`backend/eslint.config.js`** — destrava `npm run lint`; barato e imediato.
-2. **Suíte de testes dos services** conforme §14 — protege as regras que hoje só existem em
-   código e na cabeça de quem escreveu.
-3. **E2E de autorização** (Supertest sobre papéis × endpoints) — a rede de segurança do RBAC.
-4. ~~**Fechar o `/uploads` estático** para certificados e evidências~~ — feito em
-   17/08/2026 (§9 e §15). Falta o e2e que trava o comportamento.
-5. **Alinhar o `README.md`** (porta 5433, estado real de test/lint, novos módulos).
-6. ~~**`npm audit fix` no backend**~~ — feito em 17/08/2026 (§15). Resta acompanhar o
-   `@prisma/config` até que ele suba para `deepmerge-ts@8`.
-7. **Agendar a expiração de certificados** — cron externo chamando
-   `POST /certificados/expirar-vencidos`; sem isso, certificados vencidos só mudam de status
-   quando alguém chama a rota.
-8. **Otimizar as imagens da home** — WebP/AVIF e redimensionamento; hoje `depoimentos-bg.png`
-   sozinho custa 2,4 MB.
-9. **Tela de caixa de entrada** no painel para as mensagens de `/contato`, que hoje só
-   podem ser lidas via API.
-10. **Aviso de prazo de NC vencido** — hoje o vencimento é visível na tela, mas não dispara
-    e-mail nem aparece no dashboard.
-11. **Módulo de pagamentos** — a tabela e a exposição no produto já existem.
-12. **Endurecer a sessão** — cookie `httpOnly` + refresh token, se houver requisito de
-    sessão longa ou exposição pública.
-13. **Gerar tipos do frontend a partir do OpenAPI** — elimina a sincronização manual.
-14. **CI** (GitHub Actions): `build` + `lint` + `test` nos dois pacotes, com Postgres de
-    serviço para os e2e.
-15. **Observabilidade** — health check (`/api/health`), logs estruturados e métricas antes de
-    ir a produção.
+| Item | Commit |
+|---|---|
+| ~~Fechar o `/uploads` estático para certificados e evidências~~ | `7102845` |
+| ~~`npm audit fix` no backend~~ (o que tinha correção) | `ed279ee` |
+| ~~`.env` nos scripts `ts-node` do Prisma~~ | `1793963` |
+| ~~Reauditoria da travessia + allowlist sobre o caminho decodificado~~ | `a4a4585` |
+| ~~`backend/eslint.config.js`, destravando `npm run lint`~~ | `0966e96` |
+| ~~Suíte de testes unitários dos services (§14)~~ | `3a4d779` |
+| ~~E2E de autorização (Supertest, papéis × endpoints)~~ | `bd1771a` |
+| ~~Agendar a expiração de certificados~~ | `9edc8a8` |
+| ~~Alinhar `README.md` e esta documentação~~ | esta sessão (19/08/2026) |
+
+### Prioridade 1 — o que sustenta tudo que foi construído
+
+**1. CI (GitHub Actions).** `build` + `lint` + `test` nos dois pacotes, com PostgreSQL de
+serviço para o e2e. Só fazia sentido depois que lint, unitários e e2e existissem para
+rodar — e agora existem. É o que impede a regressão de tudo isto: hoje nada obriga ninguém
+a rodar a suíte antes de empurrar para `main`.
+
+Cuidados na configuração, já conhecidos:
+
+- `npm audit` não pode ser gate: as 3 *high* de `deepmerge-ts` não têm correção (§15).
+- `typecheck:scripts` **fica de fora** do pipeline obrigatório enquanto o ETL não for
+  arrumado — entraria vermelho por dívida conhecida.
+- O e2e precisa de `.env.test` (não versionado) montado a partir do `.env.test.example`, e
+  do serviço PostgreSQL exposto onde o `DATABASE_URL` do CI apontar.
+
+*Gatilho: nenhum — é o próximo.*
+
+### Prioridade 2 — funcionalidade que os usuários já sentem falta
+
+**2. Tela de caixa de entrada de `/contato` no painel.** As mensagens do formulário do site
+só podem ser lidas via Swagger/API hoje. *Gatilho: o cliente perguntar onde estão as
+mensagens — ou seja, na primeira mensagem que chegar em produção.*
+
+**3. Aviso de prazo de NC vencido**, no dashboard e por e-mail. Hoje o vencimento só
+aparece para quem abre a tela da NC. *Gatilho: a primeira NC que estourar o prazo sem
+ninguém notar.*
+
+### Prioridade 3 — desempenho e evolução prevista
+
+**4. Otimizar as imagens da home.** `depoimentos-bg.png` tem 2,4 MB e `cta-bg.jpg` 340 KB;
+converter para WebP/AVIF e redimensionar deve dar ~90% de redução. O `bootstrap-icons.css`
+completo (~106 KB de fonte) é carregado por ~28 ícones — cabe um subset. *Gatilho: medição
+de Core Web Vitals do site público, ou reclamação de carregamento em conexão móvel.*
+
+**5. Módulo de pagamentos.** A tabela `Pagamento` existe e `produtos` já expõe
+`ultimoPagamento`, mas não há controller nem service. *Gatilho: o OCP passar a cobrar pelo
+sistema em vez de por fora.*
+
+**6. Tipos do frontend gerados do OpenAPI.** Hoje `schema.prisma` e
+`frontend/src/types/index.ts` são sincronizados à mão, e divergência silenciosa é possível.
+*Gatilho: a primeira divergência que chegar ao usuário — ou o CI, que torna a geração
+verificável.*
+
+**7. Observabilidade.** `/api/health`, logs estruturados (JSON) e métricas. *Gatilho:
+qualquer deploy em infraestrutura que precise de health check — contêiner orquestrado, load
+balancer.*
+
+### Prioridade 4 — condicionados a um evento
+
+**8. Endurecer a sessão** — cookie `httpOnly` + `SameSite` + rota de refresh. A revalidação
+no banco já cobre conta desativada, mas não invalida token vazado antes de expirar (§15).
+*Gatilho: requisito de sessão longa ou exposição pública maior. **Não antes** — o custo é
+alto e o risco atual é aceitável para um sistema interno.*
+
+**9. Corrigir o ETL `migrate-legacy.ts`** (§15). Exige decidir como o script resolve
+categoria e versão de trilha para cada produto migrado. *Gatilho: plano de reimportação. O
+cutover já aconteceu; sem reimportação, o script é código morto.*
+
+**10. `DashboardService` com agregação SQL.** Hoje agrega em memória (`findMany` enxuto +
+JavaScript), correto na escala atual. *Gatilho: dezenas de milhares de produtos.*
+
+**11. Dados de contato divergentes no site.** O legado exibia **três telefones diferentes**
+(contato, rodapé e link do WhatsApp), preservados como estavam em
+`features/home/conteudo.ts`. *Gatilho: **confirmação do cliente sobre qual é o correto** —
+não invente.*
 
 ---
 
