@@ -7,5 +7,14 @@
     // fazendo o start falhar com "Cannot find module dist/main".
     "incremental": false
   },
-  "exclude": ["node_modules", "dist", "test", "prisma", "**/*.spec.ts"]
+  // `src/testing` guarda mocks e fixtures usados só pelos `.spec.ts`; não tem
+  // por que ir para o `dist/` de produção.
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "prisma",
+    "src/testing",
+    "**/*.spec.ts"
+  ]
 }

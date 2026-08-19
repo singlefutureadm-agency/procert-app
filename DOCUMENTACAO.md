@@ -1563,6 +1563,36 @@ hash gravado pelo `bcrypt` 5); hash legado `$2y$` do PHP ainda aceito pela norma
 `conferirSenha` (vetor `password_hash("rasmuslerdorf", PASSWORD_DEFAULT)` da documentação
 do PHP); upload de foto; download autenticado do PDF; e-mail em modo `[SIMULADO]`.
 
+### `esqueciSenha`: falha de e-mail vira oráculo de enumeração (risco aberto)
+
+Encontrado em 19/08/2026 ao escrever `auth.service.spec.ts`.
+
+`AuthService.esqueciSenha` faz `await this.mail.enviarRedefinicaoSenha(...)` **sem
+try/catch**. A garantia de "e-mail não derruba o fluxo de autenticação" existe, mas mora
+inteira dentro de `MailService.enviar`, que engole a exceção do `sendMail`. Ou seja: o
+`AuthService` depende de um detalhe de implementação de outro serviço para manter uma
+propriedade de segurança sua.
+
+Por que importa mais do que um 500 comum: o envio só acontece no ramo em que o e-mail
+**existe e está ATIVO**. E-mail inexistente ou inativo retorna a mensagem neutra antes
+disso, sempre 200. Se `enviarRedefinicaoSenha` rejeitar por qualquer motivo — um erro de
+template, uma mudança futura no `MailService`, o CRLF do item acima em outro assunto —, a
+resposta passa a ser 500 **apenas para contas que existem**. Isso é exatamente a
+enumeração que a mensagem neutra e o `bcrypt.compare` contra hash inválido no `login`
+foram escritos para impedir.
+
+Hoje o vetor está fechado na prática, porque o `MailService` nunca rejeita. É frágil por
+construção, não explorável agora.
+
+Estado: **coberto por teste** — `auth.service.spec.ts` tem um caso que afirma o
+comportamento atual (a exceção escapa), com o raciocínio no próprio arquivo. Ele existe
+para que a correção seja uma decisão consciente: quando o try/catch entrar, o teste falha
+e obriga a revisão.
+
+Correção proposta (não aplicada: mexer no `AuthService` é entrega própria): envolver a
+chamada em try/catch, registrar em log e devolver a mensagem neutra assim mesmo — o
+cliente que não recebeu o e-mail pede de novo, e ninguém descobre quais contas existem.
+
 ### ETL do legado quebrado — `migrate-legacy.ts` (risco aberto, prioridade baixa)
 
 `prisma/` está no `exclude` do `tsconfig.build.json`, então `nest build` nunca compilou os
