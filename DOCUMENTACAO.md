@@ -1272,6 +1272,10 @@ re-hasheado com bcrypt (o usuário continua entrando com a mesma senha), hash `$
 é aproveitado, e ausência de senha recebe `LEGACY_DEFAULT_PASSWORD`. Sempre rode primeiro
 com `--dry-run`.
 
+> ⚠️ **O script não roda hoje.** Ficou para trás no refactor de trilhas versionadas — ver
+> §15, "ETL do legado quebrado". O cutover já aconteceu, então isso só volta a importar se
+> houver reimportação.
+
 ### Transposição para trilhas por categoria
 
 `prisma/migrate-categorias.ts` move uma base do catálogo global para o modelo versionado:
@@ -1558,6 +1562,41 @@ Verificado após a mudança: `nest build` sem erros; login do seed (`bcrypt` 6 c
 hash gravado pelo `bcrypt` 5); hash legado `$2y$` do PHP ainda aceito pela normalização de
 `conferirSenha` (vetor `password_hash("rasmuslerdorf", PASSWORD_DEFAULT)` da documentação
 do PHP); upload de foto; download autenticado do PDF; e-mail em modo `[SIMULADO]`.
+
+### ETL do legado quebrado — `migrate-legacy.ts` (risco aberto, prioridade baixa)
+
+`prisma/` está no `exclude` do `tsconfig.build.json`, então `nest build` nunca compilou os
+scripts. Foi por isso que `migrate-legacy.ts` deixou de casar com o schema no refactor de
+trilhas versionadas sem que nada ficasse vermelho.
+
+Fechada a lacuna de verificação em 19/08/2026: `tsconfig.scripts.json` inclui `prisma/**`
+e o script `npm run typecheck:scripts` o executa. Saída atual:
+
+```
+$ npm run typecheck:scripts
+prisma/migrate-legacy.ts(323,9): error TS2322: … Type '{ clienteId … }' is missing the
+  following properties from type 'ProdutoUncheckedCreateInput': categoriaId, modeloTrilhaId
+prisma/migrate-legacy.ts(362,9): error TS2322: … Property 'ordem' is missing in type
+  '{ produtoId … }' but required in type 'CertificacaoProdutoUncheckedCreateInput'
+```
+
+Não é só tipagem: `categoriaId`, `modeloTrilhaId` e `ordem` são colunas `NOT NULL`, então o
+script falharia em execução também. `seed.ts` e `migrate-categorias.ts` passam limpo — os
+dois erros estão só no ETL.
+
+**Não corrigido de propósito.** Consertar exige decidir como o ETL resolve categoria e
+versão de trilha para cada produto migrado (uma categoria "Geral" para todos? inferida do
+legado? a versão vigente no momento da importação?) e como numera a `ordem` de cada etapa
+do produto. Isso é decisão de projeto, não ajuste de linha.
+
+Por isso `typecheck:scripts` **fica fora de qualquer pipeline obrigatório** enquanto o ETL
+não for arrumado — entrar agora deixaria o CI vermelho por dívida conhecida. É um comando
+de diagnóstico, rodado sob demanda.
+
+Prioridade real: **baixa**. O cutover já aconteceu e o sistema está em produção com os
+dados migrados; o script só volta a importar se houver reimportação.
+
+Gatilho para promover: plano de reimportação do legado.
 
 ### `nodemailer` 9: nome de produto com CRLF derruba o aviso em silêncio (risco aberto)
 

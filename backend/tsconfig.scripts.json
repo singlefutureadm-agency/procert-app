@@ -1,0 +1,18 @@
+{
+  // Type-check dos scripts de `prisma/` — seed e os dois ETLs.
+  //
+  // Existe porque `tsconfig.build.json` EXCLUI `prisma`, então `nest build` nunca
+  // compila esses arquivos. Foi assim que dois erros de tipo em
+  // `migrate-legacy.ts` sobreviveram ao refactor de trilhas versionadas sem que
+  // ninguém percebesse: o script deixou de casar com o schema e o build seguiu
+  // verde. Ver `DOCUMENTACAO.md` §15.
+  //
+  // Só verifica, não emite: os scripts rodam por `ts-node`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": ["prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
