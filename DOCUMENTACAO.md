@@ -1410,6 +1410,61 @@ com o arquivo presente em disco (o mesmo arquivo respondia 200 antes da mudança
 produto segue em 200, e as rotas autenticadas continuam devolvendo 401 sem token, 200 para
 o cliente dono e 403 para cliente alheio.
 
+#### Reauditoria em 19/08/2026: o middleware não cobria travessia
+
+A verificação de 17/08 usou `curl` **sem `--path-as-is`**. O `curl` normaliza o caminho no
+cliente, então o request de travessia saiu do socket já como
+`/uploads/certificados/<uuid>.pdf` — o 404 era real, mas provava o mesmo que o teste
+trivial. Refeito com `--path-as-is` e com as três formas codificadas (`%2e%2e%2f`, `..%2f`,
+`%2e%2e/%2e%2e/`), **nenhuma devolveu 200**: não houve regressão de segurança.
+
+O que a reauditoria encontrou foi outra coisa, no corpo das respostas. Nos casos de
+travessia o 404 vinha com `"Cannot GET …"` — o 404 do roteador do Nest —, e não com
+`"Arquivo não encontrado."`, que é o do middleware. Ou seja: **o middleware deixava a
+travessia passar** e quem negava era a confinação de raiz do `serve-static` de cada pasta.
+
+Isso invalidava a razão de existir do middleware. Ele lia a pasta com
+`req.path.split('/')[0]`, sobre o texto **cru** da URL: em
+`/uploads/produtos/%2e%2e%2fcertificados/x.pdf` a primeira pasta é `produtos`, está na
+allowlist, e ele chamava `next()`. No arranjo atual — um mount por pasta — o
+`serve-static` de `produtos/` recusa sair da própria raiz e o resultado final é 404. Mas no
+cenário exato contra o qual o middleware foi escrito (alguém remontar o diretório inteiro
+de uploads como estático), `produtos/../certificados/x.pdf` cairia **dentro** da raiz do
+mount e voltaria a ser servido com 200.
+
+Correção: `pastaPublicaDaRota()` em `uploads.constantes.ts` substitui a leitura crua. Ela
+**decodifica o caminho uma vez** — a mesma decodificação que o `serve-static` faz antes de
+resolver o arquivo, de modo que a decisão de allowlist e a resolução em disco olham para o
+mesmo texto —, recusa qualquer segmento `..` ou `.`, recusa codificação inválida (`%ZZ`) e
+só então confere a primeira pasta contra `PASTAS_PUBLICAS`. A separação de segmentos inclui
+a barra invertida, que no Windows também separa diretório.
+
+Verificado com a API no ar, com o PDF de certificado presente em disco (2316 bytes). Antes
+da correção os casos de travessia respondiam 404 com `"Cannot GET …"`; depois, todos
+respondem 404 com `"Arquivo não encontrado."` — a negação passou a ser do middleware:
+
+| Requisição | Antes | Depois |
+|---|---|---|
+| `--path-as-is …/produtos/../certificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `…/produtos/%2e%2e%2fcertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `…/produtos/..%2fcertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `--path-as-is …/produtos/%2e%2e/%2e%2e/certificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `--path-as-is …/produtos/..%5ccertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `--path-as-is …/produtos/%ZZ/x.png` | 404 | 404 `Arquivo não encontrado.` |
+| `…/produtos/<uuid>.png` (controle) | 200 | 200 |
+| `…/certificados/<uuid>.pdf` (controle) | 404 | 404 |
+
+Nota sobre o quarto caso: sem `--path-as-is` o próprio `curl` decodifica `%2e%2e` e
+normaliza, e o request sai como `/certificados/<uuid>.pdf` — fora de `/uploads`. Só a forma
+com `--path-as-is` exercita o servidor.
+
+**Confirmado na mesma reauditoria** (0.3 da revisão): `PastaUpload` **já é derivado** das
+constantes (`(typeof PASTAS_PUBLICAS)[number] | (typeof PASTAS_PRIVADAS)[number]`) em
+`uploads.constantes.ts`, e o `uploads.service.ts` apenas reexporta o tipo — não há duas
+listas. E `aparencia` grava por `salvarImagem` (`aparencia.service.ts:134`, allowlist só de
+imagem), não por `salvarDocumento`: PDF ou planilha ali seriam publicação irrestrita, já
+que é a única pasta pública onde um ADMIN publica arquivo que qualquer um baixa sem token.
+
 ### Produtos migrados não têm `exigeDocumento`
 
 O script de transposição copiou as etapas do catálogo global, que não tinha esse conceito —
@@ -1440,21 +1495,102 @@ Depois: **3 *high*, 0 *critical***. Em três passos:
 
 **Residual — 3 *high*, todas a mesma advisory:** `deepmerge-ts <8.0.0` (stack exhaustion ao
 mesclar grafos recursivos), alcançada por `prisma` → `@prisma/config` → `deepmerge-ts`.
-Ficam por três motivos somados:
 
-- `prisma` é **devDependency**: é a CLI de migration/generate, não entra no bundle da API.
+**Números medidos em 19/08/2026, separando produção de tooling:**
+
+| Comando | Resultado |
+|---|---|
+| `npm audit` | 3 *high*, 0 *critical* |
+| `npm audit --omit=dev` | **3 *high*, 0 *critical*** |
+
+Os dois números são iguais, e isso corrige uma afirmação da rodada anterior. Estava
+registrado que "`prisma` é devDependency, logo não entra em produção" e que o número de
+produção seria zero. A declaração no `package.json` está certa — `prisma` está mesmo em
+`devDependencies` —, mas ela não é o que o `npm audit --omit=dev` enxerga:
+
+```
+$ npm ls prisma --omit=dev
+procert-backend@1.0.0
+└─┬ @prisma/client@6.19.3
+  └── prisma@6.19.3
+```
+
+`@prisma/client`, que **é** dependência de produção, declara `prisma` como
+`peerDependency` opcional. Instalado, ele passa a fazer parte da árvore de produção
+resolvida e o `--omit=dev` continua contando a advisory. Ou seja: o estado de produção
+auditável é **3 *high***, não zero.
+
+Isso não muda a avaliação de risco — em execução, o `@prisma/client` não carrega o
+`@prisma/config` — mas muda o que se pode afirmar. O número que um pipeline de CI vai
+medir é 3, e é esse que fica registrado aqui.
+
+**Por que ficam:**
+
 - **Não há correção disponível.** `@prisma/config@7.9.1` — o mais novo — ainda depende de
   `deepmerge-ts@7.1.5`. Subir para `prisma@7` custaria a migração de `package.json#prisma`
   para `prisma.config.ts` **sem fechar a advisory**.
 - `npm audit fix` e `npm audit fix --force` já não propõem mudança alguma (`up to date`).
+- O vetor exige um arquivo de configuração hostil — que é do próprio repositório.
 
-O caminho é aguardar o `@prisma/config` subir para `deepmerge-ts@8`. Enquanto isso, o vetor
-exige um arquivo de configuração hostil — que é do próprio repositório.
+**Pendência de tooling, com gatilho:** acompanhar o `@prisma/config` até que ele suba para
+`deepmerge-ts@8` e então rodar `npm update @prisma/client prisma`. Enquanto isso, um
+eventual gate de CI em `npm audit` precisa tolerar essas três — não é dívida que dê para
+pagar do lado do projeto.
+
+**Tabela de versões — refeita a partir da árvore real, não do relatório anterior**
+(`npm ls js-yaml bcrypt nodemailer @nestjs/swagger` e o diff de `package-lock.json` em
+`ed279ee`):
+
+| Pacote | Antes (`ed279ee^`) | Depois | Observação |
+|---|---|---|---|
+| `bcrypt` | 5.1.1 | 6.0.0 | direto, major |
+| `nodemailer` | 6.10.1 | 9.0.5 | direto, três majors |
+| `@nestjs/swagger` | 11.4.6 | 11.4.7 | direto, patch |
+| `js-yaml` (via `@nestjs/swagger`) | 5.2.1 | 5.3.0 | transitivo |
+
+O `js-yaml` 5.x foi conferido no registry por ter parecido implausível: `npm view js-yaml
+dist-tags` devolve `latest: 5.3.0`, com `v4-legacy: 4.3.1` e `v3-legacy: 3.15.1`. As
+versões 4.3.1 e 3.15.1 continuam na árvore por outros caminhos (`@eslint/eslintrc`,
+`cosmiconfig`, `@istanbuljs/load-nyc-config`) — é uma árvore com quatro cópias de
+`js-yaml`, não uma só.
 
 Verificado após a mudança: `nest build` sem erros; login do seed (`bcrypt` 6 conferindo o
 hash gravado pelo `bcrypt` 5); hash legado `$2y$` do PHP ainda aceito pela normalização de
 `conferirSenha` (vetor `password_hash("rasmuslerdorf", PASSWORD_DEFAULT)` da documentação
 do PHP); upload de foto; download autenticado do PDF; e-mail em modo `[SIMULADO]`.
+
+### `nodemailer` 9: nome de produto com CRLF derruba o aviso em silêncio (risco aberto)
+
+Registrado em 19/08/2026. O upgrade 6 → 9 fechou, entre outras, a injeção de cabeçalho por
+CRLF — mas as versões novas **rejeitam** o header malformado lançando exceção, onde as
+antigas saneavam e seguiam. Isso muda o comportamento do `MailService` num caminho que
+nunca foi exercitado: sem `MAIL_HOST`/`MAIL_USER` no `.env`, só roda o `[SIMULADO]`, que
+nem instancia o transporter.
+
+O ponto exposto é `enviarAtualizacaoCertificacao`, que monta o assunto com um valor vindo
+do banco:
+
+```ts
+await this.enviar(para, `Atualização na certificação — ${produto}`, html);
+```
+
+`produto` é o nome cadastrado do produto. Um nome com `\r\n` — colado de uma planilha, por
+exemplo — produz um assunto com quebra de linha, o `sendMail` lança, e o `try/catch` de
+`MailService.enviar` engole a exceção e registra em log. O efeito prático: **a operação de
+domínio conclui normalmente e o cliente simplesmente não recebe o aviso**, sem nada na tela
+indicando isso.
+
+O `try/catch` está certo e deve continuar — e-mail não pode derrubar avaliação de etapa
+nem enumerar contas pelo tempo de resposta. O que falta é o assunto não chegar malformado.
+
+Estado: **coberto por teste** (`mail.service.spec.ts` — assunto com `\r\n` no nome do
+produto: o envio falha, a exceção não escapa de `enviar`, e o erro vai para o log), mas
+**não corrigido**. O saneamento — colapsar `\r` e `\n` do assunto antes do `sendMail` — é
+mudança de comportamento no `MailService` e fica para uma entrega própria.
+
+Gatilho para promover: configurar SMTP real (`MAIL_USER`/`MAIL_PASS`). O primeiro envio de
+verdade — Hostinger, porta 465/TLS — nunca aconteceu, e é quando esse caminho passa a
+existir em produção.
 
 ### Ordenação após migração de versão (resolvido)
 

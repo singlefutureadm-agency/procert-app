@@ -39,3 +39,43 @@ export type PastaUpload = (typeof PASTAS_UPLOAD)[number];
 export function ehPastaPublica(valor: string): valor is PastaPublica {
   return (PASTAS_PUBLICAS as readonly string[]).includes(valor);
 }
+
+/**
+ * Resolve a pasta pública a partir do caminho cru de uma requisição a
+ * `/uploads/...`. Devolve `null` — ou seja, negar — para qualquer coisa fora da
+ * allowlist.
+ *
+ * Trabalha sobre o caminho **decodificado** de propósito. O `serve-static`
+ * decodifica antes de resolver o arquivo, então olhar só o texto cru deixaria
+ * `/uploads/produtos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como
+ * se `%2e%2e%2fcertificados` fosse um nome de pasta comum. Uma decodificação só,
+ * igual à do `serve-static`: caminho com dupla codificação (`%252e`) não vira
+ * travessia para nenhum dos dois.
+ *
+ * Hoje o `serve-static` de cada pasta já recusa sair da própria raiz, então a
+ * negação aqui é redundante. Ela existe porque é a única que continua valendo se
+ * alguém remontar o diretório inteiro de uploads como estático: nesse cenário
+ * `produtos/../certificados/x.pdf` cairia dentro da raiz do mount e voltaria a
+ * ser servido.
+ */
+export function pastaPublicaDaRota(caminho: string): PastaPublica | null {
+  let decodificado: string;
+  try {
+    decodificado = decodeURIComponent(caminho);
+  } catch {
+    // Codificação inválida (`%ZZ`) — não dá para saber o que foi pedido.
+    return null;
+  }
+
+  // A barra invertida entra na separação porque no Windows ela também separa
+  // diretório: `produtos\..\certificados` seria travessia em disco.
+  const segmentos = decodificado.split(/[\\/]/).filter(Boolean);
+
+  if (segmentos.length === 0) return null;
+  if (segmentos.some((segmento) => segmento === '..' || segmento === '.')) {
+    return null;
+  }
+
+  const [pasta] = segmentos;
+  return ehPastaPublica(pasta) ? pasta : null;
+}

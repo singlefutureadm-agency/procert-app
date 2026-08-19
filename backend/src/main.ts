@@ -13,7 +13,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import {
   PASTAS_PUBLICAS,
   PASTAS_UPLOAD,
-  ehPastaPublica,
+  pastaPublicaDaRota,
 } from './modules/uploads/uploads.constantes';
 
 async function bootstrap(): Promise<void> {
@@ -75,12 +75,14 @@ async function bootstrap(): Promise<void> {
   // explícita, devolve o mesmo corpo de erro do resto da API e — por estar
   // registrado antes — continua valendo se alguém remontar o diretório inteiro
   // como estático no futuro.
+  //
+  // `pastaPublicaDaRota` decodifica o caminho antes de olhar a allowlist: a
+  // decisão precisa ser tomada sobre o mesmo texto que o `serve-static` usa para
+  // resolver o arquivo em disco.
   app.use(
     '/uploads',
     (req: Request, res: Response, proximo: NextFunction): void => {
-      const pasta = req.path.split('/').filter(Boolean)[0];
-
-      if (!pasta || !ehPastaPublica(pasta)) {
+      if (pastaPublicaDaRota(req.path) === null) {
         res.status(404).json({
           statusCode: 404,
           message: 'Arquivo não encontrado.',
