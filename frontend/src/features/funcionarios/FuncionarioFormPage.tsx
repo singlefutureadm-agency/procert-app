@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Campo } from '@/components/Campo';
+import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
 import { estadosApi } from '@/features/clientes/api';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
@@ -135,7 +136,8 @@ export function FuncionarioFormPage() {
         descricao="Administradores têm acesso total; funcionários não gerenciam a equipe."
         acoes={
           <Link to="/equipe" className="btn">
-            ← Voltar
+            <Icone nome="seta-esquerda" tamanho={16} />
+            Voltar
           </Link>
         }
       />

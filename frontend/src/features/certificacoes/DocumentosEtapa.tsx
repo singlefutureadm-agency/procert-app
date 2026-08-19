@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { toast } from 'sonner';
 
 import { mensagemDeErro } from '@/lib/api';
+import { Icone } from '@/components/Icone';
 import { formatarTamanho } from '@/lib/formatadores';
 import type { EtapaTimeline } from '@/types';
 import { certificacoesApi } from './api';
@@ -64,7 +65,7 @@ export function DocumentosEtapa({ produtoId, etapa, podeAnexar }: Props) {
               .catch((erro) => toast.error(mensagemDeErro(erro)))
           }
         >
-          <span aria-hidden>📎</span>
+          <Icone nome="clipe" tamanho={16} />
           <span className="documentos__nome">{documento.nomeArquivo}</span>
           <span className="texto-fraco">{formatarTamanho(documento.tamanhoBytes)}</span>
         </button>

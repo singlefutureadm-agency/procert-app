@@ -8,8 +8,10 @@ import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { Progresso } from '@/components/Progresso';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { moeda } from '@/lib/formatadores';
@@ -68,7 +70,17 @@ export function ProdutosPage() {
                   }))
                 }
               >
-                {vendoInativos ? '← Ver ativos' : '🗑️ Ver inativos'}
+                {vendoInativos ? (
+                <>
+                  <Icone nome="seta-esquerda" tamanho={16} />
+                  Ver ativos
+                </>
+              ) : (
+                <>
+                  <Icone nome="lixeira" tamanho={16} />
+                  Ver inativos
+                </>
+              )}
               </button>
               <Link to="/produtos/novo" className="btn btn--primario">
                 + Novo produto
@@ -91,7 +103,7 @@ export function ProdutosPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="📦"
+            icone="caixa"
             titulo="Nenhum produto encontrado"
             descricao={
               equipe
@@ -108,23 +120,23 @@ export function ProdutosPage() {
           />
         ) : (
           <>
-            <div className="tabela-wrapper">
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Produto</th>
-                    {equipe && <th>Cliente</th>}
-                    <th>Etapa atual</th>
-                    <th style={{ minWidth: 160 }}>Progresso</th>
-                    <th>Valor</th>
-                    <th className="texto-direita">Ações</th>
+            <TabelaRolavel rotulo="Produtos">
+              <table className="tabela" role="table">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" />
+                    <th role="columnheader">Produto</th>
+                    {equipe && <th role="columnheader">Cliente</th>}
+                    <th role="columnheader">Etapa atual</th>
+                    <th role="columnheader" style={{ minWidth: 160 }}>Progresso</th>
+                    <th role="columnheader">Valor</th>
+                    <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   {data?.dados.map((produto) => (
-                    <tr key={produto.id}>
-                      <td style={{ width: 56 }}>
+                    <tr role="row" key={produto.id}>
+                      <td role="cell" className="tabela__celula-inicial" style={{ width: 56 }}>
                         <img
                           className="avatar"
                           src={urlArquivo(produto.fotoUrl, '/placeholder-produto.svg')}
@@ -134,25 +146,26 @@ export function ProdutosPage() {
                           }}
                         />
                       </td>
-                      <td style={{ fontWeight: 600 }}>{produto.nome}</td>
+                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{produto.nome}</td>
                       {equipe && (
-                        <td className="texto-suave">{produto.cliente.nome}</td>
+                        <td role="cell" data-rotulo="Cliente" className="texto-suave">{produto.cliente.nome}</td>
                       )}
-                      <td className="texto-suave">
+                      <td role="cell" data-rotulo="Etapa atual" className="texto-suave">
                         {produto.resumoCertificacao.etapaAtual ?? '—'}
                       </td>
-                      <td>
+                      <td role="cell" data-rotulo="Progresso">
                         <Progresso valor={produto.resumoCertificacao.progresso} />
                       </td>
-                      <td className="sem-quebra">{moeda.format(produto.preco)}</td>
-                      <td>
+                      <td role="cell" data-rotulo="Valor" className="sem-quebra">{moeda.format(produto.preco)}</td>
+                      <td role="cell" className="tabela__celula-acoes">
                         <div className="tabela__acoes">
                           <Link
                             to={`/certificacoes/produto/${produto.id}`}
                             className="btn btn--icone"
                             title="Ver certificação"
+                            aria-label="Ver certificação"
                           >
-                            👁️
+                            <Icone nome="olho" />
                           </Link>
                           {equipe && (
                             <>
@@ -160,8 +173,9 @@ export function ProdutosPage() {
                                 to={`/produtos/${produto.id}/editar`}
                                 className="btn btn--icone"
                                 title="Editar"
+                                aria-label="Editar"
                               >
-                                ✏️
+                                <Icone nome="lapis" />
                               </Link>
                               <button
                                 type="button"
@@ -169,9 +183,10 @@ export function ProdutosPage() {
                                 title={
                                   produto.status === 'ATIVO' ? 'Desativar' : 'Reativar'
                                 }
+                                aria-label={ produto.status === 'ATIVO' ? 'Desativar' : 'Reativar' }
                                 onClick={() => setAlvo(produto)}
                               >
-                                {produto.status === 'ATIVO' ? '🚫' : '♻️'}
+                                <Icone nome={produto.status === 'ATIVO' ? 'proibido' : 'reciclar'} />
                               </button>
                             </>
                           )}
@@ -181,7 +196,7 @@ export function ProdutosPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TabelaRolavel>
 
             <Paginacao
               pagina={data?.pagina ?? 1}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/useAuth';
+import { Icone } from '@/components/Icone';
 import { Campo } from '@/components/Campo';
 import { mensagemDeErro } from '@/lib/api';
 import { chaves } from '@/lib/queryClient';
@@ -93,7 +94,8 @@ export function PainelCertificadoProduto({
               setEmitindo(true);
             }}
           >
-            📜 Emitir certificado
+            <Icone nome="certificado" tamanho={16} />
+            Emitir certificado
           </button>
         )}
       </div>
@@ -156,7 +158,8 @@ export function PainelCertificadoProduto({
                       .catch((erro) => toast.error(mensagemDeErro(erro)))
                   }
                 >
-                  ⬇ Baixar PDF
+                  <Icone nome="download" tamanho={16} />
+                  Baixar PDF
                 </button>
               }
             />

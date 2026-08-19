@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Campo } from '@/components/Campo';
+import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { paraInputDate } from '@/lib/formatadores';
@@ -144,7 +145,8 @@ export function ClienteFormPage() {
         }
         acoes={
           <Link to="/clientes" className="btn">
-            ← Voltar
+            <Icone nome="seta-esquerda" tamanho={16} />
+            Voltar
           </Link>
         }
       />

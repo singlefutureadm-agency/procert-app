@@ -8,8 +8,10 @@ import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { mascararDocumento } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
@@ -65,7 +67,17 @@ export function ClientesPage() {
                 }))
               }
             >
-              {vendoInativos ? '← Ver ativos' : '🗑️ Ver inativos'}
+              {vendoInativos ? (
+                <>
+                  <Icone nome="seta-esquerda" tamanho={16} />
+                  Ver ativos
+                </>
+              ) : (
+                <>
+                  <Icone nome="lixeira" tamanho={16} />
+                  Ver inativos
+                </>
+              )}
             </button>
             <Link to="/clientes/novo" className="btn btn--primario">
               + Novo cliente
@@ -87,7 +99,7 @@ export function ClientesPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="🏢"
+            icone="predio"
             titulo="Nenhum cliente encontrado"
             descricao={
               filtros.busca
@@ -102,24 +114,24 @@ export function ClientesPage() {
           />
         ) : (
           <>
-            <div className="tabela-wrapper">
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Nome</th>
-                    <th>E-mail</th>
-                    <th>Documento</th>
-                    <th>Telefone</th>
-                    <th>UF</th>
-                    <th>Status</th>
-                    <th className="texto-direita">Ações</th>
+            <TabelaRolavel rotulo="Clientes">
+              <table className="tabela" role="table">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" />
+                    <th role="columnheader">Nome</th>
+                    <th role="columnheader">E-mail</th>
+                    <th role="columnheader">Documento</th>
+                    <th role="columnheader">Telefone</th>
+                    <th role="columnheader">UF</th>
+                    <th role="columnheader">Status</th>
+                    <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   {data?.dados.map((cliente) => (
-                    <tr key={cliente.id}>
-                      <td style={{ width: 56 }}>
+                    <tr role="row" key={cliente.id}>
+                      <td role="cell" className="tabela__celula-inicial" style={{ width: 56 }}>
                         <img
                           className="avatar"
                           src={urlArquivo(cliente.fotoUrl)}
@@ -129,24 +141,25 @@ export function ClientesPage() {
                           }}
                         />
                       </td>
-                      <td style={{ fontWeight: 600 }}>{cliente.nome}</td>
-                      <td className="texto-suave">{cliente.email}</td>
-                      <td className="texto-suave">
+                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{cliente.nome}</td>
+                      <td role="cell" data-rotulo="E-mail" className="texto-suave">{cliente.email}</td>
+                      <td role="cell" data-rotulo="Documento" className="texto-suave">
                         {mascararDocumento(cliente.cpf, cliente.cnpj)}
                       </td>
-                      <td className="texto-suave">{cliente.telefone ?? '—'}</td>
-                      <td>{cliente.estado?.sigla ?? '—'}</td>
-                      <td>
+                      <td role="cell" data-rotulo="Telefone" className="texto-suave">{cliente.telefone ?? '—'}</td>
+                      <td role="cell" data-rotulo="UF">{cliente.estado?.sigla ?? '—'}</td>
+                      <td role="cell" data-rotulo="Status">
                         <BadgeStatus status={cliente.status} />
                       </td>
-                      <td>
+                      <td role="cell" className="tabela__celula-acoes">
                         <div className="tabela__acoes">
                           <Link
                             to={`/clientes/${cliente.id}/editar`}
                             className="btn btn--icone"
                             title="Editar"
+                            aria-label="Editar"
                           >
-                            ✏️
+                            <Icone nome="lapis" />
                           </Link>
                           <button
                             type="button"
@@ -154,9 +167,10 @@ export function ClientesPage() {
                             title={
                               cliente.status === 'ATIVO' ? 'Desativar' : 'Reativar'
                             }
+                            aria-label={ cliente.status === 'ATIVO' ? 'Desativar' : 'Reativar' }
                             onClick={() => setAlvo(cliente)}
                           >
-                            {cliente.status === 'ATIVO' ? '🚫' : '♻️'}
+                            <Icone nome={cliente.status === 'ATIVO' ? 'proibido' : 'reciclar'} />
                           </button>
                         </div>
                       </td>
@@ -164,7 +178,7 @@ export function ClientesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TabelaRolavel>
 
             <Paginacao
               pagina={data?.pagina ?? 1}

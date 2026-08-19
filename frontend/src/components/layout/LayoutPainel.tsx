@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
+import { Icone } from '@/components/Icone';
 import { useTema } from '@/features/aparencia/useTema';
 import { Sidebar } from './Sidebar';
 
@@ -12,6 +13,11 @@ export function LayoutPainel() {
 
   return (
     <div className="layout">
+      {/* Precisa ser o primeiro elemento focável do documento para valer. */}
+      <a className="pular-para-conteudo" href="#conteudo-principal">
+        Pular para o conteúdo
+      </a>
+
       <Sidebar aberta={menuAberto} aoNavegar={() => setMenuAberto(false)} />
 
       <div className="conteudo">
@@ -21,8 +27,9 @@ export function LayoutPainel() {
             className="btn btn--icone"
             onClick={() => setMenuAberto((aberto) => !aberto)}
             aria-label="Alternar menu de navegação"
+            aria-expanded={menuAberto}
           >
-            ☰
+            <Icone nome="menu" />
           </button>
 
           <strong>Painel ProCert</strong>
@@ -39,7 +46,7 @@ export function LayoutPainel() {
                 }
                 title={modo === 'ESCURO' ? 'Modo claro' : 'Modo escuro'}
               >
-                {modo === 'ESCURO' ? '☀️' : '🌙'}
+                <Icone nome={modo === 'ESCURO' ? 'sol' : 'lua'} />
               </button>
             )}
 
@@ -59,7 +66,9 @@ export function LayoutPainel() {
           </div>
         </header>
 
-        <main className="pagina">
+        {/* `tabIndex={-1}` para que o link de pular realmente mova o foco:
+            sem isso o <main> não é focável e o Tab seguinte voltaria ao topo. */}
+        <main className="pagina" id="conteudo-principal" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

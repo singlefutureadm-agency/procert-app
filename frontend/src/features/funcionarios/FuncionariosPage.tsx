@@ -8,8 +8,10 @@ import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { chaves } from '@/lib/queryClient';
 import type { Funcionario, StatusRegistro } from '@/types';
@@ -71,7 +73,17 @@ export function FuncionariosPage() {
                 }))
               }
             >
-              {vendoInativos ? '← Ver ativos' : '🗑️ Ver inativos'}
+              {vendoInativos ? (
+                <>
+                  <Icone nome="seta-esquerda" tamanho={16} />
+                  Ver ativos
+                </>
+              ) : (
+                <>
+                  <Icone nome="lixeira" tamanho={16} />
+                  Ver inativos
+                </>
+              )}
             </button>
             <Link to="/equipe/novo" className="btn btn--primario">
               + Novo integrante
@@ -111,7 +123,7 @@ export function FuncionariosPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="👥"
+            icone="pessoas"
             titulo="Nenhum integrante encontrado"
             acao={
               <Link to="/equipe/novo" className="btn btn--primario">
@@ -121,23 +133,23 @@ export function FuncionariosPage() {
           />
         ) : (
           <>
-            <div className="tabela-wrapper">
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Nome</th>
-                    <th>E-mail</th>
-                    <th>Papel</th>
-                    <th>Telefone</th>
-                    <th>Status</th>
-                    <th className="texto-direita">Ações</th>
+            <TabelaRolavel rotulo="Equipe interna">
+              <table className="tabela" role="table">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" />
+                    <th role="columnheader">Nome</th>
+                    <th role="columnheader">E-mail</th>
+                    <th role="columnheader">Papel</th>
+                    <th role="columnheader">Telefone</th>
+                    <th role="columnheader">Status</th>
+                    <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   {data?.dados.map((integrante) => (
-                    <tr key={integrante.id}>
-                      <td style={{ width: 56 }}>
+                    <tr role="row" key={integrante.id}>
+                      <td role="cell" className="tabela__celula-inicial" style={{ width: 56 }}>
                         <img
                           className="avatar"
                           src={urlArquivo(integrante.fotoUrl)}
@@ -147,25 +159,26 @@ export function FuncionariosPage() {
                           }}
                         />
                       </td>
-                      <td style={{ fontWeight: 600 }}>{integrante.nome}</td>
-                      <td className="texto-suave">{integrante.email}</td>
-                      <td>
+                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{integrante.nome}</td>
+                      <td role="cell" data-rotulo="E-mail" className="texto-suave">{integrante.email}</td>
+                      <td role="cell" data-rotulo="Papel">
                         <span className="badge badge--andamento">
                           {ROTULO_PAPEL[integrante.role]}
                         </span>
                       </td>
-                      <td className="texto-suave">{integrante.telefone ?? '—'}</td>
-                      <td>
+                      <td role="cell" data-rotulo="Telefone" className="texto-suave">{integrante.telefone ?? '—'}</td>
+                      <td role="cell" data-rotulo="Status">
                         <BadgeStatus status={integrante.status} />
                       </td>
-                      <td>
+                      <td role="cell" className="tabela__celula-acoes">
                         <div className="tabela__acoes">
                           <Link
                             to={`/equipe/${integrante.id}/editar`}
                             className="btn btn--icone"
                             title="Editar"
+                            aria-label="Editar"
                           >
-                            ✏️
+                            <Icone nome="lapis" />
                           </Link>
                           <button
                             type="button"
@@ -173,9 +186,10 @@ export function FuncionariosPage() {
                             title={
                               integrante.status === 'ATIVO' ? 'Desativar' : 'Reativar'
                             }
+                            aria-label={ integrante.status === 'ATIVO' ? 'Desativar' : 'Reativar' }
                             onClick={() => setAlvo(integrante)}
                           >
-                            {integrante.status === 'ATIVO' ? '🚫' : '♻️'}
+                            <Icone nome={integrante.status === 'ATIVO' ? 'proibido' : 'reciclar'} />
                           </button>
                         </div>
                       </td>
@@ -183,7 +197,7 @@ export function FuncionariosPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TabelaRolavel>
 
             <Paginacao
               pagina={data?.pagina ?? 1}

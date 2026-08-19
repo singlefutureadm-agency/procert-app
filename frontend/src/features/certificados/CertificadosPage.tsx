@@ -9,6 +9,7 @@ import { Campo } from '@/components/Campo';
 import { CampoBusca } from '@/components/CampoBusca';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone } from '@/components/Icone';
 import { Paginacao } from '@/components/Paginacao';
 import { mensagemDeErro } from '@/lib/api';
 import { chaves } from '@/lib/queryClient';
@@ -150,7 +151,7 @@ export function CertificadosPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="📜"
+            icone="certificado"
             titulo="Nenhum certificado"
             descricao={
               ehCliente
@@ -183,7 +184,8 @@ export function CertificadosPage() {
                             .catch((erro) => toast.error(mensagemDeErro(erro)))
                         }
                       >
-                        ⬇ Baixar PDF
+                        <Icone nome="download" tamanho={16} />
+                        Baixar PDF
                       </button>
 
                       {ehAdmin && certificado.status === 'EMITIDO' && (

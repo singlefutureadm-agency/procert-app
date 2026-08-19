@@ -24,7 +24,9 @@ import { toast } from 'sonner';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro } from '@/lib/api';
 import { formatarData } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
@@ -44,63 +46,92 @@ function LinhaEtapa({
   aoEditar: (etapa: ModeloEtapa) => void;
   aoRemover: (etapa: ModeloEtapa) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: etapa.id, disabled: !editavel });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    // Diz ao dnd-kit qual elemento é a alça. Sem isso ele continua arrastando
+    // pelo ponteiro, mas as instruções de teclado ficam penduradas no <tr>, que
+    // não é focável — a reordenação por teclado nunca chegaria a ser anunciada.
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: etapa.id, disabled: !editavel });
 
   return (
+    /*
+     * `attributes` e `listeners` do dnd-kit ficam na alça, não na linha.
+     *
+     * Espalhados no <tr> — como estavam — eles sobrescreviam o papel da linha
+     * com `role="button"`: o leitor de tela anunciava a linha inteira como um
+     * botão e a estrutura da tabela desaparecia, junto com a associação entre
+     * cada célula e seu cabeçalho. De quebra, a linha toda virava área de
+     * arraste, o que impedia selecionar o texto da etapa e obrigava cada botão
+     * de ação a abafar o `onPointerDown` para continuar clicável.
+     */
     <tr
+      role="row"
       ref={setNodeRef}
-      className={editavel ? 'arrastavel' : undefined}
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.55 : 1,
       }}
-      {...attributes}
-      {...listeners}
     >
-      <td style={{ width: 52, textAlign: 'center' }} aria-hidden>
-        {editavel ? '⠿' : ''}
+      <td role="cell" className="tabela__celula-inicial" style={{ width: 52 }}>
+        {editavel && (
+          <button
+            type="button"
+            className="tabela__alca arrastavel"
+            aria-label={`Reordenar a etapa ${etapa.nome}`}
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+          >
+            <Icone nome="arrastar" tamanho={18} />
+          </button>
+        )}
       </td>
-      <td style={{ width: 64, fontWeight: 700 }}>{etapa.ordem}</td>
-      <td>
+      <td role="cell" className="tabela__celula-inicial" style={{ width: 64, fontWeight: 700 }}>{etapa.ordem}</td>
+      <td role="cell" data-principal>
         <div style={{ fontWeight: 600 }}>{etapa.nome}</div>
         {etapa.descricao && (
           <div className="texto-pequeno texto-fraco">{etapa.descricao}</div>
         )}
       </td>
-      <td className="texto-suave sem-quebra">
+      <td role="cell" data-rotulo="Tipo" className="texto-suave sem-quebra">
         {ROTULO_TIPO_ETAPA[etapa.tipo] ?? etapa.tipo}
       </td>
-      <td className="texto-suave sem-quebra">
+      <td role="cell" data-rotulo="Prazo" className="texto-suave sem-quebra">
         {etapa.prazoSlaDias ? `${etapa.prazoSlaDias} dia(s)` : '—'}
       </td>
-      <td>
+      <td role="cell" data-rotulo="Regras">
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {etapa.obrigatoria && <span className="badge badge--andamento">obrigatória</span>}
           {etapa.exigeDocumento && <span className="badge badge--pendente">documento</span>}
         </div>
       </td>
-      <td>
+      <td role="cell" className="tabela__celula-acoes">
         {editavel && (
           <div className="tabela__acoes">
             <button
               type="button"
               className="btn btn--icone"
               title="Editar etapa"
-              onPointerDown={(evento) => evento.stopPropagation()}
+              aria-label="Editar etapa"
               onClick={() => aoEditar(etapa)}
             >
-              ✏️
+              <Icone nome="lapis" />
             </button>
             <button
               type="button"
               className="btn btn--icone"
               title="Remover etapa"
-              onPointerDown={(evento) => evento.stopPropagation()}
+              aria-label="Remover etapa"
               onClick={() => aoRemover(etapa)}
             >
-              🗑️
+              <Icone nome="lixeira" />
             </button>
           </div>
         )}
@@ -215,7 +246,7 @@ export function CategoriaDetalhePage() {
   if (categoria.isError || !categoria.data) {
     return (
       <EstadoVazio
-        icone="🗂️"
+        icone="pastas"
         titulo="Categoria não encontrada"
         acao={
           <Link to="/categorias" className="btn btn--primario">
@@ -240,7 +271,8 @@ export function CategoriaDetalhePage() {
         acoes={
           <>
             <Link to="/categorias" className="btn">
-              ← Categorias
+              <Icone nome="seta-esquerda" tamanho={16} />
+              Categorias
             </Link>
             <button
               type="button"
@@ -254,20 +286,21 @@ export function CategoriaDetalhePage() {
       />
 
       <section className="vidro" style={{ marginBottom: 16 }}>
-        <div className="tabela-wrapper">
-          <table className="tabela">
-            <thead>
-              <tr>
-                <th>Versão</th>
-                <th>Vigência</th>
-                <th>Etapas</th>
-                <th>Produtos</th>
-                <th>Situação</th>
+        <TabelaRolavel rotulo="Versões da trilha">
+          <table className="tabela" role="table">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th role="columnheader">Versão</th>
+                <th role="columnheader">Vigência</th>
+                <th role="columnheader">Etapas</th>
+                <th role="columnheader">Produtos</th>
+                <th role="columnheader">Situação</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {versoes.data?.map((versao) => (
                 <tr
+                  role="row"
                   key={versao.id}
                   onClick={() => setVersaoSelecionada(versao.id)}
                   style={{
@@ -278,14 +311,14 @@ export function CategoriaDetalhePage() {
                         : undefined,
                   }}
                 >
-                  <td style={{ fontWeight: 700 }}>v{versao.versao}</td>
-                  <td className="texto-suave sem-quebra">
+                  <td role="cell" data-principal style={{ fontWeight: 700 }}>v{versao.versao}</td>
+                  <td role="cell" data-rotulo="Vigência" className="texto-suave sem-quebra">
                     {formatarData(versao.vigenteDe)}
                     {versao.vigenteAte ? ` → ${formatarData(versao.vigenteAte)}` : ''}
                   </td>
-                  <td className="texto-suave">{versao.etapas.length}</td>
-                  <td className="texto-suave">{versao.totalProdutos}</td>
-                  <td>
+                  <td role="cell" data-rotulo="Etapas" className="texto-suave">{versao.etapas.length}</td>
+                  <td role="cell" data-rotulo="Produtos" className="texto-suave">{versao.totalProdutos}</td>
+                  <td role="cell" data-rotulo="Situação">
                     <span
                       className={`badge ${versao.ativo ? 'badge--aprovado' : 'badge--pendente'}`}
                     >
@@ -296,7 +329,7 @@ export function CategoriaDetalhePage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TabelaRolavel>
       </section>
 
       <section className="vidro">
@@ -325,7 +358,7 @@ export function CategoriaDetalhePage() {
 
         {etapas.length === 0 ? (
           <EstadoVazio
-            icone="🧩"
+            icone="peca"
             titulo="Nenhuma etapa nesta versão"
             descricao="Sem etapas, a categoria não aceita produtos."
             acao={
@@ -341,26 +374,26 @@ export function CategoriaDetalhePage() {
             }
           />
         ) : (
-          <div className="tabela-wrapper">
+          <TabelaRolavel rotulo="Etapas da versão">
             <DndContext
               sensors={sensores}
               collisionDetection={closestCenter}
               modifiers={[restrictToVerticalAxis]}
               onDragEnd={aoSoltar}
             >
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Ordem</th>
-                    <th>Etapa</th>
-                    <th>Tipo</th>
-                    <th>Prazo</th>
-                    <th>Regras</th>
-                    <th className="texto-direita">Ações</th>
+              <table className="tabela" role="table">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" />
+                    <th role="columnheader">Ordem</th>
+                    <th role="columnheader">Etapa</th>
+                    <th role="columnheader">Tipo</th>
+                    <th role="columnheader">Prazo</th>
+                    <th role="columnheader">Regras</th>
+                    <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   <SortableContext
                     items={etapas.map((etapa) => etapa.id)}
                     strategy={verticalListSortingStrategy}
@@ -381,7 +414,7 @@ export function CategoriaDetalhePage() {
                 </tbody>
               </table>
             </DndContext>
-          </div>
+          </TabelaRolavel>
         )}
       </section>
 

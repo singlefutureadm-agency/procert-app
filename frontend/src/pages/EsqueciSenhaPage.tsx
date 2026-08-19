@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { Campo } from '@/components/Campo';
+import { Icone } from '@/components/Icone';
 import { api, mensagemDeErro } from '@/lib/api';
 
 const esquema = z.object({
@@ -63,12 +64,9 @@ export function EsqueciSenhaPage() {
               </button>
             </form>
 
-            <Link
-              to="/login"
-              className="texto-pequeno texto-suave"
-              style={{ textAlign: 'center' }}
-            >
-              ← Voltar ao login
+            <Link to="/login" className="link-voltar texto-pequeno texto-suave">
+              <Icone nome="seta-esquerda" tamanho={16} />
+              Voltar ao login
             </Link>
           </>
         )}

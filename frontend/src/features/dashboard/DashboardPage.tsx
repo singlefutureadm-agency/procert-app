@@ -6,6 +6,8 @@ import { BadgeCertificacao } from '@/components/Badge';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone, type NomeIcone } from '@/components/Icone';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { api } from '@/lib/api';
 import { formatarDataHora } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
@@ -19,16 +21,15 @@ function CardMetrica({
 }: {
   valor: number | string;
   rotulo: string;
-  icone: string;
+  icone: NomeIcone;
   para?: string;
 }) {
   const conteudo = (
     <div className="card vidro">
       <div className="entre">
         <div className="card-metrica__valor">{valor}</div>
-        <span style={{ fontSize: '1.7rem', opacity: 0.85 }} aria-hidden>
-          {icone}
-        </span>
+        {/* Decorativo: o rótulo logo abaixo já nomeia a métrica. */}
+        <Icone nome={icone} tamanho={26} className="icone card-metrica__icone" />
       </div>
       <div className="card-metrica__rotulo">{rotulo}</div>
     </div>
@@ -53,7 +54,7 @@ export function DashboardPage() {
   if (isError || !data) {
     return (
       <EstadoVazio
-        icone="⚠️"
+        icone="alerta"
         titulo="Não foi possível carregar os indicadores"
         descricao="Verifique se a API está no ar e tente novamente."
       />
@@ -72,32 +73,32 @@ export function DashboardPage() {
           <CardMetrica
             valor={data.totalClientes}
             rotulo="Clientes ativos"
-            icone="🏢"
+            icone="predio"
             para="/clientes"
           />
         )}
         <CardMetrica
           valor={data.totalProdutos}
           rotulo="Produtos em certificação"
-          icone="📦"
+          icone="caixa"
           para="/produtos"
         />
         <CardMetrica
           valor={data.certificacoesConcluidas}
           rotulo="Certificações concluídas"
-          icone="✅"
+          icone="verificado"
           para="/certificacoes"
         />
         <CardMetrica
           valor={data.certificacoesEmAndamento}
           rotulo="Em andamento"
-          icone="🔄"
+          icone="atualizar"
           para="/certificacoes"
         />
         <CardMetrica
           valor={`${data.percentualPendentes}%`}
           rotulo="Ainda não iniciadas"
-          icone="⏳"
+          icone="ampulheta"
         />
       </div>
 
@@ -106,43 +107,43 @@ export function DashboardPage() {
 
         {data.ultimasAtualizacoes.length === 0 ? (
           <EstadoVazio
-            icone="🗂️"
+            icone="pastas"
             titulo="Nenhuma movimentação registrada"
             descricao="As alterações de etapas aparecerão aqui."
           />
         ) : (
-          <div className="tabela-wrapper">
-            <table className="tabela">
-              <thead>
-                <tr>
-                  <th>Produto</th>
-                  <th>Cliente</th>
-                  <th>Etapa</th>
-                  <th>Status</th>
-                  <th>Atualizado em</th>
+          <TabelaRolavel rotulo="Últimas movimentações">
+            <table className="tabela" role="table">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader">Produto</th>
+                  <th role="columnheader">Cliente</th>
+                  <th role="columnheader">Etapa</th>
+                  <th role="columnheader">Status</th>
+                  <th role="columnheader">Atualizado em</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {data.ultimasAtualizacoes.map((linha, indice) => (
-                  <tr key={`${linha.produtoId}-${indice}`}>
-                    <td>
+                  <tr role="row" key={`${linha.produtoId}-${indice}`}>
+                    <td role="cell" data-principal>
                       <Link to={`/certificacoes/produto/${linha.produtoId}`}>
                         {linha.produto}
                       </Link>
                     </td>
-                    <td className="texto-suave">{linha.cliente}</td>
-                    <td className="texto-suave">{linha.etapa}</td>
-                    <td>
+                    <td role="cell" data-rotulo="Cliente" className="texto-suave">{linha.cliente}</td>
+                    <td role="cell" data-rotulo="Etapa" className="texto-suave">{linha.etapa}</td>
+                    <td role="cell" data-rotulo="Status">
                       <BadgeCertificacao status={linha.status} />
                     </td>
-                    <td className="texto-pequeno texto-fraco sem-quebra">
+                    <td role="cell" data-rotulo="Atualizado em" className="texto-pequeno texto-fraco sem-quebra">
                       {formatarDataHora(linha.atualizadoEm)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </TabelaRolavel>
         )}
       </section>
     </>

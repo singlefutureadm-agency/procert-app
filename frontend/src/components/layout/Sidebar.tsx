@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
+import { Icone, type NomeIcone } from '@/components/Icone';
 import { useTema } from '@/features/aparencia/useTema';
 import type { Role } from '@/types';
 
 interface ItemMenu {
   para: string;
   rotulo: string;
-  icone: string;
+  icone: NomeIcone;
   papeis?: Role[];
 }
 
@@ -19,19 +20,19 @@ interface GrupoMenu {
 const MENU: GrupoMenu[] = [
   {
     titulo: 'Visão geral',
-    itens: [{ para: '/dashboard', rotulo: 'Dashboard', icone: '📊' }],
+    itens: [{ para: '/dashboard', rotulo: 'Dashboard', icone: 'grafico' }],
   },
   {
     titulo: 'Certificação',
     itens: [
-      { para: '/certificacoes', rotulo: 'Acompanhamento', icone: '📋' },
-      { para: '/nao-conformidades', rotulo: 'Não conformidades', icone: '⚠️' },
-      { para: '/certificados', rotulo: 'Certificados', icone: '📜' },
-      { para: '/produtos', rotulo: 'Produtos', icone: '📦' },
+      { para: '/certificacoes', rotulo: 'Acompanhamento', icone: 'prancheta' },
+      { para: '/nao-conformidades', rotulo: 'Não conformidades', icone: 'alerta' },
+      { para: '/certificados', rotulo: 'Certificados', icone: 'certificado' },
+      { para: '/produtos', rotulo: 'Produtos', icone: 'caixa' },
       {
         para: '/categorias',
         rotulo: 'Categorias e trilhas',
-        icone: '🗂️',
+        icone: 'pastas',
         papeis: ['ADMIN', 'FUNCIONARIO'],
       },
     ],
@@ -42,10 +43,10 @@ const MENU: GrupoMenu[] = [
       {
         para: '/clientes',
         rotulo: 'Clientes',
-        icone: '🏢',
+        icone: 'predio',
         papeis: ['ADMIN', 'FUNCIONARIO'],
       },
-      { para: '/equipe', rotulo: 'Equipe interna', icone: '👥', papeis: ['ADMIN'] },
+      { para: '/equipe', rotulo: 'Equipe interna', icone: 'pessoas', papeis: ['ADMIN'] },
     ],
   },
   {
@@ -54,7 +55,7 @@ const MENU: GrupoMenu[] = [
       {
         para: '/dashboard/aparencia',
         rotulo: 'Aparência',
-        icone: '🎨',
+        icone: 'paleta',
         papeis: ['ADMIN'],
       },
     ],
@@ -82,13 +83,15 @@ export function Sidebar({ aberta, aoNavegar }: Props) {
           <img className="sidebar__logo" src={aparencia.logoUrl} alt="ProCert" />
         ) : (
           <>
-            <span aria-hidden>🛡️</span>
+            <Icone nome="escudo" tamanho={24} />
             <span>ProCert</span>
           </>
         )}
       </div>
 
-      <nav>
+      {/* Nomear a navegação separa este landmark do <nav> da home institucional
+          na lista de regiões do leitor de tela. */}
+      <nav aria-label="Navegação principal">
         {MENU.map((grupo) => {
           const itens = grupo.itens.filter(podeVer);
           if (itens.length === 0) return null;
@@ -105,7 +108,7 @@ export function Sidebar({ aberta, aoNavegar }: Props) {
                     `sidebar__item ${isActive ? 'sidebar__item--ativo' : ''}`
                   }
                 >
-                  <span aria-hidden>{item.icone}</span>
+                  <Icone nome={item.icone} />
                   <span>{item.rotulo}</span>
                 </NavLink>
               ))}

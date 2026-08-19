@@ -144,7 +144,7 @@ export function NaoConformidadesPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="✅"
+            icone="verificado"
             titulo="Nenhuma não conformidade"
             descricao={
               ehCliente

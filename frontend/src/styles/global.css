@@ -72,6 +72,15 @@
     );
   --vidro-sombra: 0 8px 32px var(--sombra-cor);
 
+  /*
+   * Anel de foco em duas camadas. Uma cor só não resolve: sobre o vidro claro
+   * a primária tem contraste de sobra, sobre o vidro escuro ela encosta no
+   * fundo. O halo interno sai de `--texto`, que inverte junto com o tema, então
+   * uma das duas camadas sempre contrasta — que é o que a WCAG 2.4.13 pede.
+   */
+  --anel-foco: var(--cor-primaria);
+  --anel-foco-halo: color-mix(in srgb, var(--texto) 70%, transparent);
+
   color-scheme: dark;
 }
 
@@ -91,6 +100,83 @@
 
 * {
   box-sizing: border-box;
+}
+
+/*
+ * Foco visível em TODO controle operável.
+ *
+ * Antes desta regra só `.campo input` tinha anel próprio; o resto ficava com o
+ * outline padrão do navegador, que sobre o gradiente escuro do painel é quase
+ * invisível — navegar de Tab pela sidebar ou pela barra de ações da tabela era
+ * às cegas. `:focus-visible` (e não `:focus`) mantém o clique de mouse limpo.
+ *
+ * `:where()` zera a especificidade: qualquer componente sobrescreve isto sem
+ * precisar de `!important`.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--anel-foco);
+  outline-offset: 2px;
+  /* Preenche exatamente a folga do `outline-offset`, formando o halo. */
+  box-shadow: 0 0 0 2px var(--anel-foco-halo);
+}
+
+/*
+ * Primeiro Tab da página pula a sidebar inteira (até 9 links) e cai no
+ * conteúdo. Fica fora da tela até receber foco — não some com `display: none`,
+ * senão o próprio Tab o ignoraria.
+ */
+.pular-para-conteudo {
+  position: absolute;
+  left: 12px;
+  top: -100px;
+  z-index: 200;
+  padding: 10px 16px;
+  border-radius: var(--raio-sm);
+  background: var(--cor-primaria);
+  color: var(--texto-sobre-primaria);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: top 0.18s ease;
+}
+
+.pular-para-conteudo:focus-visible {
+  top: 12px;
+}
+
+/*
+ * Ícones do componente `Icone`. `flex: none` impede que o flex do botão os
+ * esprema quando o rótulo é longo — era o que achatava as setas da paginação.
+ */
+.icone {
+  display: block;
+  flex: none;
+}
+
+/* Ícone no meio de um parágrafo: `inline` para não quebrar a linha, e descido
+   2px porque a caixa do SVG alinha pela base, não pela altura-x da fonte. */
+.icone--em-linha {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/*
+ * Link "voltar" fora de um botão (telas de login e recuperação de senha).
+ * Precisa ser flex: o `.icone` é `display: block` e num link comum jogaria a
+ * seta para a linha de cima. `inline-flex` centrado pelo `justify-content`
+ * substitui o `text-align: center` que ficava inline no JSX.
+ */
+.link-voltar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Emblema das telas de auth, 404 e sem-permissão. */
+.tela-icone {
+  margin: 0 auto 8px;
+  color: var(--cor-primaria);
 }
 
 html,
@@ -296,6 +382,15 @@ h1, h2, h3, h4 {
   line-height: 1;
 }
 
+/*
+ * O emoji do card trazia cor própria e competia com o número. O SVG herda a
+ * cor, então a primária é o que o liga visualmente ao card clicável.
+ */
+.card-metrica__icone {
+  color: var(--cor-primaria);
+  opacity: 0.85;
+}
+
 .card-metrica__rotulo {
   margin-top: 8px;
   color: var(--texto-suave);
@@ -351,7 +446,9 @@ table.tabela {
 
 .tabela__acoes {
   display: flex;
-  gap: 6px;
+  /* 8px é o mínimo entre alvos de toque adjacentes; com 6px os botões
+     redondos praticamente se encostavam. */
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -423,9 +520,15 @@ table.tabela {
   background: color-mix(in srgb, var(--cor-erro) 30%, transparent);
 }
 
+/*
+ * 40px, não 36px. A WCAG 2.2 AA (2.5.8) exige 24×24 CSS px, mas estes botões
+ * aparecem lado a lado na barra de ações da tabela, onde o alvo pequeno é
+ * justamente o que faz errar a linha no toque. 40px com 8px de folga fica
+ * confortável no dedo sem inchar a linha no desktop.
+ */
 .btn--icone {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border-radius: 50%;
   font-size: 1rem;
@@ -906,6 +1009,16 @@ fieldset.secao-form legend {
   justify-items: center;
 }
 
+/*
+ * O emoji anterior trazia a própria cor; o SVG herda `currentColor` e sairia
+ * com o mesmo peso do texto. Enfraquecer é o que mantém a hierarquia — o título
+ * continua sendo a primeira coisa que se lê.
+ */
+.estado-vazio__icone {
+  color: var(--texto-fraco);
+  margin-bottom: 4px;
+}
+
 .carregando {
   display: grid;
   place-items: center;
@@ -945,6 +1058,30 @@ fieldset.secao-form legend {
   cursor: grabbing;
 }
 
+/*
+ * Alça de arraste das etapas da trilha. É um <button> de verdade porque o
+ * dnd-kit precisa de um alvo focável para a reordenação por teclado — antes os
+ * listeners ficavam no <tr> inteiro, que não é focável e sequestrava o papel
+ * da linha.
+ */
+.tabela__alca {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--raio-sm);
+  background: none;
+  color: var(--texto-fraco);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.tabela__alca:hover {
+  background: var(--vidro-fundo-forte);
+  color: var(--texto);
+}
+
 .tela-centralizada {
   min-height: 100vh;
   display: grid;
@@ -981,6 +1118,151 @@ fieldset.secao-form legend {
 
   .pagina {
     padding: 16px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Tabelas viram cartões no celular
+
+   O `overflow-x: auto` do `.tabela-wrapper` evita o estouro, mas empurra o
+   problema: numa tela de 390px a tabela de clientes tem 8 colunas, e ler uma
+   linha exigia arrastar de lado e voltar — perdendo de vista justamente o nome
+   de quem se estava lendo.
+
+   Aqui cada linha vira um cartão e cada célula uma dupla rótulo/valor, com o
+   rótulo saindo de `attr(data-rotulo)`. Como isso troca o `display` de todos os
+   elementos da tabela, o navegador perde os papéis implícitos de tabela — por
+   isso o JSX declara `role="table" | "rowgroup" | "row" | "columnheader" |
+   "cell"` explicitamente. Sem eles a associação célula↔cabeçalho sumiria e o
+   leitor de tela leria uma parede de texto solto (o `::before` é decoração e
+   não é anunciado de forma confiável).
+
+   Por isso também o `<thead>` continua no DOM, apenas fora da tela: ele ainda é
+   o que dá nome a cada célula para quem não enxerga o cartão.
+   -------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .tabela,
+  .tabela tbody,
+  .tabela td {
+    display: block;
+  }
+
+  .tabela {
+    border-spacing: 0;
+  }
+
+  .tabela thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tabela tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 12px;
+    margin-bottom: 12px;
+    padding: 14px 16px;
+    background: var(--vidro-fundo);
+    border: 1px solid var(--vidro-borda);
+    border-radius: var(--raio-sm);
+  }
+
+  /* No desktop o hover destaca a linha sob o cursor; num cartão empilhado ele
+     só pisca sem informar nada. */
+  .tabela tbody tr:hover td {
+    background: none;
+  }
+
+  .tabela td {
+    flex: 0 0 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 0;
+    text-align: right;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tabela td[data-rotulo] {
+    border-top: 1px solid var(--vidro-borda);
+  }
+
+  .tabela td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    flex: none;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--texto-fraco);
+  }
+
+  /*
+   * Cabeçalho do cartão: as células iniciais (miniatura, alça de arraste,
+   * número da ordem) e o nome dividem a primeira faixa, sem rótulo.
+   * O `flex: 1` no nome com `min-width: 0` é o que permite o texto longo
+   * truncar em vez de empurrar a miniatura para fora.
+   */
+  .tabela td.tabela__celula-inicial {
+    flex: 0 0 auto;
+    padding: 0;
+  }
+
+  .tabela td[data-principal] {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-top: 0;
+    /* Coluna, não linha: várias células principais trazem uma descrição abaixo
+       do nome (a etapa da trilha, por exemplo), e em `row` ela vinha ao lado,
+       empurrando o nome para fora. */
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    font-size: 1rem;
+    font-weight: 650;
+  }
+
+  /*
+   * Célula sem conteúdo não vira faixa. Acontece de verdade: a coluna de ações
+   * fica vazia para o papel CLIENTE e nas versões de trilha já em uso — sem
+   * isto sobrava um bloco em branco com borda no rodapé do cartão.
+   */
+  .tabela td:empty {
+    display: none;
+  }
+
+  /*
+   * Barra de progresso e ações são os dois casos que não são "rótulo + valor
+   * curto": a barra precisa esticar, e os botões precisam da faixa inteira para
+   * manter os 40px de alvo sem se espremerem contra o rótulo.
+   */
+  .tabela td .progresso {
+    flex: 1;
+    min-width: 110px;
+  }
+
+  .tabela td.tabela__celula-acoes {
+    justify-content: flex-end;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--vidro-borda);
+  }
+
+  /* O wrapper deixa de rolar (o cartão não estoura), então o respiro lateral
+     que compensava a barra de rolagem também sai. */
+  .tabela-wrapper {
+    padding: 0;
   }
 }
 

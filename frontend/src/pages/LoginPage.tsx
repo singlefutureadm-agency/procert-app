@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { useAuth } from '@/auth/useAuth';
 import { Campo } from '@/components/Campo';
+import { Icone } from '@/components/Icone';
 import { mensagemDeErro } from '@/lib/api';
 
 const esquema = z.object({
@@ -51,9 +52,7 @@ export function LoginPage() {
     <div className="tela-centralizada">
       <div className="cartao-auth vidro">
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2.2rem' }} aria-hidden>
-            🛡️
-          </div>
+          <Icone nome="escudo" tamanho={36} className="icone tela-icone" />
           <h1 style={{ fontSize: '1.5rem' }}>ProCert</h1>
           <p className="texto-suave texto-pequeno">
             Plataforma de certificação de produtos
@@ -92,12 +91,9 @@ export function LoginPage() {
           Esqueceu sua senha?
         </Link>
 
-        <Link
-          to="/"
-          className="texto-pequeno texto-fraco"
-          style={{ textAlign: 'center' }}
-        >
-          ← Voltar ao site
+        <Link to="/" className="link-voltar texto-pequeno texto-fraco">
+          <Icone nome="seta-esquerda" tamanho={16} />
+          Voltar ao site
         </Link>
       </div>
     </div>

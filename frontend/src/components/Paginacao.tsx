@@ -1,3 +1,5 @@
+import { Icone } from '@/components/Icone';
+
 interface Props {
   pagina: number;
   totalPaginas: number;
@@ -17,8 +19,13 @@ export function Paginacao({ pagina, totalPaginas, total, aoMudar }: Props) {
   }
 
   return (
-    <div className="paginacao">
-      <span className="texto-pequeno texto-fraco">
+    <nav className="paginacao" aria-label="Paginação da listagem">
+      {/*
+       * `aria-live` porque a troca de página não recarrega nada: sem isso, quem
+       * usa leitor de tela clica em "Próxima" e não recebe confirmação nenhuma
+       * de que a listagem mudou.
+       */}
+      <span className="texto-pequeno texto-fraco" aria-live="polite">
         {total} registros · página {pagina} de {totalPaginas}
       </span>
 
@@ -29,7 +36,8 @@ export function Paginacao({ pagina, totalPaginas, total, aoMudar }: Props) {
           onClick={() => aoMudar(pagina - 1)}
           disabled={pagina <= 1}
         >
-          ← Anterior
+          <Icone nome="seta-esquerda" tamanho={16} />
+          Anterior
         </button>
         <button
           type="button"
@@ -37,9 +45,10 @@ export function Paginacao({ pagina, totalPaginas, total, aoMudar }: Props) {
           onClick={() => aoMudar(pagina + 1)}
           disabled={pagina >= totalPaginas}
         >
-          Próxima →
+          Próxima
+          <Icone nome="seta-direita" tamanho={16} />
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

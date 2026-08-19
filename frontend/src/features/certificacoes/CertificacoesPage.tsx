@@ -9,6 +9,7 @@ import { CampoBusca } from '@/components/CampoBusca';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
 import { Paginacao } from '@/components/Paginacao';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { Progresso } from '@/components/Progresso';
 import { urlArquivo } from '@/lib/api';
 import {
@@ -84,7 +85,7 @@ export function CertificacoesPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="📋"
+            icone="prancheta"
             titulo="Nenhuma certificação encontrada"
             descricao={
               equipe
@@ -101,24 +102,24 @@ export function CertificacoesPage() {
           />
         ) : (
           <>
-            <div className="tabela-wrapper">
-              <table className="tabela">
-                <thead>
-                  <tr>
-                    <th />
-                    <th>Produto</th>
-                    {equipe && <th>Cliente</th>}
-                    <th>Etapa atual</th>
-                    <th>Status</th>
-                    <th style={{ minWidth: 170 }}>Progresso</th>
-                    <th>Atualizado em</th>
-                    <th className="texto-direita">Ações</th>
+            <TabelaRolavel rotulo="Certificações em acompanhamento">
+              <table className="tabela" role="table">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" />
+                    <th role="columnheader">Produto</th>
+                    {equipe && <th role="columnheader">Cliente</th>}
+                    <th role="columnheader">Etapa atual</th>
+                    <th role="columnheader">Status</th>
+                    <th role="columnheader" style={{ minWidth: 170 }}>Progresso</th>
+                    <th role="columnheader">Atualizado em</th>
+                    <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   {data?.dados.map((linha) => (
-                    <tr key={linha.produtoId}>
-                      <td style={{ width: 56 }}>
+                    <tr role="row" key={linha.produtoId}>
+                      <td role="cell" className="tabela__celula-inicial" style={{ width: 56 }}>
                         <img
                           className="avatar"
                           src={urlArquivo(linha.produtoFotoUrl)}
@@ -128,22 +129,22 @@ export function CertificacoesPage() {
                           }}
                         />
                       </td>
-                      <td style={{ fontWeight: 600 }}>{linha.produto}</td>
-                      {equipe && <td className="texto-suave">{linha.cliente.nome}</td>}
-                      <td className="texto-suave">{linha.etapaAtual ?? '—'}</td>
-                      <td>
+                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{linha.produto}</td>
+                      {equipe && <td role="cell" data-rotulo="Cliente" className="texto-suave">{linha.cliente.nome}</td>}
+                      <td role="cell" data-rotulo="Etapa atual" className="texto-suave">{linha.etapaAtual ?? '—'}</td>
+                      <td role="cell" data-rotulo="Status">
                         <BadgeCertificacao status={linha.status} />
                       </td>
-                      <td>
+                      <td role="cell" data-rotulo="Progresso">
                         <Progresso valor={linha.progresso} />
                         <span className="texto-pequeno texto-fraco">
                           {linha.etapasAprovadas} de {linha.totalEtapas} etapas
                         </span>
                       </td>
-                      <td className="texto-pequeno texto-fraco sem-quebra">
+                      <td role="cell" data-rotulo="Atualizado em" className="texto-pequeno texto-fraco sem-quebra">
                         {formatarDataHora(linha.atualizadoEm)}
                       </td>
-                      <td>
+                      <td role="cell" className="tabela__celula-acoes">
                         <div className="tabela__acoes">
                           <Link
                             to={`/certificacoes/produto/${linha.produtoId}`}
@@ -157,7 +158,7 @@ export function CertificacoesPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TabelaRolavel>
 
             <Paginacao
               pagina={data?.pagina ?? 1}

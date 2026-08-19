@@ -8,6 +8,7 @@ import { BadgeCertificacao } from '@/components/Badge';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone, type NomeIcone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Progresso } from '@/components/Progresso';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
@@ -36,11 +37,11 @@ const CLASSE_ETAPA: Record<StatusCertificacao, string> = {
   REPROVADO: 'etapa--reprovado',
 };
 
-const ICONE_ETAPA: Record<StatusCertificacao, string> = {
-  PENDENTE: '⏳',
-  EM_ANDAMENTO: '🔄',
-  APROVADO: '✓',
-  REPROVADO: '!',
+const ICONE_ETAPA: Record<StatusCertificacao, NomeIcone> = {
+  PENDENTE: 'ampulheta',
+  EM_ANDAMENTO: 'atualizar',
+  APROVADO: 'check',
+  REPROVADO: 'x',
 };
 
 type Rascunho = Record<number, { status: StatusCertificacao; observacao: string }>;
@@ -232,7 +233,7 @@ export function CertificacaoDetalhePage() {
   if (isError || !data) {
     return (
       <EstadoVazio
-        icone="⚠️"
+        icone="alerta"
         titulo="Certificação não encontrada"
         descricao="O produto pode ter sido removido ou você não tem acesso a ele."
         acao={
@@ -252,7 +253,8 @@ export function CertificacaoDetalhePage() {
         acoes={
           <>
             <Link to="/certificacoes" className="btn">
-              ← Voltar
+              <Icone nome="seta-esquerda" tamanho={16} />
+              Voltar
             </Link>
             {podeEditar && versao && !versao.atualizado && (
               <button
@@ -261,7 +263,8 @@ export function CertificacaoDetalhePage() {
                 onClick={() => setConfirmarMigracao(true)}
                 title={versao.mensagem}
               >
-                🔄 Atualizar trilha (v{versao.versaoProduto} → v{versao.versaoVigente})
+                <Icone nome="atualizar" tamanho={16} />
+                Atualizar trilha (v{versao.versaoProduto} → v{versao.versaoVigente})
               </button>
             )}
           </>
@@ -290,9 +293,14 @@ export function CertificacaoDetalhePage() {
           <div style={{ minWidth: 220 }}>
             <Progresso valor={podeEditar ? progressoLocal : data.resumo.progresso} />
             <p className="texto-pequeno texto-fraco" style={{ margin: '6px 0 0' }}>
-              {data.resumo.concluida
-                ? '✅ Certificação concluída'
-                : 'Certificação em andamento'}
+              {data.resumo.concluida ? (
+                <>
+                  <Icone nome="verificado" tamanho={14} className="icone icone--em-linha" />
+                  Certificação concluída
+                </>
+              ) : (
+                'Certificação em andamento'
+              )}
             </p>
           </div>
         </div>
@@ -319,8 +327,10 @@ export function CertificacaoDetalhePage() {
                 key={etapa.id}
                 className={`etapa vidro ${CLASSE_ETAPA[atual.status]}`}
               >
+                {/* Decorativo: o BadgeCertificacao ao lado já anuncia o
+                    status em texto — repetir aqui duplicaria a leitura. */}
                 <div className="etapa__marcador" aria-hidden>
-                  {ICONE_ETAPA[atual.status]}
+                  <Icone nome={ICONE_ETAPA[atual.status]} tamanho={16} />
                 </div>
 
                 <div className="etapa__titulo">
@@ -417,7 +427,8 @@ export function CertificacaoDetalhePage() {
                                 disabled={avaliarNc.isPending}
                                 title="Reabre a etapa como Em andamento para reavaliação"
                               >
-                                ✓ Resolver
+                                <Icone nome="check" tamanho={16} />
+                                Resolver
                               </button>
                               <button
                                 type="button"
@@ -428,7 +439,8 @@ export function CertificacaoDetalhePage() {
                                 disabled={avaliarNc.isPending}
                                 title="Encerra a NC mantendo a etapa reprovada"
                               >
-                                ✕ Reprovar
+                                <Icone nome="x" tamanho={16} />
+                                Reprovar
                               </button>
                             </>
                           ) : undefined
@@ -487,7 +499,7 @@ export function CertificacaoDetalhePage() {
 
         {data.etapas.every((etapa) => etapa.historico.length === 0) ? (
           <EstadoVazio
-            icone="🕓"
+            icone="relogio"
             titulo="Nenhuma alteração registrada"
             descricao="O histórico começa a ser preenchido na primeira mudança de status."
           />
@@ -506,7 +518,10 @@ export function CertificacaoDetalhePage() {
                         {/* Anexo não é transição: o registro nasce com o
                             status inalterado só para datar e assinar o envio. */}
                         {registro.statusAnterior === registro.statusNovo ? (
-                          <strong>📎 Documento anexado</strong>
+                          <strong className="linha-flex">
+                            <Icone nome="clipe" tamanho={14} />
+                            Documento anexado
+                          </strong>
                         ) : (
                           <>
                             <strong>

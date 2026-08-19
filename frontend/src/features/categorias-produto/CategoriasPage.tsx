@@ -8,8 +8,10 @@ import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro } from '@/lib/api';
 import { chaves } from '@/lib/queryClient';
 import type { CategoriaProduto, StatusRegistro } from '@/types';
@@ -69,7 +71,17 @@ export function CategoriasPage() {
                 }))
               }
             >
-              {vendoInativas ? '← Ver ativas' : '🗑️ Ver inativas'}
+              {vendoInativas ? (
+                <>
+                  <Icone nome="seta-esquerda" tamanho={16} />
+                  Ver ativas
+                </>
+              ) : (
+                <>
+                  <Icone nome="lixeira" tamanho={16} />
+                  Ver inativas
+                </>
+              )}
             </button>
             <button
               type="button"
@@ -98,7 +110,7 @@ export function CategoriasPage() {
           <Carregando />
         ) : listaVazia ? (
           <EstadoVazio
-            icone="🗂️"
+            icone="pastas"
             titulo="Nenhuma categoria encontrada"
             descricao={
               filtros.busca
@@ -116,22 +128,22 @@ export function CategoriasPage() {
             }
           />
         ) : (
-          <div className="tabela-wrapper">
-            <table className="tabela">
-              <thead>
-                <tr>
-                  <th>Categoria</th>
-                  <th>Norma</th>
-                  <th>Trilha vigente</th>
-                  <th>Produtos</th>
-                  <th>Situação</th>
-                  <th className="texto-direita">Ações</th>
+          <TabelaRolavel rotulo="Categorias de produto">
+            <table className="tabela" role="table">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader">Categoria</th>
+                  <th role="columnheader">Norma</th>
+                  <th role="columnheader">Trilha vigente</th>
+                  <th role="columnheader">Produtos</th>
+                  <th role="columnheader">Situação</th>
+                  <th role="columnheader" className="texto-direita">Ações</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {data?.dados.map((categoria) => (
-                  <tr key={categoria.id}>
-                    <td>
+                  <tr role="row" key={categoria.id}>
+                    <td role="cell" data-principal>
                       <Link
                         to={`/categorias/${categoria.id}`}
                         style={{ fontWeight: 600 }}
@@ -144,8 +156,8 @@ export function CategoriasPage() {
                         </div>
                       )}
                     </td>
-                    <td className="texto-suave">{categoria.normaReferencia ?? '—'}</td>
-                    <td>
+                    <td role="cell" data-rotulo="Norma" className="texto-suave">{categoria.normaReferencia ?? '—'}</td>
+                    <td role="cell" data-rotulo="Trilha vigente">
                       {categoria.modeloVigente ? (
                         <span className="badge badge--aprovado sem-quebra">
                           v{categoria.modeloVigente.versao} ·{' '}
@@ -164,29 +176,31 @@ export function CategoriasPage() {
                         </div>
                       )}
                     </td>
-                    <td className="texto-suave">{categoria.totalProdutos}</td>
-                    <td>
+                    <td role="cell" data-rotulo="Produtos" className="texto-suave">{categoria.totalProdutos}</td>
+                    <td role="cell" data-rotulo="Situação">
                       <BadgeStatus status={categoria.status} />
                     </td>
-                    <td>
+                    <td role="cell" className="tabela__celula-acoes">
                       <div className="tabela__acoes">
                         <Link
                           to={`/categorias/${categoria.id}`}
                           className="btn btn--icone"
                           title="Ver trilha"
+                          aria-label="Ver trilha"
                         >
-                          🧭
+                          <Icone nome="bussola" />
                         </Link>
                         <button
                           type="button"
                           className="btn btn--icone"
                           title="Editar"
+                          aria-label="Editar"
                           onClick={() => {
                             setEmEdicao(categoria);
                             setModalAberto(true);
                           }}
                         >
-                          ✏️
+                          <Icone nome="lapis" />
                         </button>
                         <button
                           type="button"
@@ -194,9 +208,10 @@ export function CategoriasPage() {
                           title={
                             categoria.status === 'ATIVO' ? 'Desativar' : 'Reativar'
                           }
+                          aria-label={ categoria.status === 'ATIVO' ? 'Desativar' : 'Reativar' }
                           onClick={() => setAlvo(categoria)}
                         >
-                          {categoria.status === 'ATIVO' ? '🚫' : '♻️'}
+                          <Icone nome={categoria.status === 'ATIVO' ? 'proibido' : 'reciclar'} />
                         </button>
                       </div>
                     </td>
@@ -204,7 +219,7 @@ export function CategoriasPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TabelaRolavel>
         )}
 
         {data && data.totalPaginas > 1 && (

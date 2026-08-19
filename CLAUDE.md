@@ -387,10 +387,72 @@ previews da tela de Aparência aplicam num container isolado (é o que permite m
 e escuro lado a lado). `checarContrastes` calcula razão WCAG achatando cores translúcidas
 sobre o fundo — **avisa, não bloqueia** o salvamento.
 
+### Ícones — `components/Icone.tsx`
+
+**O painel não usa emoji como ícone.** Todo ícone sai de `<Icone nome="..." />`: SVG
+inline numa família única (traço, grade 24), colorido por `currentColor` e portanto
+sujeito ao tema. Precisa de um desenho novo? Acrescente em `NomeIcone` + `DESENHOS`, no
+mesmo estilo de traço — não importe uma segunda biblioteca.
+
+A home institucional é a exceção: continua com `bootstrap-icons` (~106 KB de fonte), que
+**não** é carregado no painel de propósito.
+
+Regra de nome acessível, nessa ordem:
+
+1. Ícone ao lado de texto visível → decorativo, nada a fazer (`Icone` já marca
+   `aria-hidden`).
+2. Ícone sozinho dentro de botão/link → o **controle** leva `aria-label`; `title` sozinho
+   não serve, o leitor de tela mal o usa e no toque ele nunca aparece.
+3. Ícone sozinho fora de controle → passe `titulo` ao `Icone`.
+
+### Acessibilidade — o que já está garantido e não deve regredir
+
+- **Anel de foco global** em `global.css`, via `:where(a, button, input, …):focus-visible`
+  — duas camadas (`--anel-foco` + `--anel-foco-halo`) porque uma cor só não contrasta nos
+  dois modos. Especificidade zero de propósito: sobrescreva sem `!important`.
+- **`.btn--icone` tem 40×40px** e `.tabela__acoes` usa `gap: 8px` — são alvos de toque, não
+  medida estética. Não encolha.
+- **`TabelaRolavel`** substitui o `<div className="tabela-wrapper">` cru: a região rolável
+  precisa de `tabIndex={0}` + `role="region"` + rótulo, senão as colunas escondidas no
+  celular ficam inalcançáveis por teclado. Ele **mede o estouro** com `ResizeObserver` e só
+  vira parada de Tab enquanto a tabela realmente rola.
+- **`ModalConfirmacao`** prende o Tab e devolve o foco à origem ao fechar. O foco inicial é
+  dado no efeito, **não** por `autoFocus` — `autoFocus` roda antes do efeito e fazia a
+  origem ser gravada errada (o resultado era o foco terminando no `<body>`). Com
+  `perigo`, o foco inicial é **"Cancelar"**; sem ele, o confirmar. Os dois usam
+  `focus({ focusVisible: true })`, senão o anel não acende em modal aberto por clique.
+- **Skip link** (`.pular-para-conteudo`) é o primeiro focável do `LayoutPainel` e aponta
+  para `#conteudo-principal`, que carrega `tabIndex={-1}` para poder receber o foco.
+
+### Tabelas — cartões abaixo de 720px
+
+Cada `<tr>` vira um cartão e cada `<td>` uma dupla rótulo/valor, com o rótulo saindo de
+`attr(data-rotulo)`. **Ao criar ou alterar uma coluna, atualize os atributos da célula** —
+sem eles a célula aparece sem rótulo no celular:
+
+| Atributo | Uso |
+|---|---|
+| `data-rotulo="Coluna"` | Célula normal. Deve casar com o texto do `<th>`. |
+| `data-principal` | A célula-título do cartão (nome, código). Uma por linha, sem rótulo. |
+| `className="tabela__celula-inicial"` | Miniatura, alça de arraste, número de ordem — dividem a faixa do título. |
+| `className="tabela__celula-acoes"` | Barra de botões; ganha a faixa inteira no rodapé do cartão. |
+
+Trocar o `display` apaga os papéis implícitos de tabela, então **todo elemento declara o
+papel explicitamente** (`role="table" | "rowgroup" | "row" | "columnheader" | "cell"`). Sem
+isso a associação célula↔cabeçalho some e o leitor de tela lê uma parede de texto — o
+`::before` é decoração e não é anunciado de forma confiável. Pelo mesmo motivo o `<thead>`
+continua no DOM, só fora da tela.
+
+**Cuidado com bibliotecas que espalham `role` na linha.** O dnd-kit fazia isso: os
+`attributes`/`listeners` de `useSortable` estavam no `<tr>` das etapas da trilha e o
+sobrescreviam com `role="button"`. Hoje eles vivem numa alça (`.tabela__alca`, um `<button>`
+com `setActivatorNodeRef`), o que também é o que torna a reordenação por teclado alcançável
+— o `<tr>` não era focável.
+
 ### CSS
 
-Três arquivos, todos manuais (sem Tailwind, sem CSS-in-JS): `styles/global.css` (~995
-linhas, o design system do painel), `features/home/home.css` (~1320, o site público) e
+Três arquivos, todos manuais (sem Tailwind, sem CSS-in-JS): `styles/global.css` (o design
+system do painel), `features/home/home.css` (~1320, o site público) e
 `features/aparencia/aparencia.css`. Estenda o arquivo existente em vez de introduzir uma
 abordagem nova.
 
