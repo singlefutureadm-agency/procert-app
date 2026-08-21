@@ -24,11 +24,32 @@ async function bootstrap(): Promise<void> {
   const prefix = config.get<string>('API_PREFIX', 'api');
   const port = config.get<number>('PORT', 3000);
 
-  configurarSwagger(app, prefix);
+  /*
+   * Swagger fica FORA do ar em produção por padrão.
+   *
+   * Ele é um mapa completo da API — todo endpoint, todo DTO, todo enum, toda
+   * regra de validação — servido sem autenticação nenhuma. Em desenvolvimento é
+   * a melhor ferramenta do projeto; publicado, é reconhecimento pronto para
+   * quem for procurar. `SWAGGER_ATIVO` decide explicitamente nos dois sentidos,
+   * para quem precisar dele num ambiente publicado e souber o que está fazendo.
+   */
+  const swaggerAtivo =
+    config.get<string>('SWAGGER_ATIVO') !== undefined
+      ? config.get<string>('SWAGGER_ATIVO') === 'true'
+      : config.get<string>('NODE_ENV', 'development') !== 'production';
+
+  if (swaggerAtivo) {
+    configurarSwagger(app, prefix);
+  }
 
   await app.listen(port);
   console.log(`🚀 API:     http://localhost:${port}/${prefix}`);
-  console.log(`📚 Swagger: http://localhost:${port}/${prefix}/docs`);
+  console.log(`💓 Health:  http://localhost:${port}/${prefix}/health`);
+  console.log(
+    swaggerAtivo
+      ? `📚 Swagger: http://localhost:${port}/${prefix}/docs`
+      : '📚 Swagger: desligado (NODE_ENV=production). Ligue com SWAGGER_ATIVO=true.',
+  );
 }
 
 void bootstrap();

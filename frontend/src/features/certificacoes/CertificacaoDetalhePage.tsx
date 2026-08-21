@@ -131,6 +131,24 @@ export function CertificacaoDetalhePage() {
   const [ncsNovas, setNcsNovas] = useState<RascunhoNc>({});
   const [confirmarMigracao, setConfirmarMigracao] = useState(false);
 
+  /*
+   * Guarda QUAL formato está sendo gerado, não um booleano: os dois botões
+   * ficam desabilitados durante a geração (o XLSX de uma trilha longa leva um
+   * instante), mas só o que foi clicado troca o rótulo para "Gerando...".
+   */
+  const [exportando, setExportando] = useState<'xlsx' | 'csv' | null>(null);
+
+  async function exportar(formato: 'xlsx' | 'csv') {
+    setExportando(formato);
+    try {
+      await certificacoesApi.exportar(id, formato);
+    } catch (erro) {
+      toast.error(mensagemDeErro(erro, 'Não foi possível gerar a planilha.'));
+    } finally {
+      setExportando(null);
+    }
+  }
+
   const { data, isLoading, isError } = useQuery({
     queryKey: chaves.certificacao(id),
     queryFn: () => certificacoesApi.porProduto(id),
@@ -256,6 +274,26 @@ export function CertificacaoDetalhePage() {
               <Icone nome="seta-esquerda" tamanho={16} />
               Voltar
             </Link>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={() => exportar('xlsx')}
+              disabled={exportando !== null}
+            >
+              <Icone nome="download" tamanho={16} />
+              {exportando === 'xlsx' ? 'Gerando...' : 'Excel'}
+            </button>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={() => exportar('csv')}
+              disabled={exportando !== null}
+            >
+              <Icone nome="download" tamanho={16} />
+              {exportando === 'csv' ? 'Gerando...' : 'CSV'}
+            </button>
             {podeEditar && versao && !versao.atualizado && (
               <button
                 type="button"

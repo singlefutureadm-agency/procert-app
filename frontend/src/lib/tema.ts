@@ -1,5 +1,6 @@
 import { garantirFonteCarregada, pilhaDaFonte } from '@/features/aparencia/fontes';
 import type { Aparencia, ModoTema, TokensTema } from '@/types';
+import { urlArquivo } from './arquivos';
 
 /**
  * Aplicação dos design tokens em runtime.
@@ -128,9 +129,13 @@ export function aplicarPapelParede(papelParede?: PapelParede): void {
 
   // `url()` com aspas simples: o nome do arquivo é um UUID gerado no servidor,
   // mas o valor ainda vai para o CSS e não custa nada fechar a porta.
+  //
+  // `urlArquivo` porque o caminho vem relativo da API (`/uploads/...`): com a
+  // API em outro host, o CSS pediria a imagem ao domínio do site e o painel
+  // ficaria sem papel de parede, sem erro visível em lugar nenhum.
   raiz.style.setProperty(
     '--papel-parede',
-    papelParede?.url ? `url('${papelParede.url}')` : 'none',
+    papelParede?.url ? `url('${urlArquivo(papelParede.url, '')}')` : 'none',
   );
   raiz.style.setProperty(
     '--papel-parede-opacidade',

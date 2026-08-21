@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { Icone, type NomeIcone } from '@/components/Icone';
 import { useTema } from '@/features/aparencia/useTema';
+import { urlArquivo } from '@/lib/arquivos';
 import type { Role } from '@/types';
 
 interface ItemMenu {
@@ -80,7 +81,11 @@ export function Sidebar({ aberta, aoNavegar }: Props) {
         {/* Com logo enviada, ela substitui o emblema e o nome vira alt: repetir
             "ProCert" ao lado de uma logo que já diz isso é ruído. */}
         {aparencia?.logoUrl ? (
-          <img className="sidebar__logo" src={aparencia.logoUrl} alt="ProCert" />
+          <img
+            className="sidebar__logo"
+            src={urlArquivo(aparencia.logoUrl)}
+            alt="ProCert"
+          />
         ) : (
           <>
             <Icone nome="escudo" tamanho={24} />
@@ -118,7 +123,7 @@ export function Sidebar({ aberta, aoNavegar }: Props) {
       </nav>
 
       <div className="sidebar__rodape">
-        <p className="texto-pequeno texto-fraco" style={{ padding: '0 12px' }}>
+        <p className="texto-pequeno texto-fraco">
           ProCert · Certificação de Produtos
         </p>
       </div>

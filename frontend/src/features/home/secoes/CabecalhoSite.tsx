@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
 import { useTema } from '@/features/aparencia/useTema';
+import { urlArquivo } from '@/lib/arquivos';
 import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
 import { useRolagem } from '../hooks';
 
@@ -43,7 +44,10 @@ export function CabecalhoSite() {
               o cabeçalho é transparente sobre o hero escuro, então uma logo
               de traço escuro fica ilegível até a página rolar. O aviso está
               na própria tela de Aparência. */}
-          <img src={aparencia?.logoUrl ?? '/img/logo-branco.png'} alt={EMPRESA.nome} />
+          <img
+            src={urlArquivo(aparencia?.logoUrl, '/img/logo-branco.png')}
+            alt={EMPRESA.nome}
+          />
 
         </a>
 

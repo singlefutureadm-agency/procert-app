@@ -16,6 +16,7 @@ import { chaves } from '@/lib/queryClient';
 import type { Certificado, StatusCertificado } from '@/types';
 import { certificadosApi, type FiltrosCertificados } from './api';
 import { CartaoCertificado } from './CartaoCertificado';
+import { PainelGraficosCertificados } from './PainelGraficos';
 
 const FILTROS: Array<{ valor?: StatusCertificado; rotulo: string }> = [
   { valor: undefined, rotulo: 'Todos' },
@@ -257,6 +258,8 @@ export function CertificadosPage() {
           />
         )}
       </section>
+
+      <PainelGraficosCertificados />
     </>
   );
 }

@@ -431,6 +431,56 @@ previews da tela de Aparência aplicam num container isolado (é o que permite m
 e escuro lado a lado). `checarContrastes` calcula razão WCAG achatando cores translúcidas
 sobre o fundo — **avisa, não bloqueia** o salvamento.
 
+### Exportação para planilha — `modules/certificacoes/exportacao.service.ts`
+
+`GET /certificacoes/produto/:id/exportacao?formato=xlsx|csv`, gerada no servidor com
+`exceljs`. Reaproveita `detalharPorProduto` em vez de consultar de novo: é lá que o escopo
+do CLIENTE é verificado, e uma segunda consulta seria uma segunda chance de esquecer a
+checagem.
+
+O XLSX tem **aba de visão geral → uma aba por etapa (na ordem da trilha) → aba de
+histórico**. Detalhes que não são estéticos:
+
+- **Nome de aba passa por `nomeAba()`.** Excel recusa mais de 31 caracteres, recusa
+  `\ / ? * [ ] :` e recusa duplicata — e nome de etapa é texto livre do admin. O erro só
+  apareceria ao ABRIR o arquivo, não ao gerar.
+- **Data vai como `Date`, não string**, com `numFmt`. É o que faz o autofiltro do Excel
+  ordenar de verdade; como texto, 10/01 vem antes de 02/12.
+- **CSV não tem abas.** O arquivo empilha as mesmas seções com linhas de título. Leva
+  **BOM de UTF-8** (sem ele o Excel do Windows abre em ANSI e todo acento quebra) e
+  separador **`;`** (no Excel em português a vírgula é separador decimal, e com `,` tudo
+  cai numa coluna só).
+
+No frontend o download passa por blob (`certificacoesApi.exportar`), não por `<a href>`:
+a rota exige o Bearer, e um link direto voltaria 401. O nome do arquivo sai do
+`Content-Disposition` — quem sabe montá-lo é o servidor.
+
+### Gráficos — `components/Graficos.tsx`
+
+HTML e CSS, sem SVG e **sem biblioteca de charts** — pelo mesmo motivo dos ícones: um
+pacote traz a própria paleta, tipografia e conceito de tema, e viraria um segundo design
+system dentro deste. As primitivas são `BarraComposicao`, `BarrasHorizontais` e
+`ColunasAgrupadas`, todas dentro da moldura `Grafico`.
+
+**Os dados vêm de `GET /dashboard/graficos`, nunca da listagem da tela.** As listas são
+paginadas: um gráfico montado sobre a página visível diria "3 reprovadas" havendo 40, e
+pareceria correto. Pelo mesmo motivo os gráficos **ignoram os filtros** da tela — cada um
+diz isso no rodapé.
+
+Regras que não devem regredir:
+
+- **`cor` entra como `backgroundColor`, nunca `background`.** O shorthand zera o
+  `background-image` de `.gr--textura`, e como estilo inline vence folha de estilo, a
+  hachura sumiria sem erro nenhum.
+- **Valor zero não desenha marca.** Existe um piso de 3px para o valor pequeno não virar
+  um fio invisível; ele não vale para zero, ou o gráfico mente.
+- **Nada depende de cor sozinha.** `--cor-sucesso` × `--cor-erro` têm ΔE 5,0 sob
+  deuteranopia (medido) — abaixo do piso. Os tokens foram mantidos por coerência com os
+  badges, e a distinção vem de rótulo em texto, legenda escrita e hachura a 45° na série
+  crítica.
+- **`--graf-alerta` é derivado, não o token cru.** No escuro o `#f59e0b` fica em L 0,77,
+  fora da faixa das outras marcas.
+
 ### Ícones — `components/Icone.tsx`
 
 **O painel não usa emoji como ícone.** Todo ícone sai de `<Icone nome="..." />`: SVG
@@ -500,6 +550,31 @@ system do painel), `features/home/home.css` (~1320, o site público) e
 `features/aparencia/aparencia.css`. Estenda o arquivo existente em vez de introduzir uma
 abordagem nova.
 
+**Duas famílias de token, e a diferença importa.** As do bloco `:root` que aparecem em
+`TokensTema` (cores, `--raio`, `--vidro-blur`) são reescritas em runtime por `lib/tema.ts`
+e editáveis pelo admin — mudou o default de uma delas, mude também
+`backend/src/modules/aparencia/aparencia.defaults.ts`. As **escalas** (`--espaco-*`,
+`--fs-*`, `--mov-*`, `--tracking-*`) são estáticas, não passam pela API e não têm espelho
+no servidor. Use a escala em vez de número solto: era o número solto que fazia dois blocos
+irmãos respirarem diferente sem que ninguém tivesse decidido isso.
+
+Os **derivados** (`--fundo-gradiente`, `--vidro-sombra`, `--sombra-1..3`, `--vidro-realce`,
+`--raio-xs`, `--anel-foco*`) ficam num bloco `:root, .previa` — e o `.previa` não é
+enfeite. A tela de Aparência aplica o tema editado como estilo inline num container, não no
+`documentElement`; derivado declarado só em `:root` é resolvido lá dentro com o valor da
+**raiz**, e a prévia passa a mostrar a sombra do tema em uso em vez da do tema sendo
+editado. **Derivado novo entra nesse seletor, não em `:root` sozinho.**
+
+Tamanho de fonte não vai em `style={{ fontSize }}` no JSX: use `.titulo-pagina`,
+`.titulo-secao` ou `.titulo-bloco`. Texto só para leitor de tela usa
+`.apenas-leitor-tela`.
+
+**Carregamento**: `Carregando` (spinner) para tela cuja forma depende do dado — detalhe,
+formulário. `EsqueletoTabela` / `EsqueletoCards` (`components/Esqueleto.tsx`) para as que
+já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando lugar a
+400px, e o pulo de layout é certo. As barras são `aria-hidden`; o anúncio sai do
+`role="status"` com texto fora da tela.
+
 ---
 
 ## 6. Armadilhas conhecidas ao editar
@@ -520,6 +595,11 @@ abordagem nova.
   `peerDependency` opcional, então ele entra na árvore de produção resolvida. O estado
   auditável de produção é 3, não zero — um gate de CI em `npm audit` precisa tolerá-las.
   Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
+  Desde a exportação para planilha há **1 moderate a mais**: `uuid` via `exceljs`. A
+  advisory é "missing buffer bounds check em v3/v5/v6 quando `buf` é fornecido", e o
+  `exceljs` importa **só `uuid.v4`** (`lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js`)
+  — o caminho vulnerável não é alcançável. A "correção" que o `npm audit` propõe é
+  descer o `exceljs` para 3.4.0, um major para trás; não é correção.
 - **Assets da home são pesados** e vieram do legado sem reprocessamento
   (`depoimentos-bg.png` tem 2,4 MB). O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.

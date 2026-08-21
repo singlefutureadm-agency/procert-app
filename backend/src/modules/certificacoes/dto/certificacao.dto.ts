@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -73,4 +74,23 @@ export class ListarCertificacoesDto extends PaginacaoDto {
   @Type(() => Number)
   @IsInt()
   clienteId?: number;
+}
+
+/**
+ * Formato da exportação.
+ *
+ * DTO próprio, e não um `@Query('formato')` solto, porque o `ValidationPipe`
+ * roda com `forbidNonWhitelisted`: qualquer parâmetro não declarado vira 400.
+ * Sem esta classe, `?formato=xlsx` seria recusado.
+ */
+export class ExportarCertificacaoDto {
+  @ApiPropertyOptional({
+    enum: ['xlsx', 'csv'],
+    default: 'xlsx',
+    description:
+      'xlsx traz uma aba por etapa; csv empilha as mesmas seções num arquivo só.',
+  })
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  formato?: 'xlsx' | 'csv';
 }

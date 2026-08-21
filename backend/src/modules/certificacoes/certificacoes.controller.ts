@@ -28,7 +28,9 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { CertificacoesService } from './certificacoes.service';
 import { DocumentosCertificacaoService } from './documentos.service';
+import { ExportacaoCertificacaoService } from './exportacao.service';
 import {
+  ExportarCertificacaoDto,
   ListarCertificacoesDto,
   SalvarCertificacaoDto,
 } from './dto/certificacao.dto';
@@ -40,7 +42,50 @@ export class CertificacoesController {
   constructor(
     private readonly certificacoesService: CertificacoesService,
     private readonly documentos: DocumentosCertificacaoService,
+    private readonly exportacao: ExportacaoCertificacaoService,
   ) {}
+
+  /**
+   * Exporta o acompanhamento de um produto para planilha.
+   *
+   * Reaproveita `detalharPorProduto`, que é onde o escopo do CLIENTE já é verificado —
+   * uma segunda consulta aqui seria uma segunda chance de esquecer a checagem.
+   */
+  @Get('produto/:produtoId/exportacao')
+  @ApiOperation({
+    summary: 'Exporta o acompanhamento em XLSX (abas) ou CSV (seções)',
+  })
+  async exportar(
+    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Query() filtros: ExportarCertificacaoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+    @Res() resposta: Response,
+  ): Promise<void> {
+    const detalhe = await this.certificacoesService.detalharPorProduto(
+      produtoId,
+      usuario,
+    );
+
+    const formato = filtros.formato ?? 'xlsx';
+    const nome = this.exportacao.nomeArquivo(detalhe, formato);
+
+    // `attachment` e não `inline`: planilha não se lê no navegador, e o Chrome
+    // abriria o XLSX como download de qualquer jeito — o CSV é que viraria uma
+    // parede de texto na aba se ficasse inline.
+    resposta.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+
+    if (formato === 'csv') {
+      resposta.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      resposta.send(this.exportacao.csv(detalhe, usuario.nome));
+      return;
+    }
+
+    resposta.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    resposta.send(await this.exportacao.xlsx(detalhe, usuario.nome));
+  }
 
   @Get()
   @ApiOperation({

@@ -52,12 +52,71 @@
   /* Métrica */
   --raio: 16px;
   --raio-sm: 10px;
-  --espaco: 16px;
   --largura-sidebar: 268px;
+
+  /*
+   * Escala de espaçamento, base 4px. Antes só existia `--espaco`, e o resto do
+   * arquivo trazia número solto (6, 10, 14, 18, 20, 24…): dois blocos irmãos
+   * respiravam diferente sem que ninguém tivesse decidido isso. `--espaco`
+   * continua existindo como apelido do passo 4 — nenhuma regra antiga quebra.
+   */
+  --espaco-1: 4px;
+  --espaco-2: 8px;
+  --espaco-3: 12px;
+  --espaco-4: 16px;
+  --espaco-5: 20px;
+  --espaco-6: 24px;
+  --espaco-8: 32px;
+  --espaco: var(--espaco-4);
+
+  /*
+   * Escala tipográfica. Os tamanhos estavam chumbados por regra (0.7, 0.76,
+   * 0.82, 0.84, 0.9, 0.92, 0.94, 1.05, 1.1, 1.3…) e também em
+   * `style={{ fontSize }}` no JSX — catorze degraus para o que precisa de oito.
+   * Consolidar muda alguns tamanhos por frações de pixel de propósito: é o que
+   * faz rótulo de coluna, chip e data terem o mesmo peso em telas diferentes.
+   */
+  --fs-2xs: 0.72rem;
+  --fs-xs: 0.8rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 0.94rem;
+  --fs-md: 1.06rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.6rem;
+  --fs-2xl: 2.25rem;
+
+  /* Tracking: negativo no display (número grande e título ficam soltos no
+     tamanho padrão), positivo no rótulo caixa-alta, que sem ele empasta. */
+  --tracking-display: -0.02em;
+  --tracking-rotulo: 0.08em;
+
+  /*
+   * Tokens de movimento. `0.18s ease` estava copiado em nove regras — a mesma
+   * duração para realce de botão, deslize da sidebar e troca de cor de linha.
+   * Retorno direto ao toque precisa ser mais curto que deslocamento de painel.
+   */
+  --mov-rapido: 110ms;
+  --mov-padrao: 170ms;
+  --mov-lento: 260ms;
+  --mov-saida: cubic-bezier(0.2, 0, 0, 1);
 
   --fonte: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
 
-  /* Derivados — recalculam sozinhos quando os tokens acima mudam. */
+  color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------------
+   Derivados — recalculam sozinhos quando os tokens acima mudam.
+
+   O seletor inclui `.previa` porque a tela de Aparência aplica os tokens do
+   tema editado como estilo inline num container isolado, e não no
+   `documentElement`. Um derivado declarado só em `:root` seria resolvido lá
+   dentro com o valor da RAIZ — a prévia mostrava a sombra do tema em uso, não
+   a do tema sendo editado. Vale para todos os derivados, inclusive os que já
+   existiam antes desta escala.
+   -------------------------------------------------------------------------- */
+:root,
+.previa {
   --fundo-gradiente: radial-gradient(
       1200px 600px at 15% -10%,
       var(--fundo-brilho-1),
@@ -70,7 +129,29 @@
       var(--fundo-degrade) 55%,
       var(--fundo) 100%
     );
-  --vidro-sombra: 0 8px 32px var(--sombra-cor);
+  /* Raio interno menor que o do container: caixa dentro de caixa com o mesmo
+     raio parece desencontrada nos cantos. Deriva de `--raio-sm` para continuar
+     seguindo o valor que o admin escolher na tela de Aparência. */
+  --raio-xs: calc(var(--raio-sm) * 0.55);
+
+  /*
+   * Fio de luz no topo interno do vidro. `--vidro-fundo-forte` é branco nos
+   * dois temas (0.12 no escuro, 0.94 no claro), então serve de realce sem cor
+   * literal e sem inverter junto com `--texto`: a luz vem de cima nos dois
+   * modos, que é o que mantém a direção de iluminação coerente no painel.
+   */
+  --vidro-realce: var(--vidro-fundo-forte);
+
+  /*
+   * Escala de elevação, toda tingida por `--sombra-cor` (que já acompanha o
+   * tema). Uma sombra só para card, sidebar e modal achatava a hierarquia — o
+   * modal precisa flutuar mais que o card, e a sidebar não projeta para baixo,
+   * projeta para o lado.
+   */
+  --sombra-1: 0 1px 2px var(--sombra-cor);
+  --sombra-2: 0 6px 20px -6px var(--sombra-cor);
+  --sombra-3: 0 24px 60px -12px var(--sombra-cor);
+  --vidro-sombra: var(--sombra-2);
 
   /*
    * Anel de foco em duas camadas. Uma cor só não resolve: sobre o vidro claro
@@ -81,7 +162,30 @@
   --anel-foco: var(--cor-primaria);
   --anel-foco-halo: color-mix(in srgb, var(--texto) 70%, transparent);
 
-  color-scheme: dark;
+  /*
+   * Cores dos gráficos.
+   *
+   * Derivam dos mesmos tokens dos badges de propósito: verde é aprovado na
+   * tabela e no gráfico da mesma tela. Uma paleta categórica separada teria
+   * folga maior sob daltonismo, mas obrigaria a manter dois dicionários de cor
+   * na cabeça — e nenhum gráfico daqui depende de cor sozinha (ver `.gr--textura`).
+   *
+   * `--graf-alerta` é o único que NÃO é o token cru. O `#f59e0b` do tema escuro
+   * fica em L 0.77 sobre o vidro — fora da faixa de luminosidade das outras
+   * marcas — e o resultado é uma barra que brilha mais que o texto ao lado.
+   * Escurecer contra `--fundo` traz para a faixa sem sair da identidade. No
+   * tema claro o token já passa, e a regra abaixo o devolve inteiro.
+   */
+  --graf-andamento: var(--cor-primaria);
+  --graf-aprovado: var(--cor-sucesso);
+  --graf-reprovado: var(--cor-erro);
+  --graf-alerta: color-mix(in srgb, var(--cor-alerta) 78%, var(--fundo));
+  --graf-neutro: color-mix(in srgb, var(--texto) 42%, transparent);
+  --graf-trilho: color-mix(in srgb, var(--texto) 9%, transparent);
+}
+
+:root.tema-claro {
+  --graf-alerta: var(--cor-alerta);
 }
 
 /*
@@ -188,6 +292,10 @@ body,
 body {
   margin: 0;
   font-family: var(--fonte);
+  /* O corpo não declarava entrelinha e herdava o `normal` do navegador (~1.2).
+     Em bloco de descrição e em célula de duas linhas isso apertava o texto;
+     1.5 é o piso de legibilidade. Título mantém 1.25 na regra abaixo. */
+  line-height: 1.5;
   color: var(--texto);
   background: var(--fundo);
   background-image: var(--fundo-gradiente);
@@ -231,6 +339,38 @@ h1, h2, h3, h4 {
   margin: 0 0 0.5rem;
   line-height: 1.25;
   font-weight: 650;
+  /* No corpo do texto o tracking padrão está certo; em título ele deixa a
+     palavra solta. Encurtar dá densidade ao título sem aumentar o peso. */
+  letter-spacing: var(--tracking-display);
+  /* Evita a última palavra sozinha na linha — acontece em quase todo título de
+     página, que é frase curta dentro de container largo. */
+  text-wrap: balance;
+}
+
+/* `pretty` só cuida das últimas linhas, então não custa reflow em parágrafo
+   longo, e é o que tira a viúva do fim do bloco de descrição. */
+p {
+  text-wrap: pretty;
+}
+
+/* --------------------------------------------------------------------------
+   Títulos
+
+   Existem porque `fontSize` estava inline no JSX em dezenas de pontos do
+   painel — o mesmo `<h2>` aparecia como 1.05rem numa tela e 1.1rem na outra.
+   Com classe, o degrau vem da escala e passa a ser um lugar só para mexer.
+   -------------------------------------------------------------------------- */
+.titulo-pagina {
+  font-size: var(--fs-xl);
+}
+
+.titulo-secao {
+  font-size: var(--fs-md);
+}
+
+.titulo-bloco {
+  font-size: var(--fs-sm);
+  letter-spacing: 0;
 }
 
 /* ------------------------------- Vidro ---------------------------------- */
@@ -241,7 +381,13 @@ h1, h2, h3, h4 {
   -webkit-backdrop-filter: blur(var(--vidro-blur));
   border: 1px solid var(--vidro-borda);
   border-radius: var(--raio);
-  box-shadow: var(--vidro-sombra);
+  /*
+   * Sombra externa + fio de luz na aresta interna de cima. É o que dá
+   * espessura ao vidro: sem o realce o card é um retângulo translúcido com
+   * contorno de 1px, e a profundidade fica só na sombra, que some assim que
+   * dois cards ficam lado a lado sobre o mesmo fundo.
+   */
+  box-shadow: var(--vidro-sombra), inset 0 1px 0 var(--vidro-realce);
 }
 
 /* ------------------------------ Layout ---------------------------------- */
@@ -263,6 +409,10 @@ h1, h2, h3, h4 {
   overflow-y: auto;
   border-radius: 0;
   border-width: 0 1px 0 0;
+  /* A sombra genérica do `.vidro` projeta para BAIXO; numa barra que ocupa a
+     altura inteira isso só escurece o rodapé. Aqui ela projeta para o lado,
+     sobre o conteúdo, que é de onde a separação precisa vir. */
+  box-shadow: 8px 0 24px -16px var(--sombra-cor), inset 0 1px 0 var(--vidro-realce);
 }
 
 .sidebar__marca {
@@ -296,9 +446,13 @@ h1, h2, h3, h4 {
   gap: 10px;
   padding: 10px 12px;
   border-radius: var(--raio-sm);
+  position: relative;
   color: var(--texto-suave);
-  font-size: 0.94rem;
-  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  font-size: var(--fs-base);
+  /* `transform` saiu da lista: nada aqui se move, e transição declarada para
+     propriedade que não muda só engana quem for ler a regra depois. */
+  transition: background var(--mov-padrao) var(--mov-saida),
+    color var(--mov-padrao) var(--mov-saida);
 }
 
 .sidebar__item:hover {
@@ -312,9 +466,40 @@ h1, h2, h3, h4 {
   box-shadow: inset 0 0 0 1px var(--vidro-borda);
 }
 
+/*
+ * Barra de acento no item ativo. O fundo mais claro sozinho se perde numa lista
+ * de nove itens de mesmo peso, ainda mais no modo claro, onde a diferença entre
+ * `--vidro-fundo` e `--vidro-fundo-forte` é branco sobre branco — e essa é a
+ * única indicação de "onde estou" que a sidebar dá.
+ */
+.sidebar__item--ativo::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 58%;
+  transform: translateY(-50%);
+  border-radius: 0 var(--raio-xs) var(--raio-xs) 0;
+  background: var(--cor-primaria);
+}
+
+/* O ícone acompanha o acento: dois sinais na mesma direção custam menos
+   atenção que um fundo levemente diferente. */
+.sidebar__item--ativo .icone {
+  color: var(--cor-primaria);
+}
+
 .sidebar__rodape {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: var(--espaco-4);
+}
+
+/* Alinha o texto do rodapé com o rótulo dos itens de menu, que têm 12px de
+   recuo interno. Estava como `style` inline no Sidebar.tsx. */
+.sidebar__rodape p {
+  margin: 0;
+  padding: 0 12px;
 }
 
 .conteudo {
@@ -330,9 +515,12 @@ h1, h2, h3, h4 {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px 24px;
+  padding: 14px var(--espaco-6);
   border-radius: 0;
   border-width: 0 0 1px;
+  /* Rasa e para baixo: só aparece quando o conteúdo passa por baixo da barra
+     fixa, que é exatamente quando a separação faz falta. */
+  box-shadow: 0 10px 20px -18px var(--sombra-cor);
 }
 
 .topo__usuario {
@@ -344,10 +532,10 @@ h1, h2, h3, h4 {
 }
 
 .pagina {
-  padding: 24px;
+  padding: var(--espaco-6);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--espaco-5);
 }
 
 .cabecalho-pagina {
@@ -360,8 +548,11 @@ h1, h2, h3, h4 {
 
 .cabecalho-pagina p {
   margin: 4px 0 0;
+  /* ~65 caracteres: acima disso o olho perde a linha ao voltar, e a descrição
+     de página fica esticada de ponta a ponta em monitor largo. */
+  max-width: 65ch;
   color: var(--texto-suave);
-  font-size: 0.92rem;
+  font-size: var(--fs-base);
 }
 
 /* ------------------------------- Cards ---------------------------------- */
@@ -373,13 +564,56 @@ h1, h2, h3, h4 {
 }
 
 .card {
-  padding: 20px;
+  padding: var(--espaco-5);
+}
+
+/*
+ * Cartão clicável.
+ *
+ * Quatro dos cinco cartões do dashboard levam a uma listagem e nenhum dizia
+ * isso: mesmo fundo, mesma borda, mesmo cursor do cartão que não leva a lugar
+ * nenhum. O contraste entre `.card-link .card` e um `.card` solto é a
+ * afordância — por isso o hover mora aqui e não em `.card`.
+ */
+.card-link {
+  display: block;
+  border-radius: var(--raio);
+}
+
+.card-link .card {
+  height: 100%;
+  transition: transform var(--mov-rapido) var(--mov-saida),
+    border-color var(--mov-padrao) var(--mov-saida),
+    box-shadow var(--mov-padrao) var(--mov-saida);
+}
+
+.card-link:hover .card {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--cor-primaria) 55%, var(--vidro-borda));
+  box-shadow: var(--sombra-3), inset 0 1px 0 var(--vidro-realce);
+}
+
+/* Volta ao lugar no clique: sem isso o cartão fica colado no ar durante o
+   pressionar e o toque não devolve nada. */
+.card-link:active .card {
+  transform: translateY(0);
+}
+
+.card-link:hover .card-metrica__icone {
+  opacity: 1;
 }
 
 .card-metrica__valor {
-  font-size: 2.1rem;
+  font-size: var(--fs-2xl);
   font-weight: 700;
   line-height: 1;
+  letter-spacing: var(--tracking-display);
+  /*
+   * Algarismos de largura fixa. Sem isto "1" e "4" ocupam larguras diferentes
+   * na Segoe UI, e a régua dos cinco cartões dança a cada refetch do
+   * TanStack Query — o número muda de posição sem ter mudado de valor.
+   */
+  font-variant-numeric: tabular-nums;
 }
 
 /*
@@ -392,9 +626,9 @@ h1, h2, h3, h4 {
 }
 
 .card-metrica__rotulo {
-  margin-top: 8px;
+  margin-top: var(--espaco-2);
   color: var(--texto-suave);
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
 }
 
 /* ------------------------------ Tabelas --------------------------------- */
@@ -408,16 +642,29 @@ table.tabela {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0 6px;
-  font-size: 0.92rem;
+  font-size: var(--fs-base);
+  /*
+   * Painel de certificação é tabela de dados: data, hora, código sequencial,
+   * versão de trilha, contagem. Com algarismo proporcional as colunas de número
+   * ficam desalinhadas na vertical e comparar duas linhas exige ler, não bater
+   * o olho. `tabular-nums` só afeta dígito — o texto ao lado não muda.
+   */
+  font-variant-numeric: tabular-nums;
 }
 
+/*
+ * `--texto-fraco` é 50% de opacidade, o que sobre o fundo do painel dá ~4,6:1 —
+ * passa raspando no AA, e este texto ainda é pequeno, caixa-alta e espaçado,
+ * a combinação mais difícil de ler que existe. `--texto-suave` (72%) sobe a
+ * folga sem transformar o rótulo em concorrente do dado da célula.
+ */
 .tabela th {
   text-align: left;
   padding: 10px 14px;
-  color: var(--texto-fraco);
+  color: var(--texto-suave);
   font-weight: 600;
-  font-size: 0.76rem;
-  letter-spacing: 0.08em;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--tracking-rotulo);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -428,6 +675,28 @@ table.tabela {
   border-top: 1px solid var(--vidro-borda);
   border-bottom: 1px solid var(--vidro-borda);
   vertical-align: middle;
+  /* O realce da linha sob o cursor trocava de cor no mesmo quadro. Com uma
+     transição curta o olho acompanha qual linha ganhou o foco ao percorrer a
+     tabela depressa. */
+  transition: background var(--mov-rapido) linear;
+}
+
+/* A célula-título é o que identifica a linha; com o mesmo peso do resto, ler
+   uma tabela de oito colunas exige procurar onde o registro começa. */
+.tabela td[data-principal] {
+  font-weight: 600;
+}
+
+/*
+ * O link da célula-título não se distinguia do texto: a regra global de `a`
+ * zera cor e sublinhado, e a linha inteira já tem hover, então nada dizia que
+ * ali havia destino. Sublinhar só no hover/foco mantém a tabela limpa e devolve
+ * a afordância no momento em que ela é necessária.
+ */
+.tabela td a:hover,
+.tabela td a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .tabela td:first-child {
@@ -475,10 +744,13 @@ table.tabela {
   backdrop-filter: blur(var(--vidro-blur));
   color: var(--texto);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   font-weight: 550;
   cursor: pointer;
-  transition: background 0.18s ease, transform 0.12s ease, opacity 0.18s ease;
+  transition: background var(--mov-padrao) var(--mov-saida),
+    border-color var(--mov-padrao) var(--mov-saida),
+    transform var(--mov-rapido) var(--mov-saida),
+    opacity var(--mov-padrao) var(--mov-saida);
 }
 
 .btn:hover:not(:disabled) {
@@ -534,9 +806,14 @@ table.tabela {
   font-size: 1rem;
 }
 
+/*
+ * Valores da segunda declaração deste seletor, que existia mais abaixo no
+ * arquivo (na seção de evidências) e vencia esta aqui pela ordem da cascata —
+ * o `6px 12px` nunca chegou a pintar nada. Agora há uma só.
+ */
 .btn--pequeno {
-  padding: 6px 12px;
-  font-size: 0.82rem;
+  padding: 5px 10px;
+  font-size: var(--fs-xs);
 }
 
 /* ---------------------------- Formulários -------------------------------- */
@@ -603,11 +880,6 @@ table.tabela {
   white-space: nowrap;
 }
 
-.btn--pequeno {
-  padding: 5px 10px;
-  font-size: 0.8rem;
-}
-
 /* ------------------------- Não conformidades ---------------------------- */
 
 .nc-lista {
@@ -650,6 +922,7 @@ table.tabela {
 .nc__codigo {
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
   letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .nc__descricao {
@@ -809,7 +1082,7 @@ fieldset.secao-form legend {
   gap: 6px;
   padding: 4px 11px;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   border: 1px solid transparent;
   white-space: nowrap;
@@ -973,9 +1246,12 @@ fieldset.secao-form legend {
 
 .modal {
   width: min(520px, 100%);
-  padding: 24px;
+  padding: var(--espaco-6);
   display: grid;
-  gap: 16px;
+  gap: var(--espaco-4);
+  /* O modal precisa flutuar mais que o card que ficou atrás dele. Com a mesma
+     sombra do `.vidro` os dois planos empatavam e só o overlay os separava. */
+  box-shadow: var(--sombra-3), inset 0 1px 0 var(--vidro-realce);
 }
 
 /* ------------------------------ Auxiliares -------------------------------- */
@@ -994,9 +1270,26 @@ fieldset.secao-form legend {
   flex-wrap: wrap;
 }
 
+/*
+ * Texto só para leitor de tela. Mesmo recorte que o `<thead>` já usava no modo
+ * cartão, agora como utilitário: `clip-path` em vez de `display: none`, senão
+ * o conteúdo também sai da árvore de acessibilidade e deixa de ser anunciado.
+ */
+.apenas-leitor-tela {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 .texto-suave { color: var(--texto-suave); }
 .texto-fraco { color: var(--texto-fraco); }
-.texto-pequeno { font-size: 0.84rem; }
+.texto-pequeno { font-size: var(--fs-xs); }
 .texto-direita { text-align: right; }
 .sem-quebra { white-space: nowrap; }
 
@@ -1040,13 +1333,73 @@ fieldset.secao-form legend {
   to { transform: rotate(360deg); }
 }
 
+/* --------------------------------------------------------------------------
+   Esqueleto de carregamento
+
+   O spinner acima resolve o "está carregando", mas não o "carregando o quê":
+   ele ocupa ~110px de altura e some dando lugar a uma tabela de 400px, então
+   toda listagem entra com um pulo de layout. O esqueleto reserva a forma do
+   conteúdo — é a mesma recomendação de reservar espaço para estado assíncrono.
+
+   O brilho não precisa de guarda de `prefers-reduced-motion`: a regra global no
+   fim do arquivo já zera a duração de toda animação, e o esqueleto continua
+   legível parado, porque a forma é que carrega a informação.
+   -------------------------------------------------------------------------- */
+.esqueleto {
+  border-radius: var(--raio-xs);
+  background-color: var(--vidro-fundo);
+  background-image: linear-gradient(
+    90deg,
+    transparent 20%,
+    var(--vidro-fundo-forte) 40%,
+    var(--vidro-fundo-forte) 55%,
+    transparent 75%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: esqueleto-brilho 1.5s ease-in-out infinite;
+}
+
+@keyframes esqueleto-brilho {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -40% 0;
+  }
+}
+
+/* Altura de linha de tabela real (12px de padding + conteúdo), para que a
+   troca do esqueleto pelo dado não desloque o rodapé de paginação. */
+.esqueleto__linha-tabela {
+  height: 49px;
+  border-radius: var(--raio-sm);
+}
+
+.esqueleto__cartao {
+  height: 104px;
+  border-radius: var(--raio);
+}
+
+.esqueleto__texto {
+  height: 12px;
+  border-radius: var(--raio-xs);
+}
+
+.esqueleto-grupo {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+}
+
 .paginacao {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--espaco-3);
   flex-wrap: wrap;
   padding: 4px 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .arrastavel {
@@ -1094,6 +1447,334 @@ fieldset.secao-form legend {
   padding: 32px;
   display: grid;
   gap: 18px;
+}
+
+
+/* --------------------------------------------------------------------------
+   Gráficos
+
+   HTML e CSS, sem SVG e sem biblioteca. Sem biblioteca pelo mesmo motivo dos
+   ícones: um pacote de charts traz a própria paleta, a própria tipografia e o
+   próprio conceito de tema, e viraria um segundo design system dentro deste.
+   Sem SVG porque tudo aqui é retângulo proporcional — em HTML o texto reflui
+   sozinho, herda a fonte escolhida na tela de Aparência e não exige recalcular
+   `viewBox` a cada quebra de layout.
+   -------------------------------------------------------------------------- */
+
+.gr-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--espaco-4);
+}
+
+.gr {
+  margin: 0;
+  padding: var(--espaco-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4);
+}
+
+.gr__cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--espaco-3);
+}
+
+.gr__titulo {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.gr__descricao {
+  margin: 2px 0 0;
+  max-width: 46ch;
+  color: var(--texto-suave);
+  font-size: var(--fs-xs);
+}
+
+/*
+ * Número-síntese. Existe porque a primeira pergunta de quem olha um gráfico
+ * costuma ser "quantos, no total?" — e ler isso somando barras é trabalho que
+ * o cabeçalho pode poupar.
+ */
+.gr__destaque {
+  flex: none;
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.gr__corpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+}
+
+/* `--texto-suave`, nao `--texto-fraco`: o rodape explica o RECORTE do grafico
+   ("considera apenas emitidos e suspensos") — quem nao ler isso interpreta o
+   numero errado. No tema claro o token fraco fica em ~3,8:1, e este texto e
+   pequeno demais para essa folga. */
+.gr__rodape {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: var(--fs-2xs);
+}
+
+.gr__vazio {
+  margin: 0;
+  padding: var(--espaco-6) 0;
+  text-align: center;
+  color: var(--texto-suave);
+  font-size: var(--fs-xs);
+}
+
+/*
+ * Hachura a 45°: encoding secundário da série crítica.
+ *
+ * `--cor-sucesso` e `--cor-erro` têm ΔE 5,0 sob deuteranopia — abaixo do piso
+ * de separação. Como os dois tokens vêm dos badges e trocá-los custaria a
+ * coerência da tela inteira, a distinção passa a ser de PADRÃO, não de matiz:
+ * quem não separa vermelho de verde separa liso de riscado.
+ */
+.gr--textura {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--fundo) 55%, transparent) 0 3px,
+    transparent 3px 7px
+  );
+}
+
+/* ------------------------------ Composição ------------------------------- */
+
+.gr-composicao {
+  display: flex;
+  /* Os 2px de respiro que a fronteira entre duas cores exige — sem eles,
+     segmentos vizinhos de matiz próxima leem como um bloco só. */
+  gap: 2px;
+  height: 30px;
+  border-radius: var(--raio-xs);
+  overflow: hidden;
+}
+
+.gr-composicao__fatia {
+  display: grid;
+  place-items: center;
+  min-width: 3px;
+  transition: filter var(--mov-padrao) var(--mov-saida);
+}
+
+.gr-composicao__fatia:first-child {
+  border-radius: var(--raio-xs) 0 0 var(--raio-xs);
+}
+
+.gr-composicao__fatia:last-child {
+  border-radius: 0 var(--raio-xs) var(--raio-xs) 0;
+}
+
+.gr-composicao:hover .gr-composicao__fatia:not(:hover) {
+  filter: saturate(0.5) opacity(0.55);
+}
+
+/*
+ * O valor ganha um chip sólido em vez de ficar direto sobre a fatia.
+ *
+ * Sem ele o número precisaria contrastar com quatro fundos diferentes — verde,
+ * âmbar, vermelho e cinza — e ainda por cima com a hachura da fatia crítica,
+ * onde as listras passam por trás do texto e o desmancham. Com o chip, o
+ * contraste é sempre o mesmo par (`--fundo` × `--texto`) e não depende de qual
+ * cor a fatia calhou de ter.
+ */
+.gr-composicao__valor {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fundo) 78%, transparent);
+  color: var(--texto);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------- Legenda -------------------------------- */
+
+.gr-legenda {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2) var(--espaco-4);
+}
+
+.gr-legenda__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--texto-suave);
+  font-size: var(--fs-2xs);
+}
+
+.gr-legenda__marca {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 3px;
+}
+
+.gr-legenda__valor {
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------- Barras horizontais --------------------------- */
+
+.gr-barras {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--espaco-2);
+}
+
+.gr-barras__linha {
+  display: grid;
+  /* Rótulo com largura fixa alinha todas as barras na mesma origem — é o que
+     permite comparar comprimento em vez de procurar onde cada uma começa. */
+  grid-template-columns: minmax(0, 11rem) 1fr auto;
+  align-items: center;
+  gap: var(--espaco-3);
+}
+
+.gr-barras__rotulo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--texto-suave);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gr-barras__detalhe {
+  color: var(--texto-fraco);
+  font-size: var(--fs-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gr-barras__trilho {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--graf-trilho);
+  overflow: hidden;
+}
+
+.gr-barras__marca {
+  display: block;
+  height: 100%;
+  /* Arredonda só a ponta do dado; a base fica reta, ancorada no zero. */
+  border-radius: 999px 4px 4px 999px;
+  transition: width var(--mov-lento) var(--mov-saida);
+}
+
+.gr-barras__valor {
+  color: var(--texto);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------- Colunas verticais ---------------------------- */
+
+.gr-colunas {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+  min-height: 148px;
+}
+
+.gr-colunas__grupo {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.gr-colunas__marcas {
+  width: 100%;
+  height: 118px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.gr-colunas__coluna {
+  flex: 1 1 0;
+  max-width: 26px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.gr-colunas__marca {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  transition: height var(--mov-lento) var(--mov-saida);
+}
+
+/*
+ * Rótulo direto em TODA coluna, e não só na maior: são poucas colunas e o
+ * número é a informação, não a altura. Com muitas séries isto viraria ruído —
+ * a regra é rotular seletivamente, e aqui o seletivo é "todas".
+ */
+.gr-colunas__valor {
+  color: var(--texto-suave);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gr-colunas__rotulo {
+  max-width: 100%;
+  color: var(--texto-suave);
+  font-size: var(--fs-2xs);
+  text-align: center;
+  text-wrap: balance;
+}
+
+@media (max-width: 720px) {
+  /* No celular o rótulo de 11rem come metade da largura e não sobra barra
+     para comparar. Empilhar devolve a linha inteira ao dado. */
+  .gr-barras__linha {
+    grid-template-columns: 1fr auto;
+    gap: 4px var(--espaco-3);
+  }
+
+  .gr-barras__rotulo {
+    grid-column: 1;
+  }
+
+  .gr-barras__valor {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .gr-barras__trilho {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ----------------------------- Responsivo -------------------------------- */
@@ -1263,6 +1944,28 @@ fieldset.secao-form legend {
      que compensava a barra de rolagem também sai. */
   .tabela-wrapper {
     padding: 0;
+  }
+}
+
+/*
+ * Transparência reduzida (macOS/iOS "Reduce transparency", Windows "Efeitos de
+ * transparência"). O painel inteiro é vidro sobre gradiente; para quem pediu
+ * menos transparência o resultado é texto sobre textura.
+ *
+ * O fundo opaco é montado em duas camadas em vez de uma cor nova: `--fundo`
+ * como cor sólida e o próprio `--vidro-fundo-forte` como `background-image`,
+ * o que compõe exatamente o mesmo tom do vidro, só que sem deixar passar o que
+ * está atrás. Nenhum token novo, e continua acompanhando o tema.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  .vidro {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background-color: var(--fundo);
+    background-image: linear-gradient(
+      var(--vidro-fundo-forte),
+      var(--vidro-fundo-forte)
+    );
   }
 }
 

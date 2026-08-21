@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { BadgeCertificacao } from '@/components/Badge';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
-import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
+import { EsqueletoCards, EsqueletoTabela } from '@/components/Esqueleto';
 import { Icone, type NomeIcone } from '@/components/Icone';
 import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { api } from '@/lib/api';
@@ -35,7 +35,18 @@ function CardMetrica({
     </div>
   );
 
-  return para ? <Link to={para}>{conteudo}</Link> : conteudo;
+  /*
+   * `card-link` é o que diferencia o cartão que leva a uma listagem do cartão
+   * que só mostra um número — antes os cinco eram visualmente idênticos e
+   * quatro deles eram clicáveis. O hover mora na classe, não aqui.
+   */
+  return para ? (
+    <Link to={para} className="card-link">
+      {conteudo}
+    </Link>
+  ) : (
+    conteudo
+  );
 }
 
 export function DashboardPage() {
@@ -49,7 +60,26 @@ export function DashboardPage() {
     },
   });
 
-  if (isLoading) return <Carregando mensagem="Carregando indicadores..." />;
+  /*
+   * A forma do dashboard não depende da resposta: sempre cinco cartões e uma
+   * tabela. Por isso aqui vale esqueleto, e não o spinner central — que sumia
+   * dando lugar a meia tela de conteúdo de uma vez.
+   */
+  if (isLoading) {
+    return (
+      <>
+        <CabecalhoPagina
+          titulo={`Olá, ${usuario?.nome.split(' ')[0] ?? ''}`}
+          descricao="Panorama das certificações em andamento."
+        />
+        <EsqueletoCards quantidade={5} />
+        <section className="card vidro">
+          <h2 className="titulo-secao">Últimas movimentações</h2>
+          <EsqueletoTabela linhas={6} mensagem="Carregando movimentações..." />
+        </section>
+      </>
+    );
+  }
 
   if (isError || !data) {
     return (
@@ -103,7 +133,7 @@ export function DashboardPage() {
       </div>
 
       <section className="card vidro">
-        <h2 style={{ fontSize: '1.1rem' }}>Últimas movimentações</h2>
+        <h2 className="titulo-secao">Últimas movimentações</h2>
 
         {data.ultimasAtualizacoes.length === 0 ? (
           <EstadoVazio
@@ -136,7 +166,7 @@ export function DashboardPage() {
                     <td role="cell" data-rotulo="Status">
                       <BadgeCertificacao status={linha.status} />
                     </td>
-                    <td role="cell" data-rotulo="Atualizado em" className="texto-pequeno texto-fraco sem-quebra">
+                    <td role="cell" data-rotulo="Atualizado em" className="texto-pequeno texto-suave sem-quebra">
                       {formatarDataHora(linha.atualizadoEm)}
                     </td>
                   </tr>

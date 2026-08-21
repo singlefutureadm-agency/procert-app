@@ -6,13 +6,13 @@ import { toast } from 'sonner';
 import { useAuth } from '@/auth/useAuth';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
-import { Carregando } from '@/components/Carregando';
+import { EsqueletoTabela } from '@/components/Esqueleto';
 import { EstadoVazio } from '@/components/EstadoVazio';
 import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
-import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { Progresso } from '@/components/Progresso';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { moeda } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
@@ -100,7 +100,7 @@ export function ProdutosPage() {
 
       <section className="vidro">
         {isLoading ? (
-          <Carregando />
+          <EsqueletoTabela />
         ) : listaVazia ? (
           <EstadoVazio
             icone="caixa"

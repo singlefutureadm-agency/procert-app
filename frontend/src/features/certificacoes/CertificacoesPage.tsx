@@ -6,11 +6,11 @@ import { useAuth } from '@/auth/useAuth';
 import { BadgeCertificacao } from '@/components/Badge';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
-import { Carregando } from '@/components/Carregando';
+import { EsqueletoTabela } from '@/components/Esqueleto';
 import { EstadoVazio } from '@/components/EstadoVazio';
 import { Paginacao } from '@/components/Paginacao';
-import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { Progresso } from '@/components/Progresso';
+import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { urlArquivo } from '@/lib/api';
 import {
   formatarDataHora,
@@ -20,6 +20,7 @@ import {
 import { chaves } from '@/lib/queryClient';
 import type { StatusCertificacao } from '@/types';
 import { certificacoesApi, type FiltrosCertificacoes } from './api';
+import { PainelGraficosCertificacoes } from './PainelGraficos';
 
 export function CertificacoesPage() {
   const { temPapel } = useAuth();
@@ -82,7 +83,7 @@ export function CertificacoesPage() {
 
       <section className="vidro">
         {isLoading ? (
-          <Carregando />
+          <EsqueletoTabela />
         ) : listaVazia ? (
           <EstadoVazio
             icone="prancheta"
@@ -141,7 +142,7 @@ export function CertificacoesPage() {
                           {linha.etapasAprovadas} de {linha.totalEtapas} etapas
                         </span>
                       </td>
-                      <td role="cell" data-rotulo="Atualizado em" className="texto-pequeno texto-fraco sem-quebra">
+                      <td role="cell" data-rotulo="Atualizado em" className="texto-pequeno texto-suave sem-quebra">
                         {formatarDataHora(linha.atualizadoEm)}
                       </td>
                       <td role="cell" className="tabela__celula-acoes">
@@ -169,6 +170,8 @@ export function CertificacoesPage() {
           </>
         )}
       </section>
+
+      <PainelGraficosCertificacoes />
     </>
   );
 }

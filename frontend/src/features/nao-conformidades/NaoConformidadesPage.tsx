@@ -14,6 +14,7 @@ import { chaves } from '@/lib/queryClient';
 import type { NaoConformidadeDetalhada, StatusNaoConformidade } from '@/types';
 import { naoConformidadesApi, type FiltrosNaoConformidades } from './api';
 import { CartaoNaoConformidade } from './CartaoNaoConformidade';
+import { PainelGraficosNaoConformidades } from './PainelGraficos';
 
 const FILTROS_STATUS: Array<{ valor?: StatusNaoConformidade; rotulo: string }> = [
   { valor: undefined, rotulo: 'Todas' },
@@ -203,6 +204,8 @@ export function NaoConformidadesPage() {
           />
         )}
       </section>
+
+      <PainelGraficosNaoConformidades />
     </>
   );
 }

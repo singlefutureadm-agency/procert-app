@@ -18,6 +18,7 @@ import { ContatoModule } from './modules/contato/contato.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EstadosModule } from './modules/estados/estados.module';
 import { FuncionariosModule } from './modules/funcionarios/funcionarios.module';
+import { HealthModule } from './modules/health/health.module';
 import { ModelosTrilhaModule } from './modules/modelos-trilha/modelos-trilha.module';
 import { NaoConformidadesModule } from './modules/nao-conformidades/nao-conformidades.module';
 import { MailModule } from './modules/mail/mail.module';
@@ -32,6 +33,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     // (modules/certificados/expiracao.cron.ts) — ver DOCUMENTACAO.md §9.
     ScheduleModule.forRoot(),
     PrismaModule,
+    HealthModule,
     MailModule,
     UploadsModule,
     AuthModule,

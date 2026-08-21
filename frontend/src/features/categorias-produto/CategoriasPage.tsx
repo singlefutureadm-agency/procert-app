@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { BadgeStatus } from '@/components/Badge';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { CampoBusca } from '@/components/CampoBusca';
-import { Carregando } from '@/components/Carregando';
+import { EsqueletoTabela } from '@/components/Esqueleto';
 import { EstadoVazio } from '@/components/EstadoVazio';
 import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
@@ -107,7 +107,7 @@ export function CategoriasPage() {
 
       <section className="vidro">
         {isLoading ? (
-          <Carregando />
+          <EsqueletoTabela />
         ) : listaVazia ? (
           <EstadoVazio
             icone="pastas"

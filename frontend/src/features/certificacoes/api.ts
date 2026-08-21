@@ -98,6 +98,35 @@ export const certificacoesApi = {
     return data;
   },
 
+  /**
+   * Baixa a planilha do acompanhamento.
+   *
+   * Vem por blob, e não por `<a href>`, porque a rota exige o Bearer — um link
+   * direto sairia sem o cabeçalho e voltaria 401. O nome do arquivo é o que o
+   * servidor mandou no `Content-Disposition`: quem sabe montar o nome é quem
+   * conhece o produto e a data, e duplicar essa regra aqui a faria divergir.
+   */
+  exportar: async (produtoId: number, formato: 'xlsx' | 'csv') => {
+    const resposta = await api.get<Blob>(
+      `/certificacoes/produto/${produtoId}/exportacao`,
+      { params: { formato }, responseType: 'blob' },
+    );
+
+    const cabecalho = String(
+      resposta.headers['content-disposition'] ?? '',
+    );
+    const nome =
+      /filename="?([^"]+)"?/.exec(cabecalho)?.[1] ??
+      `acompanhamento.${formato}`;
+
+    const url = URL.createObjectURL(resposta.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nome;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
+
   reiniciar: async (produtoId: number) => {
     const { data } = await api.post<{ mensagem: string }>(
       `/certificacoes/produto/${produtoId}/reiniciar`,

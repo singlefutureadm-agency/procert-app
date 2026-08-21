@@ -20,6 +20,10 @@ export const queryClient = new QueryClient({
 export const chaves = {
   perfil: ['perfil'] as const,
   dashboard: ['dashboard'] as const,
+  /* Chave única para os três gráficos: o payload é um só, então trocar de
+     Acompanhamento para Certificados aproveita o cache em vez de refazer a
+     conta no servidor. */
+  graficos: ['dashboard', 'graficos'] as const,
   estados: ['estados'] as const,
   aparencia: ['aparencia'] as const,
   clientes: (filtros?: unknown) => ['clientes', filtros ?? {}] as const,

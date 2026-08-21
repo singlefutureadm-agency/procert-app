@@ -415,3 +415,46 @@ export interface Aparencia {
   /** false = rodando no preset de fábrica, nunca foi salva. */
   personalizada: boolean;
 }
+
+
+/**
+ * Agregados dos gráficos (`GET /dashboard/graficos`).
+ *
+ * Espelha `backend/src/modules/dashboard/graficos.service.ts` — os dois são
+ * sincronizados à mão, como o resto deste arquivo. Mudou lá, mude aqui.
+ *
+ * Vem de um endpoint próprio, e não da listagem, porque as listas são
+ * paginadas: um gráfico montado sobre a página visível mostraria 20 registros
+ * como se fossem o total, e pareceria correto.
+ */
+export interface DadosGraficos {
+  acompanhamento: {
+    etapasPorStatus: Array<{ status: StatusCertificacao; total: number }>;
+    ranking: Array<{
+      produtoId: number;
+      produto: string;
+      cliente: string;
+      aprovadas: number;
+      total: number;
+      progresso: number;
+    }>;
+    totalProdutos: number;
+    /** Produtos que não couberam no ranking — some no rodapé do gráfico. */
+    foraDoRanking: number;
+  };
+  certificados: {
+    porStatus: Array<{ status: StatusCertificado; total: number }>;
+    vencimentos: Array<{ chave: string; rotulo: string; total: number }>;
+    totalVigentes: number;
+  };
+  naoConformidades: {
+    porStatus: Array<{
+      status: StatusNaoConformidade;
+      menor: number;
+      maior: number;
+      total: number;
+    }>;
+    porEtapa: Array<{ etapa: string; total: number }>;
+    total: number;
+  };
+}

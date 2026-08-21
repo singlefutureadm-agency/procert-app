@@ -57,11 +57,9 @@ export function mensagemDeErro(erro: unknown, padrao = 'Não foi possível concl
 }
 
 /** Monta a URL absoluta de um arquivo enviado (ou a imagem padrão). */
-export function urlArquivo(
-  caminho: string | null | undefined,
-  padrao = '/placeholder-usuario.svg',
-): string {
-  if (!caminho) return padrao;
-  if (caminho.startsWith('http')) return caminho;
-  return caminho;
-}
+/*
+ * Mora em `lib/arquivos.ts` — módulo sem imports, para que `lib/tema.ts` possa
+ * usá-lo antes do primeiro paint sem arrastar o axios. Reexportado aqui porque
+ * os componentes já o importavam deste caminho.
+ */
+export { urlArquivo } from './arquivos';

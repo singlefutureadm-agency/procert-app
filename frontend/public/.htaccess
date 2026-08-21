@@ -1,0 +1,93 @@
+# =============================================================================
+# ProCert — frontend em Apache
+#
+# Fica em `public/`, então o Vite copia para dentro de `dist/` a cada build e
+# ele sobe junto com o resto. Não é gerado: edite aqui, nunca no `dist/`.
+#
+# Se o site não ficar na raiz do domínio (ex.: /painel), ajuste o RewriteBase
+# abaixo E o `base` do vite.config.ts — os dois precisam concordar, senão o
+# index.html pede os assets num caminho que não existe.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Rotas do React Router
+#
+# O painel é uma SPA: /dashboard, /produtos e /certificacoes não existem em
+# disco, quem resolve é o JavaScript depois que a página carrega. Navegando por
+# dentro do app funciona sem isto; o que quebra é dar F5 ou abrir um link
+# direto — o Apache procura a pasta /dashboard, não acha e devolve 404.
+# -----------------------------------------------------------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # A API e os arquivos enviados NÃO são rota do React. Se o Node estiver atrás
+  # do mesmo domínio (proxy em /api), reescrever aqui devolveria o index.html no
+  # lugar do JSON — e o sintoma seria "Unexpected token < in JSON", que não
+  # aponta para cá de jeito nenhum. Esta regra tem que vir antes das outras.
+  RewriteCond %{REQUEST_URI} ^/(api|uploads)(/|$) [NC]
+  RewriteRule ^ - [L]
+
+  # Arquivo ou diretório que existe em disco sai como está (assets, imagens,
+  # os PDFs de /documentos, o favicon).
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Todo o resto entrega o index.html e deixa o React decidir — inclusive a
+  # página 404, que é uma rota do router.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# -----------------------------------------------------------------------------
+# Cache
+#
+# O Vite carimba um hash no nome de cada asset (index-CXv--UN2.css). Nome novo a
+# cada build significa que o arquivo antigo nunca precisa ser revalidado — daí o
+# `immutable`. O index.html é o oposto: é ele que aponta para os hashes novos, e
+# se ficar em cache o navegador continua pedindo o build anterior depois do
+# deploy. Essa combinação é o que faz "atualizei o site e o cliente continua
+# vendo o antigo" não acontecer.
+# -----------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2?|svg|png|jpg|jpeg|webp|avif)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  <FilesMatch "^(index\.html)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # O backend manda os seus próprios cabeçalhos via helmet; estes valem para o
+  # que o Apache serve sozinho. Sem CSP de propósito: o painel injeta CSS
+  # custom properties em runtime (lib/tema.ts) e uma política mal calibrada
+  # apagaria o tema inteiro — CSP aqui exige teste dedicado, não chute.
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# -----------------------------------------------------------------------------
+# Compressão
+# O bundle principal tem ~470 KB e cai para ~143 KB com gzip. Numa conexão
+# móvel é a diferença entre abrir e desistir.
+# -----------------------------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# -----------------------------------------------------------------------------
+# Tipos que hospedagem antiga costuma não conhecer. Sem isto o .woff2 desce como
+# application/octet-stream e o navegador recusa a fonte.
+# -----------------------------------------------------------------------------
+<IfModule mod_mime.c>
+  AddType font/woff2 .woff2
+  AddType image/svg+xml .svg
+  AddType application/manifest+json .webmanifest
+</IfModule>
+
+# Listagem de diretório desligada: sem index.html numa pasta, o Apache mostraria
+# o conteúdo dela.
+Options -Indexes
