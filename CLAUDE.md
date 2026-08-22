@@ -614,7 +614,9 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
 
 ## 7. Estado atual do trabalho
 
-O fluxo do repo é **direto em `main`**, sem branches de feature.
+O fluxo do repo foi **direto em `main`** até `d9ea0aa`. Com o CI no ar e mais de uma
+pessoa com write, passa a ser **branch + PR** — ver a seção de integração contínua do
+`README.md`.
 
 **Produto** (funcional, verificado manualmente):
 
@@ -640,15 +642,50 @@ O fluxo do repo é **direto em `main`**, sem branches de feature.
     teste levante a mesma aplicação do `main.ts`.
 11. `9edc8a8` expiração de certificados agendada dentro da API.
 
-**A próxima coisa a fazer é o CI** (GitHub Actions: build + lint + test nos dois pacotes,
-com PostgreSQL de serviço). É o que impede a regressão de tudo isso — hoje nada obriga
-ninguém a rodar a suíte antes de empurrar para `main`. Ver `DOCUMENTACAO.md` §17, que traz
-o backlog inteiro priorizado, cada item com o gatilho que o promove.
+**Integração contínua** (22/08/2026) — fecha o ciclo da rede de segurança:
+
+12. `8fd0363` `.github/workflows/ci.yml`: build, lint e testes dos dois pacotes, com
+    PostgreSQL 16 de serviço mapeado em 5433 para o e2e — assim o job copia
+    `.env.test.example` verbatim, em vez de manter uma segunda `DATABASE_URL` que sairia
+    de sincronia sem ninguém notar. Acrescenta `lint:ci` (sem `--fix`) nos dois pacotes:
+    o `lint` de desenvolvimento reescreveria os arquivos e o job passaria justamente
+    quando há o que corrigir.
+13. `d9ea0aa` sobe `checkout`/`setup-node` para v5, encerrando o aviso de Node 20.
+
+O CI foi **verificado nos dois sentidos**: verde em `main`, e vermelho num PR descartável
+que trocava `setDate(0)` por `setDate(diaOriginal)` em `somarMeses` — regressão limpa para
+lint e type-check, para que quem reprovasse fosse o teste. Reprovou em 3 casos da regra de
+fim de mês. Verde que nunca ficou vermelho não prova nada.
+
+**A próxima coisa a fazer é a branch protection em `main`.** O CI roda, mas nada impede um
+push direto que ignore o resultado. Está **bloqueada por permissão**: o repositório
+pertence a uma **conta pessoal** (`singlefutureadm-agency`), não a uma organização — e
+repositório de conta pessoal só tem dono e colaborador, sem papel de admin intermediário.
+Só a conta dona configura. Quando for feita, três pontos que não são óbvios:
+
+- `required_approving_review_count` em **0**. Qualquer valor acima trava o merge para quem
+  trabalha sozinho: ninguém aprova o próprio PR.
+- `contexts` precisa bater **exatamente** com o `name:` dos jobs (`Backend (build, lint,
+  unitários, e2e)` e `Frontend (build, lint)`), acentos incluídos. Nome divergente faz a
+  proteção esperar para sempre um check que nunca chega.
+- `enforce_admins: false` deixa uma saída de emergência para o dono se o CI quebrar por
+  causa externa.
+
+Depois dela, a lacuna nº 1 volta a ser **teste no frontend**, que segue em zero. Ver
+`DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada item.
 
 **Riscos abertos e conscientemente não corrigidos** (todos em `DOCUMENTACAO.md` §15, com a
 correção proposta): CRLF em assunto de e-mail no `nodemailer` 9; `esqueciSenha` propagando
 falha do `MailService` (oráculo de enumeração, fechado na prática mas frágil); e o ETL
 `migrate-legacy.ts`, que não compila nem roda.
+
+Acrescente a esses um risco **de repositório**, não de código: o `DEPLOY.md` está num repo
+**público** e descreve a infraestrutura de produção — host FTP com o IP da origem
+(`179.188.54.241`), usuário `procertocp1`, porta 21 e a observação de que o servidor
+recusa `AUTH TLS`. Nenhuma senha vazou, e o histórico foi varrido. Mas o IP publicado ao
+lado da informação de que o site fica atrás do Cloudflare permite bater direto na origem e
+contornar a proteção. Decisão consciente de deixar como está em 22/08/2026; se for
+tratado, lembre que remover num commit novo não limpa o histórico.
 
 ---
 

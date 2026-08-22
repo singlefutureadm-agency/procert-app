@@ -1820,6 +1820,29 @@ itens encolhidos ao tamanho do texto.
 Divergência silenciosa é possível. Mitigação futura: gerar tipos do OpenAPI que o Swagger
 já expõe.
 
+### `DEPLOY.md` expõe a infraestrutura num repositório público (risco aberto)
+
+O repositório é **público** (`singlefutureadm-agency/procert-app`). A §6 do `DEPLOY.md`,
+escrita como levantamento do servidor em 21/08/2026, publica junto:
+
+| Dado | Consequência |
+|---|---|
+| `ftp.procertocp1.hospedagemdesites.ws` → `179.188.54.241` | É o IP da origem. Publicado ao lado da informação de que o site fica atrás do Cloudflare, permite bater direto no servidor e contornar WAF e proteção de DDoS. |
+| Usuário FTP `procertocp1` | Metade de uma credencial. |
+| Porta 21, e `AUTH TLS` recusado pelo servidor | A outra metade trafega em texto claro a cada publicação. |
+| `/home/procertocp1/`, `/public_html` | Estrutura da conta de hospedagem. |
+
+**Nenhuma senha vazou** — o histórico completo foi varrido em 22/08/2026 e não há
+credencial em commit nenhum. O `DEPLOY.md` entrou em `6bb7be8`, então a janela é curta, e
+o repositório tem 0 forks.
+
+Decisão consciente de **deixar como está** em 22/08/2026. Ao tratar, duas coisas:
+
+1. Remover num commit novo **não limpa o histórico** — o conteúdo continua acessível pelos
+   commits anteriores, e o GitHub é varrido por bots continuamente. Trate como já exposto.
+2. As saídas reais são tornar o repositório privado, ou redigir o documento **e** trocar a
+   senha do FTP. Redigir sozinho não devolve o que já saiu.
+
 ---
 
 ## 16. Postura de segurança
@@ -1874,69 +1897,83 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~E2E de autorização (Supertest, papéis × endpoints)~~ | `bd1771a` |
 | ~~Agendar a expiração de certificados~~ | `9edc8a8` |
 | ~~Alinhar `README.md` e esta documentação~~ | esta sessão (19/08/2026) |
+| ~~CI no GitHub Actions (build + lint + testes nos dois pacotes)~~ | `8fd0363`, `d9ea0aa` |
 
 ### Prioridade 1 — o que sustenta tudo que foi construído
 
-**1. CI (GitHub Actions).** `build` + `lint` + `test` nos dois pacotes, com PostgreSQL de
-serviço para o e2e. Só fazia sentido depois que lint, unitários e e2e existissem para
-rodar — e agora existem. É o que impede a regressão de tudo isto: hoje nada obriga ninguém
-a rodar a suíte antes de empurrar para `main`.
+**1. Branch protection em `main`.** O CI existe e roda, mas nada impede um push direto que
+ignore o resultado — o gate só vira gate com a proteção ligada. Exige `Require status
+checks` (os dois jobs) + `Require a pull request`.
 
-Cuidados na configuração, já conhecidos:
+**Está bloqueada por permissão, e a razão não é a óbvia:** o repositório pertence a uma
+**conta pessoal** (`singlefutureadm-agency`), não a uma organização. Repositório de conta
+pessoal tem apenas dono e colaborador — não existe papel de admin intermediário para
+conceder. Só a conta dona configura, ou transfere o repositório para uma organização.
 
-- `npm audit` não pode ser gate: as 3 *high* de `deepmerge-ts` não têm correção (§15).
-- `typecheck:scripts` **fica de fora** do pipeline obrigatório enquanto o ETL não for
-  arrumado — entraria vermelho por dívida conhecida.
-- O e2e precisa de `.env.test` (não versionado) montado a partir do `.env.test.example`, e
-  do serviço PostgreSQL exposto onde o `DATABASE_URL` do CI apontar.
+Três detalhes que custam caro se errados:
 
-*Gatilho: nenhum — é o próximo.*
+- `required_approving_review_count` em **0**. Qualquer valor acima trava o merge para quem
+  trabalha sozinho: ninguém aprova o próprio PR.
+- `contexts` precisa bater **exatamente** com o `name:` dos jobs — `Backend (build, lint,
+  unitários, e2e)` e `Frontend (build, lint)`, acentos incluídos. Nome divergente faz a
+  proteção esperar para sempre um check que nunca chega, e nenhum merge passa.
+- `enforce_admins: false` preserva uma saída de emergência para o dono se o CI quebrar por
+  causa externa.
+
+*Gatilho: nenhum — é o próximo, assim que houver acesso à conta dona.*
+
+**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 152 unitários + 59 e2e. O
+CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o
+passo. Comece pelo que quebra silencioso — `lib/tema.ts` (`MAPA_CSS`, `checarContrastes`),
+`mensagemDeErro` e as chaves de `lib/queryClient.ts`.
+
+*Gatilho: nenhum — é a lacuna nº 1 depois da proteção de branch.*
 
 ### Prioridade 2 — funcionalidade que os usuários já sentem falta
 
-**2. Tela de caixa de entrada de `/contato` no painel.** As mensagens do formulário do site
+**3. Tela de caixa de entrada de `/contato` no painel.** As mensagens do formulário do site
 só podem ser lidas via Swagger/API hoje. *Gatilho: o cliente perguntar onde estão as
 mensagens — ou seja, na primeira mensagem que chegar em produção.*
 
-**3. Aviso de prazo de NC vencido**, no dashboard e por e-mail. Hoje o vencimento só
+**4. Aviso de prazo de NC vencido**, no dashboard e por e-mail. Hoje o vencimento só
 aparece para quem abre a tela da NC. *Gatilho: a primeira NC que estourar o prazo sem
 ninguém notar.*
 
 ### Prioridade 3 — desempenho e evolução prevista
 
-**4. Otimizar as imagens da home.** `depoimentos-bg.png` tem 2,4 MB e `cta-bg.jpg` 340 KB;
+**5. Otimizar as imagens da home.** `depoimentos-bg.png` tem 2,4 MB e `cta-bg.jpg` 340 KB;
 converter para WebP/AVIF e redimensionar deve dar ~90% de redução. O `bootstrap-icons.css`
 completo (~106 KB de fonte) é carregado por ~28 ícones — cabe um subset. *Gatilho: medição
 de Core Web Vitals do site público, ou reclamação de carregamento em conexão móvel.*
 
-**5. Módulo de pagamentos.** A tabela `Pagamento` existe e `produtos` já expõe
+**6. Módulo de pagamentos.** A tabela `Pagamento` existe e `produtos` já expõe
 `ultimoPagamento`, mas não há controller nem service. *Gatilho: o OCP passar a cobrar pelo
 sistema em vez de por fora.*
 
-**6. Tipos do frontend gerados do OpenAPI.** Hoje `schema.prisma` e
+**7. Tipos do frontend gerados do OpenAPI.** Hoje `schema.prisma` e
 `frontend/src/types/index.ts` são sincronizados à mão, e divergência silenciosa é possível.
 *Gatilho: a primeira divergência que chegar ao usuário — ou o CI, que torna a geração
 verificável.*
 
-**7. Observabilidade.** `/api/health`, logs estruturados (JSON) e métricas. *Gatilho:
+**8. Observabilidade.** `/api/health`, logs estruturados (JSON) e métricas. *Gatilho:
 qualquer deploy em infraestrutura que precise de health check — contêiner orquestrado, load
 balancer.*
 
 ### Prioridade 4 — condicionados a um evento
 
-**8. Endurecer a sessão** — cookie `httpOnly` + `SameSite` + rota de refresh. A revalidação
+**9. Endurecer a sessão** — cookie `httpOnly` + `SameSite` + rota de refresh. A revalidação
 no banco já cobre conta desativada, mas não invalida token vazado antes de expirar (§15).
 *Gatilho: requisito de sessão longa ou exposição pública maior. **Não antes** — o custo é
 alto e o risco atual é aceitável para um sistema interno.*
 
-**9. Corrigir o ETL `migrate-legacy.ts`** (§15). Exige decidir como o script resolve
+**10. Corrigir o ETL `migrate-legacy.ts`** (§15). Exige decidir como o script resolve
 categoria e versão de trilha para cada produto migrado. *Gatilho: plano de reimportação. O
 cutover já aconteceu; sem reimportação, o script é código morto.*
 
-**10. `DashboardService` com agregação SQL.** Hoje agrega em memória (`findMany` enxuto +
+**11. `DashboardService` com agregação SQL.** Hoje agrega em memória (`findMany` enxuto +
 JavaScript), correto na escala atual. *Gatilho: dezenas de milhares de produtos.*
 
-**11. Dados de contato divergentes no site.** O legado exibia **três telefones diferentes**
+**12. Dados de contato divergentes no site.** O legado exibia **três telefones diferentes**
 (contato, rodapé e link do WhatsApp), preservados como estavam em
 `features/home/conteudo.ts`. *Gatilho: **confirmação do cliente sobre qual é o correto** —
 não invente.*
