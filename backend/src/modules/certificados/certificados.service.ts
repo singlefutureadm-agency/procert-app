@@ -417,7 +417,7 @@ export class CertificadosService {
     resultado.setMonth(resultado.getMonth() + meses);
 
     if (resultado.getDate() !== diaOriginal) {
-      resultado.setDate(0);
+      resultado.setDate(diaOriginal);
     }
     return resultado;
   }
