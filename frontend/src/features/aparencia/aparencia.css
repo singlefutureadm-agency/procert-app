@@ -180,6 +180,35 @@
   object-fit: contain;
 }
 
+/*
+ * Fundo fixo da amostra das logos. Não usa `--vidro-fundo` de propósito: o
+ * quadro precisa mostrar a imagem sobre o fundo em que ela vai aparecer de
+ * verdade, e não sobre o tema que o admin está editando no momento — senão a
+ * logo branca do tema escuro some enquanto ele mexe no tema claro.
+ */
+.campo-imagem__amostra--fundo-claro {
+  background: #f4f6fb;
+  border-color: rgba(15, 23, 42, 0.25);
+}
+
+.campo-imagem__amostra--fundo-escuro {
+  background: #0f141d;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/*
+ * O "Nenhuma imagem" herda `--texto-fraco`, que segue o tema em edição: sobre
+ * o fundo fixo da amostra ele vira branco no branco. Forçar o fundo obriga a
+ * forçar a cor do texto junto — os dois andam em par.
+ */
+.campo-imagem__amostra--fundo-claro span {
+  color: rgba(15, 23, 42, 0.62);
+}
+
+.campo-imagem__amostra--fundo-escuro span {
+  color: rgba(255, 255, 255, 0.62);
+}
+
 .campo-imagem__acoes {
   display: flex;
   gap: 8px;

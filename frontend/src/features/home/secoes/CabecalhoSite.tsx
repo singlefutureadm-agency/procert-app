@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { useTema } from '@/features/aparencia/useTema';
 import { urlArquivo } from '@/lib/arquivos';
+import { logoDoTema } from '@/lib/tema';
 import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
 import { useRolagem } from '../hooks';
 
@@ -40,12 +41,13 @@ export function CabecalhoSite() {
               Sem o texto ao lado, a imagem passa a ser o nome acessível
               da marca — por isso `alt` preenchido em vez de decorativa.
 
-              A logo enviada em /dashboard/aparencia substitui esta. Atenção:
-              o cabeçalho é transparente sobre o hero escuro, então uma logo
-              de traço escuro fica ilegível até a página rolar. O aviso está
-              na própria tela de Aparência. */}
+              A logo enviada em /dashboard/aparencia substitui esta. Pede-se
+              sempre a variante do tema ESCURO, e não a do modo em que o
+              usuário está: aqui o cabeçalho é transparente sobre um hero que
+              é escuro nos dois modos, então quem manda no contraste é o fundo
+              da seção, não o tema do painel. */}
           <img
-            src={urlArquivo(aparencia?.logoUrl, '/img/logo-branco.png')}
+            src={urlArquivo(logoDoTema(aparencia, 'ESCURO'), '/img/logo-branco.png')}
             alt={EMPRESA.nome}
           />
 

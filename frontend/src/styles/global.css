@@ -202,6 +202,75 @@
   color-scheme: dark;
 }
 
+/*
+ * Seleção de texto e barra de rolagem saem dos tokens do tema.
+ *
+ * Nenhuma das duas ganha token próprio: derivam de `--cor-primaria`, então
+ * acompanham a paleta que o admin escolher sem acrescentar mais campos na tela
+ * de Aparência — e sem um segundo lugar para esquecer de atualizar.
+ *
+ * O seletor inclui `.previa` pelo mesmo motivo dos outros derivados:
+ * `scrollbar-color` é herdada, e o valor computado no `:root` já vem com as
+ * custom properties resolvidas. Declarada só na raiz, a prévia da tela de
+ * Aparência mostraria a barra do tema EM USO no meio do tema sendo editado.
+ */
+:root,
+.previa {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--cor-primaria) 55%, transparent)
+    transparent;
+}
+
+/*
+ * Duas escolhas deliberadas aqui.
+ *
+ * `background-color` e não o atalho `background`: em `::selection` a spec só
+ * garante um punhado de propriedades, e o atalho é recusado em parte dos
+ * navegadores — a seleção voltaria ao azul do sistema sem erro nenhum.
+ *
+ * E nenhuma `color`: o realce é translúcido, então o texto selecionado mantém
+ * a cor que já tinha e continua legível onde quer que esteja. Fixar
+ * `var(--texto)` quebraria a home, que é escura nos dois modos: no tema claro
+ * o texto branco do hero viraria escuro sobre fundo escuro.
+ */
+::selection {
+  background-color: color-mix(in srgb, var(--cor-primaria) 38%, transparent);
+}
+
+/*
+ * Firefox e Safari antigos ignoram `scrollbar-color`. O `@supports` evita
+ * declarar as duas coisas ao mesmo tempo: onde o padrão funciona,
+ * `::-webkit-scrollbar` trocaria a barra nativa por uma desenhada, e as duas
+ * regras brigariam pelo mesmo pixel.
+ */
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--cor-primaria) 55%, transparent);
+    border: 2px solid transparent;
+    /* Sem `background-clip`, a borda transparente mostra o trilho e o polegar
+       fica com um halo em vez de folga. */
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--cor-primaria) 78%, transparent);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -488,6 +557,93 @@ p {
    atenção que um fundo levemente diferente. */
 .sidebar__item--ativo .icone {
   color: var(--cor-primaria);
+}
+
+/* ------------------------- Ramo com submenu ------------------------------- */
+
+/*
+ * O item pai (Acompanhamento) e a alça de expansão são dois controles lado a
+ * lado, não um só: o rótulo navega, a alça revela os filhos. Fundidos, ou o
+ * ramo perderia acesso à própria página, ou não haveria como recolher o que a
+ * navegação acabou de abrir.
+ */
+.sidebar__ramo {
+  display: flex;
+  align-items: stretch;
+  gap: var(--espaco-1);
+}
+
+.sidebar__ramo > .sidebar__item {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar__alca-ramo {
+  flex: none;
+  /* 40px de largura contra a altura cheia da linha: é alvo de toque, a mesma
+     medida de `.btn--icone`, não folga estética. Não encolha. */
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: var(--raio-sm);
+  color: var(--texto-fraco);
+  cursor: pointer;
+  transition: background var(--mov-padrao) var(--mov-saida),
+    color var(--mov-padrao) var(--mov-saida);
+}
+
+.sidebar__alca-ramo:hover {
+  background: var(--vidro-fundo);
+  color: var(--texto);
+}
+
+.sidebar__alca-ramo .icone {
+  transition: transform var(--mov-padrao) var(--mov-saida);
+}
+
+.sidebar__alca-ramo[aria-expanded='true'] .icone {
+  transform: rotate(90deg);
+}
+
+/*
+ * Ramo recolhido com a página ativa dentro. Sem isso, abrir Certificados e
+ * recolher Acompanhamento apagaria o único "onde estou" da barra. A marca é
+ * mais fraca que a do item ativo de propósito: aponta o caminho, não o destino.
+ */
+.sidebar__item--ramo-ativo {
+  color: var(--texto);
+}
+
+.sidebar__item--ramo-ativo .icone {
+  color: var(--cor-primaria);
+}
+
+/* O filete ancora os filhos ao pai; o recuo sozinho se perde numa barra em que
+   quase tudo já tem a mesma cor. Alinhado ao centro do ícone do pai: 12px de
+   recuo interno do item + metade dos 20px do ícone. */
+.sidebar__submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 2px 22px;
+  padding-left: 10px;
+  border-left: 1px solid var(--vidro-borda);
+}
+
+.sidebar__submenu .sidebar__item {
+  font-size: var(--fs-sm);
+  padding: 8px 10px;
+}
+
+/* O acento do item ativo cai SOBRE o filete, não ao lado: aqui dentro ele é a
+   continuação da mesma linha, e em `left: 0` ficaria escondido atrás dela. */
+.sidebar__submenu .sidebar__item--ativo::before {
+  left: -11px;
+  height: 100%;
+  border-radius: var(--raio-xs);
 }
 
 .sidebar__rodape {
@@ -829,6 +985,66 @@ table.tabela {
   gap: 16px;
 }
 
+/*
+ * Resumo de vencimentos da tela "em risco".
+ *
+ * Conta a carteira vigente inteira, não a janela nem a página — por isso as
+ * faixas fora da janela continuam visíveis, só apagadas: sumi-las daria a
+ * impressão de que não existem certificados mais adiante.
+ */
+.risco-resumo {
+  list-style: none;
+  margin: var(--espaco-4) 0 var(--espaco-2);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+}
+
+.risco-resumo__item {
+  flex: 1 1 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--espaco-3);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+  /* Apagado por padrão: a faixa fora da janela é contexto, não a resposta. */
+  opacity: 0.55;
+}
+
+.risco-resumo__item strong {
+  font-size: var(--fs-lg);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.risco-resumo__item span {
+  font-size: var(--fs-2xs);
+  color: var(--texto-fraco);
+}
+
+.risco-resumo__item--na-janela {
+  opacity: 1;
+  background: var(--vidro-fundo-forte);
+}
+
+/*
+ * Vencido com contagem > 0 é o único estado que pede ação imediata. A cor não
+ * carrega isso sozinha: o rótulo "Vencido" está escrito ao lado do número, e a
+ * faixa é sempre a primeira da lista.
+ */
+.risco-resumo__item--critico {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--cor-erro) 50%, transparent);
+  background: color-mix(in srgb, var(--cor-erro) 12%, transparent);
+}
+
+.risco-resumo__item--critico strong {
+  color: var(--cor-erro);
+}
+
 /* Barra de filtros: botões agrupados à esquerda, sem esticar como no `.entre`. */
 .filtros-linha {
   display: flex;
@@ -992,10 +1208,30 @@ table.tabela {
   gap: 6px;
 }
 
-.campo label {
+.campo label,
+/* O campo de arquivo não tem controle nativo para rotular: o input está oculto
+   e quem opera é um <button>. Um <label> apontando para nada seria pior que um
+   <span> — daí a classe repetir só a aparência. */
+.campo__rotulo {
   font-size: 0.82rem;
   color: var(--texto-suave);
   font-weight: 550;
+}
+
+/* Seletor de arquivo próprio: botão, nome do arquivo e a saída para limpar. */
+.campo-arquivo {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  flex-wrap: wrap;
+}
+
+/* O nome do arquivo pode ser longo; ele cede espaço antes dos botões, que têm
+   largura própria e não devem encolher. */
+.campo-arquivo__nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .campo input,
@@ -1132,80 +1368,318 @@ fieldset.secao-form legend {
 
 /* ------------------------------- Timeline -------------------------------- */
 
+/*
+ * Trilha de etapas da certificação.
+ *
+ * Medidas num só lugar: o eixo precisa saber o gap para atravessá-lo, e o
+ * marcador precisa da mesma altura do eixo. Espalhados, qualquer ajuste em um
+ * desalinhava o outro em silêncio — era o que o `top: 46px` da versão anterior
+ * fazia, um número derivado à mão de `padding + metade do marcador`.
+ */
 .timeline {
-  display: flex;
-  gap: 16px;
+  --tl-gap: var(--espaco-4);
+  --tl-coluna: 268px;
+  --tl-marcador: 44px;
+  --tl-linha: 4px;
+  --tl-trilho: color-mix(in srgb, var(--texto) 14%, transparent);
+  --tl-vencido: var(--cor-sucesso);
+  padding: var(--espaco-3);
+}
+
+.timeline__pista {
   overflow-x: auto;
-  padding: 28px 4px 12px;
-  position: relative;
+  /* Espaço para o anel de foco do card não ser cortado pela caixa que rola. */
+  padding: var(--espaco-1);
 }
 
-.timeline__trilha {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  top: 46px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--vidro-fundo-forte);
+/*
+ * Centralização quando a trilha não ocupa a largura toda.
+ *
+ * `width: fit-content` + `min-width: 100%` faz a lista assumir 100% enquanto
+ * couber — e aí `justify-content: center` tem folga para centralizar — e
+ * crescer além disso quando não couber, quando deixa de haver folga e a
+ * centralização vira inócua sozinha.
+ *
+ * É o motivo de não ser só `justify-content: center` na caixa que rola: com
+ * overflow, o conteúdo centralizado transborda para os DOIS lados, e o começo
+ * da trilha fica antes do início da área rolável — inalcançável por scroll, em
+ * qualquer navegador. Aqui o primeiro card encosta na borda esquerda assim que
+ * a trilha passa a rolar.
+ */
+.timeline__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--tl-gap);
+  width: fit-content;
+  min-width: 100%;
+  justify-content: center;
 }
 
-.timeline__progresso {
-  position: absolute;
-  left: 12px;
-  top: 46px;
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--cor-primaria), var(--cor-sucesso));
-  transition: width 0.35s ease;
-}
-
-.etapa {
-  flex: 0 0 268px;
-  padding: 16px;
-  position: relative;
-  z-index: 1;
+.timeline__item {
+  flex: 0 0 var(--tl-coluna);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--espaco-3);
 }
 
-.etapa__marcador {
-  width: 42px;
-  height: 42px;
+/*
+ * O eixo é irmão do card, não filho: a linha precisa encostar no marcador
+ * vizinho, e de dentro do cartão ela pararia na borda dele, deixando o vão do
+ * gap em branco. As margens negativas devolvem essa metade de gap de cada lado.
+ */
+.timeline__eixo {
+  display: flex;
+  align-items: center;
+  height: var(--tl-marcador);
+  /* O `- 1px` faz os segmentos de colunas vizinhas se sobreporem em 2px no
+     meio do vao. Encostando exatamente, o arredondamento de subpixel abre uma
+     fresta na emenda e a trilha aparece tracejada em algumas larguras. */
+  margin-inline: calc(var(--tl-gap) / -2 - 1px);
+}
+
+/*
+ * Os dois segmentos são irmãos flex do marcador, não uma linha passando por
+ * baixo dele. Assim não há sobreposição para esconder com z-index nem borda da
+ * cor do fundo — que nunca acerta, já que o fundo do painel é um gradiente.
+ */
+.timeline__eixo::before,
+.timeline__eixo::after {
+  content: '';
+  flex: 1;
+  height: var(--tl-linha);
+  /* Sem arredondar: as pontas encostam no marcador de um lado e no segmento
+     vizinho do outro — nenhuma delas fica exposta, e a curva só criava um
+     entalhe no meio da emenda. */
+  background: var(--tl-trilho);
+  transition: background-color var(--mov-lento) var(--mov-saida);
+}
+
+.timeline__eixo--antes-vencido::before,
+.timeline__eixo--depois-vencido::after {
+  background: var(--tl-vencido);
+}
+
+/* Pontas da trilha. `visibility` e não `display`: o segmento continua ocupando
+   sua metade da coluna, então o primeiro e o último marcador ficam no mesmo
+   eixo vertical dos demais em vez de escorregarem para a borda. */
+.timeline__item:first-child .timeline__eixo::before,
+.timeline__item:last-child .timeline__eixo::after {
+  visibility: hidden;
+}
+
+.timeline__marcador {
+  flex: none;
+  width: var(--tl-marcador);
+  height: var(--tl-marcador);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 1.05rem;
-  font-weight: 700;
-  border: 3px solid color-mix(in srgb, var(--texto) 85%, transparent);
   background: var(--vidro-fundo-forte);
-  margin: 0 auto;
+  border: 2px solid var(--tl-trilho);
+  color: var(--texto-suave);
+  transition: background-color var(--mov-padrao) var(--mov-saida),
+    border-color var(--mov-padrao) var(--mov-saida),
+    color var(--mov-padrao) var(--mov-saida);
 }
 
-.etapa--aprovado .etapa__marcador {
+/*
+ * Estado no marcador. A cor sozinha não carrega o significado — o ícone muda
+ * junto (ampulheta, seta, check, x) e o card traz o status escrito. É a mesma
+ * regra dos gráficos: `--cor-sucesso` e `--cor-erro` têm ΔE 5,0 sob
+ * deuteranopia, abaixo do piso, e não podem ser a única diferença.
+ */
+.timeline__item.etapa--aprovado .timeline__marcador {
   background: var(--cor-sucesso);
+  border-color: var(--cor-sucesso);
+  color: var(--texto-sobre-primaria);
 }
 
-.etapa--andamento .etapa__marcador {
+.timeline__item.etapa--andamento .timeline__marcador {
   background: var(--cor-primaria);
+  border-color: var(--cor-primaria);
+  color: var(--texto-sobre-primaria);
   animation: pulsar 1.9s infinite;
 }
 
-.etapa--reprovado .etapa__marcador {
+.timeline__item.etapa--reprovado .timeline__marcador {
   background: var(--cor-erro);
-}
-
-.etapa__titulo {
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.95rem;
+  border-color: var(--cor-erro);
+  color: var(--texto-sobre-primaria);
 }
 
 @keyframes pulsar {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cor-primaria) 45%, transparent); }
-  70% { box-shadow: 0 0 0 14px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--cor-primaria) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.etapa {
+  flex: 1;
+  padding: var(--espaco-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+  /* A borda superior repete o estado do marcador logo acima: quem rolou a
+     trilha até o meio vê o estado do card sem ter o marcador na tela. */
+  border-top: 3px solid var(--tl-trilho);
+  transition: border-color var(--mov-padrao) var(--mov-saida);
+}
+
+.etapa--aprovado {
+  border-top-color: var(--cor-sucesso);
+}
+
+.etapa--andamento {
+  border-top-color: var(--cor-primaria);
+}
+
+.etapa--reprovado {
+  border-top-color: var(--cor-erro);
+}
+
+.etapa__titulo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--espaco-2);
+  font-weight: 600;
+  font-size: var(--fs-base);
+  /* Nome de etapa é texto livre do admin: sem isto, "Auditoria de fábrica"
+     quebra deixando uma palavra órfã na segunda linha. */
+  text-wrap: balance;
+}
+
+/* Tabular para a coluna de números não dançar entre 1 e 10. */
+.etapa__ordem {
+  flex: none;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: var(--raio-xs);
+  background: var(--vidro-fundo-forte);
+  /* `--texto-suave`, não `--texto-fraco`: a ordem na trilha é informação, não
+     enfeite — no tema claro o fraco cai perto do piso de 3:1 sobre o vidro. */
+  color: var(--texto-suave);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Empurra a data para a base: com cards de alturas diferentes, "Atualizado em"
+   ficava em altura aleatória em cada coluna e a linha de leitura sumia. */
+.etapa__rodape {
+  margin: auto 0 0;
+  padding-top: var(--espaco-2);
+  border-top: 1px solid var(--vidro-borda);
+}
+
+/*
+ * Chamada para as não conformidades da etapa.
+ *
+ * O contador é a marca de notificação — mas não vai sozinho: número solto não
+ * diz o que conta, e ícone solto não diz se ainda há o que fazer. O rótulo ao
+ * lado resolve as duas coisas em texto, e o `aria-label` do botão repete a
+ * frase inteira para quem não vê nenhum dos dois.
+ */
+.aviso-nc {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-3);
+  width: 100%;
+  padding: var(--espaco-2) var(--espaco-3);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+  color: var(--texto-suave);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--mov-padrao) var(--mov-saida),
+    border-color var(--mov-padrao) var(--mov-saida),
+    color var(--mov-padrao) var(--mov-saida);
+}
+
+.aviso-nc:hover {
+  background: var(--vidro-fundo-forte);
+  color: var(--texto);
+}
+
+.aviso-nc strong {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.aviso-nc__estado {
+  display: block;
+  font-size: var(--fs-2xs);
+  color: var(--texto-fraco);
+}
+
+.aviso-nc__marca {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo-forte);
+  color: var(--texto-suave);
+}
+
+/* O contador fica na quina do ícone, como marca de notificação. `min-width` +
+   padding lateral para dois dígitos crescerem sem virar elipse. */
+.aviso-nc__contagem {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--texto-fraco);
+  color: var(--fundo);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/*
+ * Com NC aguardando avaliação o aviso muda de peso — e não só de cor: o
+ * contador troca de fundo, a borda acende e o ícone acompanha. Cor sozinha
+ * não carregaria a diferença, pelo mesmo motivo dos gráficos.
+ */
+.aviso-nc--pendente {
+  border-color: color-mix(in srgb, var(--cor-erro) 45%, transparent);
+  background: color-mix(in srgb, var(--cor-erro) 10%, transparent);
+  color: var(--texto);
+}
+
+.aviso-nc--pendente .aviso-nc__marca {
+  background: color-mix(in srgb, var(--cor-erro) 18%, transparent);
+  color: var(--cor-erro);
+}
+
+.aviso-nc--pendente .aviso-nc__contagem {
+  background: var(--cor-erro);
+  color: var(--texto-sobre-primaria);
+}
+
+.aviso-nc--pendente .aviso-nc__estado {
+  color: var(--texto-suave);
+}
+
+@media (max-width: 720px) {
+  .timeline {
+    --tl-coluna: min(268px, 82vw);
+  }
 }
 
 .historico {
@@ -1252,6 +1726,32 @@ fieldset.secao-form legend {
   /* O modal precisa flutuar mais que o card que ficou atrás dele. Com a mesma
      sombra do `.vidro` os dois planos empatavam e só o overlay os separava. */
   box-shadow: var(--sombra-3), inset 0 1px 0 var(--vidro-realce);
+}
+
+/*
+ * Modal de leitura, não de confirmação. Uma NC traz descrição, resposta do
+ * cliente e parecer da equipe — em 520px cada parágrafo vira uma coluna
+ * estreita, que é exatamente o problema que tirar as NCs do card resolveu.
+ *
+ * `max-height` + rolagem interna porque a lista cresce com o número de NCs: sem
+ * isso o modal passa da altura da janela e os botões de avaliar ficam fora de
+ * alcance, sem barra de rolagem própria.
+ */
+.modal--ampla {
+  width: min(760px, 100%);
+  max-height: min(80vh, 720px);
+  overflow-y: auto;
+}
+
+.modal__cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--espaco-4);
+}
+
+.modal__cabecalho h3 {
+  margin: 0;
 }
 
 /* ------------------------------ Auxiliares -------------------------------- */

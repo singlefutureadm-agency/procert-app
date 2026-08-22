@@ -155,6 +155,27 @@ export function aplicarAparencia(aparencia: Aparencia, modo: ModoTema): void {
 }
 
 /**
+ * Logo a desenhar sobre um fundo do tema informado.
+ *
+ * O argumento é o tema do FUNDO onde a imagem vai aparecer, não o modo em que o
+ * usuário está: o cabeçalho do site institucional é transparente sobre um hero
+ * sempre escuro, então ele pede a variante escura mesmo com o painel no claro.
+ *
+ * O fallback é cruzado de propósito. Quem enviou uma logo só continua com ela
+ * nos dois temas, em vez de o painel perder a marca ao alternar — um traço com
+ * pouco contraste é um problema visual; marca ausente é pior.
+ */
+export function logoDoTema(
+  aparencia: Aparencia | null | undefined,
+  tema: ModoTema,
+): string | null {
+  if (!aparencia) return null;
+
+  const { logoTemaClaroUrl: clara, logoTemaEscuroUrl: escura } = aparencia;
+  return (tema === 'ESCURO' ? (escura ?? clara) : (clara ?? escura)) ?? null;
+}
+
+/**
  * Qual modo usar: preferência local do usuário, se o admin permitir alternar;
  * senão o padrão definido por ele.
  */

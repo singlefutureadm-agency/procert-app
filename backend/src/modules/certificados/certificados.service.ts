@@ -23,7 +23,15 @@ import {
   AlterarStatusCertificadoDto,
   EmitirCertificadoDto,
   ListarCertificadosDto,
+  ListarEmRiscoDto,
 } from './dto/certificado.dto';
+import {
+  diasAteVencer,
+  FAIXAS_VENCIMENTO,
+  faixaDeVencimento,
+  hojeAMeiaNoite,
+  VIGENTES,
+} from './vencimento.constantes';
 
 const SELECT_CERTIFICADO = {
   id: true,
@@ -48,11 +56,6 @@ const SELECT_CERTIFICADO = {
   },
 } satisfies Prisma.CertificadoSelect;
 
-/** Um certificado nesses estados ainda ocupa o lugar de "certificado atual". */
-const VIGENTES: StatusCertificado[] = [
-  StatusCertificado.EMITIDO,
-  StatusCertificado.SUSPENSO,
-];
 
 @Injectable()
 export class CertificadosService {
@@ -93,6 +96,91 @@ export class CertificadosService {
     ]);
 
     return paginar(dados, total, filtros);
+  }
+
+  /**
+   * Certificados vigentes cuja validade cai dentro da janela pedida.
+   *
+   * Existe porque o gráfico "Vencimentos à frente" diz QUANTOS vencem em cada
+   * faixa, mas não QUAIS — e a listagem comum não filtra por validade nem
+   * ordena por ela, então descobrir o que renovar primeiro era trabalho manual.
+   *
+   * Três decisões que valem registro:
+   *
+   * - **Ordena por `dataValidade` crescente**, não por emissão. A pergunta aqui
+   *   é "o que vence primeiro", e essa é a única ordem que responde.
+   * - **Inclui o que já passou da validade.** Com `EXPIRACAO_CRON_ATIVA=false`
+   *   (ou entre duas execuções da rotina) existe certificado `EMITIDO` com data
+   *   no passado. Ele é o caso mais urgente de todos; filtrar só o futuro o
+   *   esconderia justamente de quem precisa agir.
+   * - **O resumo é contado sobre o escopo inteiro, não sobre a página.** Um
+   *   resumo somado a partir dos 20 itens visíveis diria "4 vencidos" havendo
+   *   11, e pareceria correto.
+   */
+  async listarEmRisco(filtros: ListarEmRiscoDto, usuario: UsuarioAutenticado) {
+    const clienteId =
+      usuario.role === Role.CLIENTE ? usuario.id : filtros.clienteId;
+
+    const hoje = hojeAMeiaNoite();
+    const limite = new Date(hoje);
+    limite.setDate(limite.getDate() + filtros.dias);
+    // Fim do dia: `dataValidade` é DateTime, e um certificado que vence no
+    // último dia da janela às 12h ficaria de fora de um `lte` à meia-noite.
+    limite.setHours(23, 59, 59, 999);
+
+    const escopo: Prisma.CertificadoWhereInput = {
+      status: { in: VIGENTES },
+      ...(clienteId && { produto: { clienteId } }),
+    };
+    const where: Prisma.CertificadoWhereInput = {
+      ...escopo,
+      dataValidade: { lte: limite },
+    };
+
+    const [dados, total, todosVigentes] = await this.prisma.$transaction([
+      this.prisma.certificado.findMany({
+        where,
+        select: SELECT_CERTIFICADO,
+        orderBy: { dataValidade: 'asc' },
+        skip: filtros.skip,
+        take: filtros.limite,
+      }),
+      this.prisma.certificado.count({ where }),
+      // Só a data: o resumo precisa de todo o escopo, e trazer o registro
+      // inteiro para contar faixa seria carregar a carteira à toa.
+      this.prisma.certificado.findMany({
+        where: escopo,
+        select: { dataValidade: true },
+      }),
+    ]);
+
+    const porFaixa: Record<string, number> = {};
+    for (const faixa of FAIXAS_VENCIMENTO) porFaixa[faixa.chave] = 0;
+    for (const { dataValidade } of todosVigentes) {
+      porFaixa[faixaDeVencimento(diasAteVencer(dataValidade, hoje))] += 1;
+    }
+
+    const pagina = paginar(
+      dados.map((certificado) => ({
+        ...certificado,
+        diasRestantes: diasAteVencer(certificado.dataValidade, hoje),
+      })),
+      total,
+      filtros,
+    );
+
+    return {
+      ...pagina,
+      resumo: {
+        janelaDias: filtros.dias,
+        totalVigentes: todosVigentes.length,
+        faixas: FAIXAS_VENCIMENTO.map((f) => ({
+          chave: f.chave,
+          rotulo: f.rotulo,
+          total: porFaixa[f.chave],
+        })),
+      },
+    };
   }
 
   async buscarPorId(id: number, usuario: UsuarioAutenticado) {

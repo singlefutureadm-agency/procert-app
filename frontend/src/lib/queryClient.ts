@@ -39,6 +39,8 @@ export const chaves = {
   modelosTrilha: (categoriaId: number) =>
     ['categorias', categoriaId, 'modelos-trilha'] as const,
   certificados: (filtros?: unknown) => ['certificados', filtros ?? {}] as const,
+  certificadosEmRisco: (dias: number, pagina: number) =>
+    ['certificados', 'em-risco', dias, pagina] as const,
   certificadosDoProduto: (produtoId: number) =>
     ['certificados', 'produto', produtoId] as const,
   naoConformidades: (filtros?: unknown) =>

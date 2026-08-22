@@ -241,10 +241,21 @@ export function AparenciaPage() {
     },
   });
 
-  const logo = useMutation({
+  const logoTemaClaro = useMutation({
     mutationFn: (arquivo: File | null) =>
-      arquivo ? aparenciaApi.enviarLogo(arquivo) : aparenciaApi.removerLogo(),
-    onSuccess: (nova) => aplicarResposta(nova, 'Logo atualizada.'),
+      arquivo
+        ? aparenciaApi.enviarLogo('CLARO', arquivo)
+        : aparenciaApi.removerLogo('CLARO'),
+    onSuccess: (nova) => aplicarResposta(nova, 'Logo do tema claro atualizada.'),
+    onError: (erro) => toast.error(mensagemDeErro(erro)),
+  });
+
+  const logoTemaEscuro = useMutation({
+    mutationFn: (arquivo: File | null) =>
+      arquivo
+        ? aparenciaApi.enviarLogo('ESCURO', arquivo)
+        : aparenciaApi.removerLogo('ESCURO'),
+    onSuccess: (nova) => aplicarResposta(nova, 'Logo do tema escuro atualizada.'),
     onError: (erro) => toast.error(mensagemDeErro(erro)),
   });
 
@@ -475,15 +486,30 @@ export function AparenciaPage() {
           Imagens são enviadas na hora, fora do formulário — não passam pelo botão Salvar
           nem pelo Descartar. Para desfazer, use Remover.
         </p>
+        <p className="texto-pequeno texto-suave">
+          Enviar só uma das duas logos é válido: ela é usada nos dois temas. O painel
+          prefere ficar com a marca de contraste imperfeito a ficar sem marca nenhuma.
+        </p>
 
         <div className="form-grade">
           <CampoImagem
-            rotulo="Logo do organismo"
-            descricao="Aparece na sidebar do painel e no cabeçalho do site público. Prefira PNG com fundo transparente e traço claro: no site o cabeçalho é transparente sobre o hero escuro, e uma logo escura some até a página rolar."
-            url={salva.logoUrl}
-            enviando={logo.isPending}
-            aoEnviar={(arquivo) => logo.mutate(arquivo)}
-            aoRemover={() => logo.mutate(null)}
+            rotulo="Logo — tema claro"
+            descricao="Usada na sidebar quando o painel está no tema claro. Como o fundo é claro, prefira a versão de traço escuro, em PNG com fundo transparente."
+            url={salva.logoTemaClaroUrl}
+            fundoAmostra="CLARO"
+            enviando={logoTemaClaro.isPending}
+            aoEnviar={(arquivo) => logoTemaClaro.mutate(arquivo)}
+            aoRemover={() => logoTemaClaro.mutate(null)}
+          />
+
+          <CampoImagem
+            rotulo="Logo — tema escuro"
+            descricao="Usada na sidebar no tema escuro e sempre no cabeçalho do site público, cujo hero é escuro nos dois modos. Prefira a versão de traço claro."
+            url={salva.logoTemaEscuroUrl}
+            fundoAmostra="ESCURO"
+            enviando={logoTemaEscuro.isPending}
+            aoEnviar={(arquivo) => logoTemaEscuro.mutate(arquivo)}
+            aoRemover={() => logoTemaEscuro.mutate(null)}
           />
 
           <CampoImagem
@@ -577,7 +603,7 @@ export function AparenciaPage() {
       <ModalConfirmacao
         aberto={confirmandoRestauracao}
         titulo="Restaurar o preset padrão?"
-        mensagem='Descarta a personalização salva, apaga a logo e o papel de parede enviados, e volta o painel ao tema "Padrão ProCert" para todos os usuários. Não dá para desfazer.'
+        mensagem='Descarta a personalização salva, apaga as logos e o papel de parede enviados, e volta o painel ao tema "Padrão ProCert" para todos os usuários. Não dá para desfazer.'
         rotuloConfirmar="Restaurar"
         perigo
         carregando={restaurar.isPending}

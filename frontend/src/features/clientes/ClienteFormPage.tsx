@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -8,10 +9,17 @@ import { z } from 'zod';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Campo } from '@/components/Campo';
+import { CampoArquivo } from '@/components/CampoArquivo';
 import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { paraInputDate } from '@/lib/formatadores';
+import {
+  mascararCep,
+  mascararCnpj,
+  mascararCpf,
+  mascararTelefone,
+} from '@/lib/mascaras';
 import { chaves } from '@/lib/queryClient';
 import { clientesApi, estadosApi, type DadosCliente } from './api';
 
@@ -24,6 +32,10 @@ const senhaValida = z
 const esquema = z.object({
   nome: z.string().min(3, 'Informe o nome completo.'),
   email: z.string().email('Informe um e-mail válido.'),
+  /*
+   * Opcional no schema base porque na EDIÇÃO em branco significa "manter a
+   * senha atual". Na criação isso não vale — ver `esquemaDoModo` abaixo.
+   */
   senha: z.union([senhaValida, z.literal('')]).optional(),
   tipoPessoa: z.enum(['FISICA', 'JURIDICA']),
   cpf: z.string().optional(),
@@ -40,6 +52,21 @@ const esquema = z.object({
 });
 
 type Formulario = z.infer<typeof esquema>;
+
+/**
+ * O mesmo formulário serve para criar e editar, mas a senha não.
+ *
+ * Com o schema base nos dois casos, criar um cliente sem senha passava batido:
+ * o zod aceitava, o envio omitia o campo e só o backend recusava — com um toast
+ * genérico, sem marcar o campo. O usuário via "nome" e "e-mail" acusarem erro,
+ * corrigia, salvava de novo e só então descobria o terceiro problema.
+ */
+function esquemaDoModo(editando: boolean) {
+  if (editando) return esquema;
+  return esquema.extend({
+    senha: senhaValida,
+  });
+}
 
 export function ClienteFormPage() {
   const { id } = useParams();
@@ -67,11 +94,23 @@ export function ClienteFormPage() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<Formulario>({
-    resolver: zodResolver(esquema),
+    resolver: zodResolver(esquemaDoModo(editando)),
     defaultValues: { tipoPessoa: 'JURIDICA' },
   });
+
+  /*
+   * Formata enquanto digita. Vai por `setValue` e não por `register(…, {
+   * onChange })` porque o valor precisa estar mascarado ANTES de o react-hook-
+   * form guardá-lo — é ele que vai para o payload, e o servidor grava o que
+   * chegar. Mascarar só na exibição deixaria o banco com os dois formatos.
+   */
+  const aoDigitar =
+    (campo: 'cpf' | 'cnpj' | 'telefone' | 'cep', mascara: (v: string) => string) =>
+    (evento: ChangeEvent<HTMLInputElement>) =>
+      setValue(campo, mascara(evento.target.value), { shouldDirty: true });
 
   useEffect(() => {
     if (!cliente) return;
@@ -189,12 +228,24 @@ export function ClienteFormPage() {
 
             {pessoaJuridica ? (
               <Campo label="CNPJ" erro={errors.cnpj?.message}>
-                <input type="text" placeholder="00.000.000/0000-00" {...register('cnpj')} />
+                <input
+                  type="text"
+                  placeholder="00.000.000/0000-00"
+                  inputMode="numeric"
+                  {...register('cnpj')}
+                  onChange={aoDigitar('cnpj', mascararCnpj)}
+                />
               </Campo>
             ) : (
               <>
                 <Campo label="CPF" erro={errors.cpf?.message}>
-                  <input type="text" placeholder="000.000.000-00" {...register('cpf')} />
+                  <input
+                    type="text"
+                    placeholder="000.000.000-00"
+                    inputMode="numeric"
+                    {...register('cpf')}
+                    onChange={aoDigitar('cpf', mascararCpf)}
+                  />
                 </Campo>
                 <Campo label="Data de nascimento">
                   <input type="date" {...register('dataNascimento')} />
@@ -203,7 +254,13 @@ export function ClienteFormPage() {
             )}
 
             <Campo label="Telefone">
-              <input type="tel" placeholder="(11) 90000-0000" {...register('telefone')} />
+              <input
+                type="tel"
+                placeholder="(11) 90000-0000"
+                inputMode="numeric"
+                {...register('telefone')}
+                onChange={aoDigitar('telefone', mascararTelefone)}
+              />
             </Campo>
           </div>
         </fieldset>
@@ -212,7 +269,13 @@ export function ClienteFormPage() {
           <legend>Endereço</legend>
           <div className="form-grade">
             <Campo label="CEP" erro={errors.cep?.message}>
-              <input type="text" placeholder="00000-000" {...register('cep')} />
+              <input
+                type="text"
+                placeholder="00000-000"
+                inputMode="numeric"
+                {...register('cep')}
+                onChange={aoDigitar('cep', mascararCep)}
+              />
             </Campo>
             <Campo label="Logradouro">
               <input type="text" {...register('endereco')} />
@@ -242,16 +305,12 @@ export function ClienteFormPage() {
             {cliente?.fotoUrl && (
               <img className="avatar" src={urlArquivo(cliente.fotoUrl)} alt="Foto atual" />
             )}
-            <Campo
-              label="Enviar imagem"
+            <CampoArquivo
+              rotulo="Enviar imagem"
               dica="JPG, PNG ou WebP, até 5 MB."
-            >
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(evento) => setFoto(evento.target.files?.[0] ?? null)}
-              />
-            </Campo>
+              aceita="image/jpeg,image/png,image/webp"
+              aoEscolher={setFoto}
+            />
           </div>
         </fieldset>
 

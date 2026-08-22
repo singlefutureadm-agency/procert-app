@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Campo } from '@/components/Campo';
+import { CampoArquivo } from '@/components/CampoArquivo';
 import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
 import {
@@ -251,13 +252,12 @@ export function ProdutoFormPage() {
                 alt="Imagem atual do produto"
               />
             )}
-            <Campo label="Enviar imagem" dica="JPG, PNG ou WebP, até 5 MB.">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(evento) => setFoto(evento.target.files?.[0] ?? null)}
-              />
-            </Campo>
+            <CampoArquivo
+              rotulo="Enviar imagem"
+              dica="JPG, PNG ou WebP, até 5 MB."
+              aceita="image/jpeg,image/png,image/webp"
+              aoEscolher={setFoto}
+            />
           </div>
         </fieldset>
 

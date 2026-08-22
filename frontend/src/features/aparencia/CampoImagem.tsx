@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 
+import type { ModoTema } from '@/types';
+
 /**
  * Envio de logo e papel de parede.
  *
@@ -17,6 +19,14 @@ interface Props {
   url: string | null;
   /** Fundo do quadro de amostra: logo pede contraste, wallpaper não. */
   amostraContida?: boolean;
+  /**
+   * Força o fundo da amostra em vez de usar o vidro do tema em edição.
+   *
+   * Sem isso, a logo branca do tema escuro some no quadrado enquanto o admin
+   * edita o tema claro, e ele conclui que o upload falhou. A amostra precisa
+   * mostrar a imagem sobre o fundo em que ela vai aparecer de verdade.
+   */
+  fundoAmostra?: ModoTema;
   enviando: boolean;
   aoEnviar: (arquivo: File) => void;
   aoRemover: () => void;
@@ -27,6 +37,7 @@ export function CampoImagem({
   descricao,
   url,
   amostraContida = true,
+  fundoAmostra,
   enviando,
   aoEnviar,
   aoRemover,
@@ -55,7 +66,7 @@ export function CampoImagem({
         <div
           className={`campo-imagem__amostra ${
             amostraContida ? 'campo-imagem__amostra--contida' : ''
-          }`}
+          } ${fundoAmostra ? `campo-imagem__amostra--fundo-${fundoAmostra.toLowerCase()}` : ''}`}
         >
           {url ? (
             <img src={url} alt={`Pré-visualização: ${rotulo}`} />

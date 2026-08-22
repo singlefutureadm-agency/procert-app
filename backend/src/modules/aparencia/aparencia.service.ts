@@ -12,7 +12,8 @@ export interface AparenciaResolvida {
   fonte: string;
   temaPadrao: TemaPadrao;
   permitirAlternancia: boolean;
-  logoUrl: string | null;
+  logoTemaClaroUrl: string | null;
+  logoTemaEscuroUrl: string | null;
   papelParedeUrl: string | null;
   papelParedeOpacidade: number;
   papelParedeAjuste: string;
@@ -24,6 +25,21 @@ export interface AparenciaResolvida {
 
 /** A configuração é singleton: uma linha, id fixo. */
 const ID_UNICO = 1;
+
+/** As três imagens da aparência, cada uma numa coluna própria. */
+type ImagemAparencia = 'logoTemaClaroUrl' | 'logoTemaEscuroUrl' | 'papelParedeUrl';
+
+/**
+ * Tema → coluna da logo.
+ *
+ * O mapa existe para que o nome da coluna nunca seja construído a partir do que
+ * chega na requisição: o controller escolhe um `TemaPadrao`, e só estes dois
+ * valores viram campo de escrita no Prisma.
+ */
+const COLUNA_LOGO = {
+  [TemaPadrao.CLARO]: 'logoTemaClaroUrl',
+  [TemaPadrao.ESCURO]: 'logoTemaEscuroUrl',
+} as const satisfies Record<TemaPadrao, ImagemAparencia>;
 
 @Injectable()
 export class AparenciaService {
@@ -58,7 +74,8 @@ export class AparenciaService {
       fonte: config.fonte,
       temaPadrao: config.temaPadrao,
       permitirAlternancia: config.permitirAlternancia,
-      logoUrl: config.logoUrl,
+      logoTemaClaroUrl: config.logoTemaClaroUrl,
+      logoTemaEscuroUrl: config.logoTemaEscuroUrl,
       papelParedeUrl: config.papelParedeUrl,
       papelParedeOpacidade: config.papelParedeOpacidade,
       papelParedeAjuste: config.papelParedeAjuste,
@@ -73,9 +90,9 @@ export class AparenciaService {
 
     await this.garantirQueNinguemSalvouAntes(atualizadoEmVisto);
 
-    // `logoUrl` e `papelParedeUrl` não vêm daqui de propósito: só os endpoints
-    // de upload os definem. Aceitá-los no corpo deixaria o admin apontar a
-    // marca do painel para uma URL externa arbitrária.
+    // As URLs de imagem não vêm daqui de propósito: só os endpoints de upload
+    // as definem. Aceitá-las no corpo deixaria o admin apontar a marca do
+    // painel para uma URL externa arbitrária.
     const conteudo = {
       temaClaro: dados.temaClaro as unknown as Prisma.InputJsonValue,
       temaEscuro: dados.temaEscuro as unknown as Prisma.InputJsonValue,
@@ -98,16 +115,25 @@ export class AparenciaService {
 
   /* ------------------------------ Imagens -------------------------------- */
 
-  async salvarLogo(arquivo: Express.Multer.File, funcionarioId: number) {
-    return this.trocarImagem('logoUrl', arquivo, funcionarioId);
+  /**
+   * Logo do tema informado. São duas colunas independentes porque a logo que
+   * funciona sobre fundo escuro costuma ser ilegível sobre fundo claro — e o
+   * organismo raramente tem um arquivo só que sirva aos dois.
+   */
+  async salvarLogo(
+    tema: TemaPadrao,
+    arquivo: Express.Multer.File,
+    funcionarioId: number,
+  ) {
+    return this.trocarImagem(COLUNA_LOGO[tema], arquivo, funcionarioId);
+  }
+
+  async removerLogo(tema: TemaPadrao, funcionarioId: number) {
+    return this.trocarImagem(COLUNA_LOGO[tema], null, funcionarioId);
   }
 
   async salvarPapelParede(arquivo: Express.Multer.File, funcionarioId: number) {
     return this.trocarImagem('papelParedeUrl', arquivo, funcionarioId);
-  }
-
-  async removerLogo(funcionarioId: number) {
-    return this.trocarImagem('logoUrl', null, funcionarioId);
   }
 
   async removerPapelParede(funcionarioId: number) {
@@ -115,18 +141,22 @@ export class AparenciaService {
   }
 
   /**
-   * Upload ou remoção das duas imagens. Grava a nova, aponta a configuração
-   * para ela e só então apaga a anterior — a ordem importa: apagar primeiro
-   * deixaria o painel sem logo se a escrita falhasse no meio.
+   * Upload ou remoção de qualquer uma das imagens. Grava a nova, aponta a
+   * configuração para ela e só então apaga a anterior — a ordem importa:
+   * apagar primeiro deixaria o painel sem logo se a escrita falhasse no meio.
    */
   private async trocarImagem(
-    campo: 'logoUrl' | 'papelParedeUrl',
+    campo: ImagemAparencia,
     arquivo: Express.Multer.File | null,
     funcionarioId: number,
   ): Promise<AparenciaResolvida> {
     const atual = await this.prisma.configuracaoAparencia.findUnique({
       where: { id: ID_UNICO },
-      select: { logoUrl: true, papelParedeUrl: true },
+      select: {
+        logoTemaClaroUrl: true,
+        logoTemaEscuroUrl: true,
+        papelParedeUrl: true,
+      },
     });
     const anterior = atual?.[campo] ?? null;
 
@@ -164,14 +194,19 @@ export class AparenciaService {
   async restaurarPadrao(): Promise<AparenciaResolvida> {
     const atual = await this.prisma.configuracaoAparencia.findUnique({
       where: { id: ID_UNICO },
-      select: { logoUrl: true, papelParedeUrl: true },
+      select: {
+        logoTemaClaroUrl: true,
+        logoTemaEscuroUrl: true,
+        papelParedeUrl: true,
+      },
     });
 
+    // Apagar a linha sem apagar os arquivos deixaria as logos e o papel de
+    // parede órfãos em disco, sem nada mais apontando para eles.
     await this.prisma.configuracaoAparencia.deleteMany({ where: { id: ID_UNICO } });
 
-    // Apagar a linha sem apagar os arquivos deixaria logo e papel de parede
-    // órfãos em disco, sem nada mais apontando para eles.
-    await this.uploads.remover(atual?.logoUrl);
+    await this.uploads.remover(atual?.logoTemaClaroUrl);
+    await this.uploads.remover(atual?.logoTemaEscuroUrl);
     await this.uploads.remover(atual?.papelParedeUrl);
 
     return this.buscar();

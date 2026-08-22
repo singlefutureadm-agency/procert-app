@@ -342,9 +342,22 @@ não existir, o service devolve os defaults de `aparencia.defaults.ts` — insta
 funciona sem seed. Tokens ficam em `Json` para não exigir migration a cada token novo; a
 segurança vem do DTO `TokensTemaDto`, que é **allowlist fechada** com regex de cor / faixa
 numérica por chave. **Json livre aqui seria injeção de CSS no `style` do documento** — não
-afrouxe esse DTO. `logoUrl` e `papelParedeUrl` **não são aceitos no corpo do PUT**: só os
-endpoints de upload os definem, senão o admin poderia apontar a marca do painel para uma
-URL externa. `PUT` usa concorrência otimista via `atualizadoEmVisto` → 409.
+afrouxe esse DTO. As URLs de imagem (`logoTemaClaroUrl`, `logoTemaEscuroUrl`,
+`papelParedeUrl`) **não são aceitas no corpo do PUT**: só os endpoints de upload as
+definem, senão o admin poderia apontar a marca do painel para uma URL externa. `PUT` usa
+concorrência otimista via `atualizadoEmVisto` → 409.
+
+**São duas logos, uma por tema**, em `POST`/`DELETE /aparencia/logo/tema-claro` e
+`.../tema-escuro`. O fallback é **cruzado**: faltando a do tema vigente, usa-se a outra —
+quem envia uma logo só continua com marca nos dois modos. Quem resolve é
+`logoDoTema(aparencia, tema)` em `lib/tema.ts`, e o argumento é o tema do **fundo** onde a
+imagem vai aparecer, não o modo do usuário: o cabeçalho do site institucional é
+transparente sobre um hero escuro nos dois modos, então ele pede sempre a variante escura.
+
+`::selection` e a barra de rolagem derivam de `--cor-primaria` em `global.css`, sem token
+próprio — mudam junto com a paleta sem acrescentar campo na tela. A regra de scrollbar
+vive em `:root, .previa` pelo mesmo motivo dos outros derivados: `scrollbar-color` é
+herdada já resolvida, e declarada só na raiz a prévia mostraria a barra do tema em uso.
 
 ### `Pagamento`
 
@@ -506,15 +519,34 @@ Regra de nome acessível, nessa ordem:
   dois modos. Especificidade zero de propósito: sobrescreva sem `!important`.
 - **`.btn--icone` tem 40×40px** e `.tabela__acoes` usa `gap: 8px` — são alvos de toque, não
   medida estética. Não encolha.
-- **`TabelaRolavel`** substitui o `<div className="tabela-wrapper">` cru: a região rolável
-  precisa de `tabIndex={0}` + `role="region"` + rótulo, senão as colunas escondidas no
-  celular ficam inalcançáveis por teclado. Ele **mede o estouro** com `ResizeObserver` e só
-  vira parada de Tab enquanto a tabela realmente rola.
-- **`ModalConfirmacao`** prende o Tab e devolve o foco à origem ao fechar. O foco inicial é
-  dado no efeito, **não** por `autoFocus` — `autoFocus` roda antes do efeito e fazia a
-  origem ser gravada errada (o resultado era o foco terminando no `<body>`). Com
-  `perigo`, o foco inicial é **"Cancelar"**; sem ele, o confirmar. Os dois usam
-  `focus({ focusVisible: true })`, senão o anel não acende em modal aberto por clique.
+- **`RegiaoRolavel`** é o invólucro de toda caixa com rolagem horizontal: a região precisa
+  de `tabIndex={0}` + `role="region"` + rótulo, senão o que está escondido fica
+  inalcançável por teclado. Ele **mede o estouro** com `ResizeObserver` e só vira parada de
+  Tab enquanto realmente rola. `TabelaRolavel` é o caso particular dele para
+  `.tabela-wrapper`; a timeline da certificação usa o genérico direto. **Não escreva um
+  `overflow-x: auto` cru** — use um dos dois.
+- **`Modal`** concentra a mecânica dos modais: cortina, Escape, Tab preso e devolução do
+  foco à origem. O foco inicial é dado no efeito, **não** por `autoFocus` — `autoFocus`
+  roda antes do efeito e fazia a origem ser gravada errada (o resultado era o foco
+  terminando no `<body>`). `focus({ focusVisible: true })` em todos os casos, senão o anel
+  não acende em modal aberto por clique. Modal novo se monta sobre ele.
+- **`ModalConfirmacao`** é o `Modal` com mensagem e dois botões. Com `perigo`, o foco
+  inicial é **"Cancelar"** (via `focoInicial`); sem ele, o confirmar — o modal abre por
+  clique e fecha no Escape, então o dedo costuma estar sobre Enter quando ele aparece.
+- **`Campo`** associa rótulo e controle sozinho: gera o `id` com `useId`, clona o filho para
+  injetar `id`/`aria-describedby`/`aria-invalid` e aponta o `htmlFor`. Era um `<label>` órfão
+  ao lado de um input sem `id` — o leitor de tela não anunciava qual campo era, clicar no
+  rótulo não focava nada e a mensagem de erro não estava ligada ao campo. **Todo controle de
+  formulário deve entrar dentro de um `<Campo>`**, não solto.
+- **`CampoArquivo`** substitui o `<input type="file">` cru. O nativo desenha botão e texto
+  com legendas do **navegador**: num Chrome em pt-PT o painel exibia "Escolher ficheiro /
+  Nenhum ficheiro selecionado" no meio de uma UI em pt-BR, e não há como estilizá-lo.
+- **Senha é obrigatória ao criar e opcional ao editar** — `esquemaDoModo(editando)` nos
+  formulários de cliente e funcionário. Um esquema só para os dois modos deixava criar sem
+  senha passar pelo zod, e só o backend recusava, com toast genérico e sem marcar o campo.
+- **`lib/mascaras.ts`** formata CPF, CNPJ, telefone e CEP enquanto se digita, via `setValue`
+  — o valor tem de chegar mascarado ao react-hook-form, porque é ele que vai no payload. Os
+  limites do schema (`VarChar(18)`, `(14)`, `(9)`) são o comprimento **com** pontuação.
 - **Skip link** (`.pular-para-conteudo`) é o primeiro focável do `LayoutPainel` e aponta
   para `#conteudo-principal`, que carrega `tabIndex={-1}` para poder receber o foco.
 

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -8,12 +9,14 @@ import { z } from 'zod';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Campo } from '@/components/Campo';
+import { CampoArquivo } from '@/components/CampoArquivo';
 import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
 import { estadosApi } from '@/features/clientes/api';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { paraInputDate } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
+import { mascararCep, mascararCpf, mascararTelefone } from '@/lib/mascaras';
 import { funcionariosApi, type DadosFuncionario } from './api';
 
 const senhaValida = z
@@ -25,6 +28,8 @@ const senhaValida = z
 const esquema = z.object({
   nome: z.string().min(3, 'Informe o nome completo.'),
   email: z.string().email('Informe um e-mail válido.'),
+  /* Opcional aqui porque na EDIÇÃO em branco significa "manter a senha".
+     Na criação, ver `esquemaDoModo`. */
   senha: z.union([senhaValida, z.literal('')]).optional(),
   role: z.enum(['ADMIN', 'FUNCIONARIO']),
   cpf: z.string().optional(),
@@ -40,6 +45,15 @@ const esquema = z.object({
 });
 
 type Formulario = z.infer<typeof esquema>;
+
+/**
+ * Senha é obrigatória ao criar e opcional ao editar — sem isto o zod deixava
+ * passar um cadastro sem senha e só o backend recusava, com erro genérico e
+ * sem marcar o campo. Mesmo caso do formulário de clientes.
+ */
+function esquemaDoModo(editando: boolean) {
+  return editando ? esquema : esquema.extend({ senha: senhaValida });
+}
 
 export function FuncionarioFormPage() {
   const { id } = useParams();
@@ -66,11 +80,19 @@ export function FuncionarioFormPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<Formulario>({
-    resolver: zodResolver(esquema),
+    resolver: zodResolver(esquemaDoModo(editando)),
     defaultValues: { role: 'FUNCIONARIO' },
   });
+
+  /* Mesma razão do formulário de clientes: o valor tem de chegar mascarado ao
+     react-hook-form, porque é ele que vai para o payload. */
+  const aoDigitar =
+    (campo: 'cpf' | 'telefone' | 'cep', mascara: (v: string) => string) =>
+    (evento: ChangeEvent<HTMLInputElement>) =>
+      setValue(campo, mascara(evento.target.value), { shouldDirty: true });
 
   useEffect(() => {
     if (!integrante) return;
@@ -184,13 +206,25 @@ export function FuncionarioFormPage() {
           <legend>Dados pessoais</legend>
           <div className="form-grade">
             <Campo label="CPF">
-              <input type="text" placeholder="000.000.000-00" {...register('cpf')} />
+              <input
+                type="text"
+                placeholder="000.000.000-00"
+                inputMode="numeric"
+                {...register('cpf')}
+                onChange={aoDigitar('cpf', mascararCpf)}
+              />
             </Campo>
             <Campo label="Data de nascimento">
               <input type="date" {...register('dataNascimento')} />
             </Campo>
             <Campo label="Telefone">
-              <input type="tel" {...register('telefone')} />
+              <input
+                type="tel"
+                placeholder="(11) 90000-0000"
+                inputMode="numeric"
+                {...register('telefone')}
+                onChange={aoDigitar('telefone', mascararTelefone)}
+              />
             </Campo>
           </div>
         </fieldset>
@@ -199,7 +233,13 @@ export function FuncionarioFormPage() {
           <legend>Endereço</legend>
           <div className="form-grade">
             <Campo label="CEP" erro={errors.cep?.message}>
-              <input type="text" placeholder="00000-000" {...register('cep')} />
+              <input
+                type="text"
+                placeholder="00000-000"
+                inputMode="numeric"
+                {...register('cep')}
+                onChange={aoDigitar('cep', mascararCep)}
+              />
             </Campo>
             <Campo label="Logradouro">
               <input type="text" {...register('endereco')} />
@@ -229,13 +269,12 @@ export function FuncionarioFormPage() {
             {integrante?.fotoUrl && (
               <img className="avatar" src={urlArquivo(integrante.fotoUrl)} alt="Foto atual" />
             )}
-            <Campo label="Enviar imagem" dica="JPG, PNG ou WebP, até 5 MB.">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(evento) => setFoto(evento.target.files?.[0] ?? null)}
-              />
-            </Campo>
+            <CampoArquivo
+              rotulo="Enviar imagem"
+              dica="JPG, PNG ou WebP, até 5 MB."
+              aceita="image/jpeg,image/png,image/webp"
+              aoEscolher={setFoto}
+            />
           </div>
         </fieldset>
 

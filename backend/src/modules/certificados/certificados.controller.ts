@@ -24,6 +24,7 @@ import {
   AlterarStatusCertificadoDto,
   EmitirCertificadoDto,
   ListarCertificadosDto,
+  ListarEmRiscoDto,
 } from './dto/certificado.dto';
 
 /** Emissão e consulta no contexto do produto. */
@@ -72,6 +73,23 @@ export class CertificadosController {
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
     return this.certificados.listar(filtros, usuario);
+  }
+
+  /*
+   * ATENÇÃO À POSIÇÃO: esta rota precisa ser declarada ANTES de `@Get(':id')`.
+   * O Nest resolve na ordem de declaração, e `:id` casaria com "em-risco"
+   * primeiro — o `ParseIntPipe` então devolveria 400 para uma rota que existe.
+   */
+  @Get('em-risco')
+  @ApiOperation({
+    summary:
+      'Certificados vigentes que vencem dentro da janela (o CLIENTE vê só os seus)',
+  })
+  listarEmRisco(
+    @Query() filtros: ListarEmRiscoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.certificados.listarEmRisco(filtros, usuario);
   }
 
   /**

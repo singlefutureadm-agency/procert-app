@@ -214,6 +214,33 @@ export interface Certificado {
   };
 }
 
+/**
+ * Certificado na tela de vencimentos, com os dias já calculados no servidor.
+ *
+ * `diasRestantes` não é derivado aqui de propósito: o corte de faixa usa a
+ * meia-noite do SERVIDOR, e recalcular no navegador faria um cliente em outro
+ * fuso ver um certificado numa faixa diferente da que o resumo conta.
+ */
+export interface CertificadoEmRisco extends Certificado {
+  /** Negativo quando a validade já passou. */
+  diasRestantes: number;
+}
+
+export type ChaveFaixaVencimento =
+  | 'vencido'
+  | '30'
+  | '60'
+  | '90'
+  | '180'
+  | 'depois';
+
+export interface ResumoVencimentos {
+  janelaDias: number;
+  /** Toda a carteira vigente, não só a janela — é o denominador. */
+  totalVigentes: number;
+  faixas: Array<{ chave: ChaveFaixaVencimento; rotulo: string; total: number }>;
+}
+
 export type CriticidadeNaoConformidade = 'MENOR' | 'MAIOR';
 
 export type StatusNaoConformidade =
@@ -406,7 +433,10 @@ export interface Aparencia {
   fonte: string;
   temaPadrao: ModoTema;
   permitirAlternancia: boolean;
-  logoUrl: string | null;
+  /** Logo do tema claro. Serve de fallback quando a do escuro está vazia. */
+  logoTemaClaroUrl: string | null;
+  /** Logo do tema escuro. Vazia, cai para a do tema claro. */
+  logoTemaEscuroUrl: string | null;
   papelParedeUrl: string | null;
   papelParedeOpacidade: number;
   papelParedeAjuste: AjustePapelParede;

@@ -14,6 +14,10 @@ export interface DadosAparencia {
   atualizadoEmVisto?: string;
 }
 
+/** Cada tema tem a própria logo, em rotas separadas. */
+const rotaDaLogo = (tema: ModoTema) =>
+  tema === 'CLARO' ? '/aparencia/logo/tema-claro' : '/aparencia/logo/tema-escuro';
+
 /**
  * As URLs de logo e papel de parede não trafegam neste corpo de propósito: só
  * os endpoints de upload as definem, para que não seja possível apontar a marca
@@ -35,9 +39,10 @@ export const aparenciaApi = {
     return data;
   },
 
-  enviarLogo: (arquivo: File) => enviarImagem('/aparencia/logo', arquivo),
-  removerLogo: async () => {
-    const { data } = await api.delete<Aparencia>('/aparencia/logo');
+  enviarLogo: (tema: ModoTema, arquivo: File) =>
+    enviarImagem(rotaDaLogo(tema), arquivo),
+  removerLogo: async (tema: ModoTema) => {
+    const { data } = await api.delete<Aparencia>(rotaDaLogo(tema));
     return data;
   },
 

@@ -7,7 +7,9 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -58,6 +60,34 @@ export class AlterarStatusCertificadoDto {
   @MinLength(10, { message: 'Justifique com pelo menos 10 caracteres.' })
   @MaxLength(2000)
   motivoStatus?: string;
+}
+
+/**
+ * Janela de vencimento da tela de certificados em risco.
+ *
+ * `dias` tem teto porque a consulta ordena a carteira inteira por validade:
+ * sem limite, "em risco" com 20 anos de janela viraria a listagem completa por
+ * outro caminho, sem o filtro de status que a listagem comum oferece.
+ */
+export class ListarEmRiscoDto extends PaginacaoDto {
+  @ApiPropertyOptional({
+    description: 'Quantos dias à frente considerar. Vencidos entram sempre.',
+    default: 90,
+    minimum: 1,
+    maximum: 365,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  dias: number = 90;
+
+  @ApiPropertyOptional({ description: 'Filtra por cliente (ignorado para CLIENTE)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  clienteId?: number;
 }
 
 export class ListarCertificadosDto extends PaginacaoDto {

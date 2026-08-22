@@ -495,8 +495,14 @@ model ConfiguracaoAparencia {
   /// Se false, o usuário fica travado em `temaPadrao` e o botão some do topo.
   permitirAlternancia Boolean    @default(true) @map("permitir_alternancia")
 
-  /// Logo do organismo: sidebar do painel e cabeçalho do site público.
-  logoUrl              String? @map("logo_url") @db.VarChar(255)
+  /// Logo da sidebar quando o painel está no tema CLARO — fundo claro, então
+  /// prefira traço escuro. Vazia, cai para `logoTemaEscuroUrl`.
+  logoTemaClaroUrl     String? @map("logo_tema_claro_url") @db.VarChar(255)
+  /// Logo da sidebar no tema ESCURO (prefira traço claro) e SEMPRE a do
+  /// cabeçalho do site público, cujo hero é escuro nos dois modos. Vazia, cai
+  /// para `logoTemaClaroUrl`: o fallback é cruzado nos dois sentidos, para que
+  /// quem envie uma logo só continue com marca nos dois temas.
+  logoTemaEscuroUrl    String? @map("logo_tema_escuro_url") @db.VarChar(255)
   /// Imagem de fundo do painel. Global aos dois modos.
   papelParedeUrl       String? @map("papel_parede_url") @db.VarChar(255)
   /// 0–100. Em 0 o papel de parede some sem perder o arquivo enviado.

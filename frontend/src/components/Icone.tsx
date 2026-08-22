@@ -38,6 +38,7 @@ export type NomeIcone =
   | 'lua'
   | 'seta-esquerda'
   | 'seta-direita'
+  | 'chevron-direita'
   | 'lapis'
   | 'proibido'
   | 'reciclar'
@@ -171,6 +172,10 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
       <path d="m12 5 7 7-7 7" />
     </>
   ),
+  /* Divisa de expansão: aponta para a direita recolhida e gira 90° aberta.
+     Não é a `seta-direita` girada — a haste dela pede "vá para lá", e aqui o
+     gesto é revelar o que está logo abaixo. */
+  'chevron-direita': <path d="m9 18 6-6-6-6" />,
   lapis: (
     <>
       <path d="M21.2 6.8a1 1 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.83l-1.3 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z" />

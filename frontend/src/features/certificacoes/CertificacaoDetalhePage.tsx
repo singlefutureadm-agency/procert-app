@@ -9,8 +9,10 @@ import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
 import { Icone, type NomeIcone } from '@/components/Icone';
+import { Modal } from '@/components/Modal';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Progresso } from '@/components/Progresso';
+import { RegiaoRolavel } from '@/components/RegiaoRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import {
   formatarDataHora,
@@ -111,6 +113,63 @@ function FormularioNaoConformidade({
   );
 }
 
+/** NCs da etapa que ainda esperam avaliação da equipe. */
+function pendentesDe(etapa: EtapaTimeline) {
+  return etapa.naoConformidades.filter(
+    (nc) => nc.status === 'ABERTA' || nc.status === 'EM_TRATATIVA',
+  );
+}
+
+/**
+ * Chamada para as não conformidades da etapa.
+ *
+ * Elas ficavam abertas dentro do card: descrição, resposta do cliente, parecer
+ * e os botões de avaliar, tudo empilhado numa coluna de 268px. O que a etapa
+ * precisa dizer na trilha é que há pendência e quantas — o resto é leitura, e
+ * leitura pede largura, que é o que o modal dá.
+ */
+function AvisoNaoConformidades({
+  etapa,
+  aoAbrir,
+}: {
+  etapa: EtapaTimeline;
+  aoAbrir: () => void;
+}) {
+  const total = etapa.naoConformidades.length;
+  const pendentes = pendentesDe(etapa).length;
+  const rotulo = total === 1 ? 'não conformidade' : 'não conformidades';
+
+  return (
+    <button
+      type="button"
+      className={`aviso-nc ${pendentes > 0 ? 'aviso-nc--pendente' : ''}`}
+      onClick={aoAbrir}
+      /*
+       * O número sozinho não diz o que ele conta, e o ícone não diz se ainda há
+       * o que fazer. O rótulo acessível junta as duas coisas numa frase — não é
+       * a soma dos textos soltos que o leitor de tela encontraria.
+       */
+      aria-label={`${total} ${rotulo} nesta etapa, ${
+        pendentes > 0 ? `${pendentes} aguardando avaliação` : 'todas encerradas'
+      }. Abrir detalhes.`}
+    >
+      <span className="aviso-nc__marca">
+        <Icone nome="alerta" tamanho={18} />
+        <span className="aviso-nc__contagem" aria-hidden>
+          {total}
+        </span>
+      </span>
+
+      <span aria-hidden>
+        <strong>{rotulo === 'não conformidade' ? 'Não conformidade' : 'Não conformidades'}</strong>
+        <span className="aviso-nc__estado">
+          {pendentes > 0 ? `${pendentes} aguardando avaliação` : 'todas encerradas'}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function montarRascunho(etapas: EtapaTimeline[]): Rascunho {
   return Object.fromEntries(
     etapas.map((etapa) => [
@@ -130,6 +189,8 @@ export function CertificacaoDetalhePage() {
   const [rascunho, setRascunho] = useState<Rascunho>({});
   const [ncsNovas, setNcsNovas] = useState<RascunhoNc>({});
   const [confirmarMigracao, setConfirmarMigracao] = useState(false);
+  /** Id da etapa cujas não conformidades estão abertas no modal. */
+  const [ncsDaEtapa, setNcsDaEtapa] = useState<number | null>(null);
 
   /*
    * Guarda QUAL formato está sendo gerado, não um booleano: os dois botões
@@ -196,6 +257,9 @@ export function CertificacaoDetalhePage() {
 
   // Consulta silenciosa: se a categoria publicou uma versão nova da trilha
   // depois da submissão, o aviso aparece — mas migrar exige confirmação.
+  // Resolvida do `data`, nunca copiada: ver o comentário no modal lá embaixo.
+  const etapaDasNcs = data?.etapas.find((e) => e.id === ncsDaEtapa) ?? null;
+
   const { data: versao } = useQuery({
     queryKey: chaves.versaoTrilha(id),
     queryFn: () => certificacoesApi.verificarVersao(id),
@@ -344,157 +408,144 @@ export function CertificacaoDetalhePage() {
         </div>
       </section>
 
-      <section className="vidro" style={{ padding: 12 }}>
-        <div className="timeline">
-          <div className="timeline__trilha" />
-          <div
-            className="timeline__progresso"
-            style={{
-              width: `calc(${podeEditar ? progressoLocal : data.resumo.progresso}% - 24px)`,
-            }}
-          />
+      <section className="vidro timeline">
+        <RegiaoRolavel rotulo="Trilha de etapas da certificação" className="timeline__pista">
+          <ol className="timeline__lista">
+            {data.etapas.map((etapa, indice) => {
+              const atual = rascunho[etapa.id] ?? {
+                status: etapa.status,
+                observacao: etapa.observacao ?? '',
+              };
 
-          {data.etapas.map((etapa) => {
-            const atual = rascunho[etapa.id] ?? {
-              status: etapa.status,
-              observacao: etapa.observacao ?? '',
-            };
+              /*
+               * O trecho de linha entre dois marcadores só é "vencido" quando a
+               * etapa à esquerda dele está aprovada. Cada segmento responde pelo
+               * par que liga, e não por uma porcentagem — era a barra única que
+               * mentia: `width: calc(progresso% - 24px)` media a largura do
+               * contêiner, não a distância entre o primeiro e o último marcador,
+               * então com a trilha rolando 100% parava bem antes do fim.
+               */
+              const anterior = data.etapas[indice - 1];
+              const statusAnterior = anterior
+                ? (rascunho[anterior.id]?.status ?? anterior.status)
+                : undefined;
 
-            return (
-              <article
-                key={etapa.id}
-                className={`etapa vidro ${CLASSE_ETAPA[atual.status]}`}
-              >
-                {/* Decorativo: o BadgeCertificacao ao lado já anuncia o
-                    status em texto — repetir aqui duplicaria a leitura. */}
-                <div className="etapa__marcador" aria-hidden>
-                  <Icone nome={ICONE_ETAPA[atual.status]} tamanho={16} />
-                </div>
+              return (
+                <li
+                  key={etapa.id}
+                  className={`timeline__item ${CLASSE_ETAPA[atual.status]}`}
+                >
+                  <span className="apenas-leitor-tela">
+                    Etapa {indice + 1} de {data.etapas.length}
+                  </span>
 
-                <div className="etapa__titulo">
-                  {etapa.ordem}. {etapa.etapa.nome}
-                </div>
-
-                {podeEditar ? (
-                  <>
-                    <div className="campo">
-                      <label htmlFor={`status-${etapa.id}`}>Status</label>
-                      <select
-                        id={`status-${etapa.id}`}
-                        value={atual.status}
-                        onChange={(evento) =>
-                          setRascunho((anterior) => ({
-                            ...anterior,
-                            [etapa.id]: {
-                              ...atual,
-                              status: evento.target.value as StatusCertificacao,
-                            },
-                          }))
-                        }
-                      >
-                        {STATUS_CERTIFICACAO.map((status) => (
-                          <option key={status} value={status}>
-                            {rotuloStatusCertificacao[status]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="campo">
-                      <label htmlFor={`obs-${etapa.id}`}>Observação</label>
-                      <textarea
-                        id={`obs-${etapa.id}`}
-                        rows={3}
-                        value={atual.observacao}
-                        placeholder="Registre o parecer técnico desta etapa"
-                        onChange={(evento) =>
-                          setRascunho((anterior) => ({
-                            ...anterior,
-                            [etapa.id]: { ...atual, observacao: evento.target.value },
-                          }))
-                        }
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ textAlign: 'center' }}>
-                      <BadgeCertificacao status={etapa.status} />
-                    </div>
-                    <p className="texto-pequeno texto-suave">
-                      {etapa.observacao ?? 'Sem observações.'}
-                    </p>
-                  </>
-                )}
-
-                <DocumentosEtapa
-                  produtoId={id}
-                  etapa={etapa}
-                  podeAnexar={podeEditar}
-                />
-
-                {/* NC pendente de abertura: o formulário viaja no mesmo lote
-                    do salvamento, então a reprovação e a NC nascem juntas. */}
-                {podeEditar &&
-                  atual.status === 'REPROVADO' &&
-                  etapa.status !== 'REPROVADO' && (
-                    <FormularioNaoConformidade
-                      valor={ncsNovas[etapa.id]}
-                      aoMudar={(dados) =>
-                        setNcsNovas((anterior) => ({ ...anterior, [etapa.id]: dados }))
-                      }
-                    />
-                  )}
-
-                {etapa.naoConformidades.length > 0 && (
-                  <div className="nc-lista nc-lista--compacta">
-                    {etapa.naoConformidades.map((nc) => (
-                      <CartaoNaoConformidade
-                        key={nc.id}
-                        nc={nc}
-                        acoes={
-                          podeEditar &&
-                          (nc.status === 'ABERTA' || nc.status === 'EM_TRATATIVA') ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() =>
-                                  avaliarNc.mutate({ id: nc.id, status: 'RESOLVIDA' })
-                                }
-                                disabled={avaliarNc.isPending}
-                                title="Reabre a etapa como Em andamento para reavaliação"
-                              >
-                                <Icone nome="check" tamanho={16} />
-                                Resolver
-                              </button>
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() =>
-                                  avaliarNc.mutate({ id: nc.id, status: 'REPROVADA' })
-                                }
-                                disabled={avaliarNc.isPending}
-                                title="Encerra a NC mantendo a etapa reprovada"
-                              >
-                                <Icone nome="x" tamanho={16} />
-                                Reprovar
-                              </button>
-                            </>
-                          ) : undefined
-                        }
-                      />
-                    ))}
+                  {/* O eixo mora fora do card de propósito: é ele que atravessa
+                      o vão entre as colunas, e a linha precisa encostar no
+                      marcador vizinho, não parar na borda do cartão. */}
+                  <div
+                    className={`timeline__eixo ${
+                      statusAnterior === 'APROVADO' ? 'timeline__eixo--antes-vencido' : ''
+                    } ${atual.status === 'APROVADO' ? 'timeline__eixo--depois-vencido' : ''}`}
+                    aria-hidden
+                  >
+                    <span className="timeline__marcador">
+                      <Icone nome={ICONE_ETAPA[atual.status]} tamanho={18} />
+                    </span>
                   </div>
-                )}
 
-                <p className="texto-pequeno texto-fraco">
-                  Atualizado em {formatarDataHora(etapa.atualizadoEm)}
-                </p>
-              </article>
-            );
-          })}
-        </div>
+                  <article className={`etapa vidro ${CLASSE_ETAPA[atual.status]}`}>
+                    <div className="etapa__titulo">
+                      <span className="etapa__ordem">{etapa.ordem}</span>
+                      {etapa.etapa.nome}
+                    </div>
+
+                    {podeEditar ? (
+                      <>
+                        <div className="campo">
+                          <label htmlFor={`status-${etapa.id}`}>Status</label>
+                          <select
+                            id={`status-${etapa.id}`}
+                            value={atual.status}
+                            onChange={(evento) =>
+                              setRascunho((anterior) => ({
+                                ...anterior,
+                                [etapa.id]: {
+                                  ...atual,
+                                  status: evento.target.value as StatusCertificacao,
+                                },
+                              }))
+                            }
+                          >
+                            {STATUS_CERTIFICACAO.map((status) => (
+                              <option key={status} value={status}>
+                                {rotuloStatusCertificacao[status]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="campo">
+                          <label htmlFor={`obs-${etapa.id}`}>Observação</label>
+                          <textarea
+                            id={`obs-${etapa.id}`}
+                            rows={3}
+                            value={atual.observacao}
+                            placeholder="Registre o parecer técnico desta etapa"
+                            onChange={(evento) =>
+                              setRascunho((anterior) => ({
+                                ...anterior,
+                                [etapa.id]: { ...atual, observacao: evento.target.value },
+                              }))
+                            }
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ textAlign: 'center' }}>
+                          <BadgeCertificacao status={etapa.status} />
+                        </div>
+                        <p className="texto-pequeno texto-suave">
+                          {etapa.observacao ?? 'Sem observações.'}
+                        </p>
+                      </>
+                    )}
+
+                    <DocumentosEtapa
+                      produtoId={id}
+                      etapa={etapa}
+                      podeAnexar={podeEditar}
+                    />
+
+                    {/* NC pendente de abertura: o formulário viaja no mesmo lote
+                        do salvamento, então a reprovação e a NC nascem juntas. */}
+                    {podeEditar &&
+                      atual.status === 'REPROVADO' &&
+                      etapa.status !== 'REPROVADO' && (
+                        <FormularioNaoConformidade
+                          valor={ncsNovas[etapa.id]}
+                          aoMudar={(dados) =>
+                            setNcsNovas((anterior) => ({ ...anterior, [etapa.id]: dados }))
+                          }
+                        />
+                      )}
+
+                    {etapa.naoConformidades.length > 0 && (
+                      <AvisoNaoConformidades
+                        etapa={etapa}
+                        aoAbrir={() => setNcsDaEtapa(etapa.id)}
+                      />
+                    )}
+
+                    <p className="texto-pequeno texto-fraco etapa__rodape">
+                      Atualizado em {formatarDataHora(etapa.atualizadoEm)}
+                    </p>
+                  </article>
+                </li>
+              );
+            })}
+          </ol>
+        </RegiaoRolavel>
 
         {podeEditar && (
           <div className="form-acoes" style={{ padding: '8px 12px 12px' }}>
@@ -603,6 +654,60 @@ export function CertificacaoDetalhePage() {
         aoCancelar={() => setConfirmarMigracao(false)}
         aoConfirmar={() => migrarVersao.mutate()}
       />
+
+      {/* Lido do `data` a cada render, não copiado para o estado: avaliar uma NC
+          invalida a consulta, e o modal precisa mostrar o status novo sem
+          fechar. Guardar a etapa no `useState` deixaria a tela congelada no que
+          era verdade quando o modal abriu. */}
+      {etapaDasNcs && (
+        <Modal
+          aberto
+          largura="ampla"
+          comBotaoFechar
+          titulo={`Não conformidades · ${etapaDasNcs.etapa.nome}`}
+          aoFechar={() => setNcsDaEtapa(null)}
+        >
+          <div className="nc-lista">
+            {etapaDasNcs.naoConformidades.map((nc) => (
+              <CartaoNaoConformidade
+                key={nc.id}
+                nc={nc}
+                acoes={
+                  podeEditar &&
+                  (nc.status === 'ABERTA' || nc.status === 'EM_TRATATIVA') ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          avaliarNc.mutate({ id: nc.id, status: 'RESOLVIDA' })
+                        }
+                        disabled={avaliarNc.isPending}
+                        title="Reabre a etapa como Em andamento para reavaliação"
+                      >
+                        <Icone nome="check" tamanho={16} />
+                        Resolver
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          avaliarNc.mutate({ id: nc.id, status: 'REPROVADA' })
+                        }
+                        disabled={avaliarNc.isPending}
+                        title="Encerra a NC mantendo a etapa reprovada"
+                      >
+                        <Icone nome="x" tamanho={16} />
+                        Reprovar
+                      </button>
+                    </>
+                  ) : undefined
+                }
+              />
+            ))}
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

@@ -1,7 +1,9 @@
 import { api } from '@/lib/api';
 import type {
   Certificado,
+  CertificadoEmRisco,
   RespostaPaginada,
+  ResumoVencimentos,
   StatusCertificado,
 } from '@/types';
 
@@ -25,6 +27,13 @@ export const certificadosApi = {
     const { data } = await api.get<RespostaPaginada<Certificado>>('/certificados', {
       params: filtros,
     });
+    return data;
+  },
+
+  emRisco: async (filtros: { dias: number; pagina?: number; limite?: number }) => {
+    const { data } = await api.get<
+      RespostaPaginada<CertificadoEmRisco> & { resumo: ResumoVencimentos }
+    >('/certificados/em-risco', { params: filtros });
     return data;
   },
 

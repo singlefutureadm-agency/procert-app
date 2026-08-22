@@ -7,6 +7,7 @@ import { CategoriaDetalhePage } from '@/features/categorias-produto/CategoriaDet
 import { CategoriasPage } from '@/features/categorias-produto/CategoriasPage';
 import { CertificacaoDetalhePage } from '@/features/certificacoes/CertificacaoDetalhePage';
 import { CertificacoesPage } from '@/features/certificacoes/CertificacoesPage';
+import { CertificadosEmRiscoPage } from '@/features/certificados/CertificadosEmRiscoPage';
 import { CertificadosPage } from '@/features/certificados/CertificadosPage';
 import { ClienteFormPage } from '@/features/clientes/ClienteFormPage';
 import { ClientesPage } from '@/features/clientes/ClientesPage';
@@ -50,6 +51,9 @@ export const router = createBrowserRouter([
       { path: 'certificacoes/produto/:produtoId', element: <CertificacaoDetalhePage /> },
       { path: 'nao-conformidades', element: <NaoConformidadesPage /> },
       { path: 'certificados', element: <CertificadosPage /> },
+      // Vencimentos: o backend aplica o escopo, então o CLIENTE também pode
+      // abrir e ver só os seus.
+      { path: 'certificacoes/em-risco', element: <CertificadosEmRiscoPage /> },
 
       // Produtos
       { path: 'produtos', element: <ProdutosPage /> },

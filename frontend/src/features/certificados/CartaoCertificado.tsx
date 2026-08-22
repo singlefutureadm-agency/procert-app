@@ -37,9 +37,19 @@ interface Props {
   certificado: Certificado;
   contexto?: ReactNode;
   acoes?: ReactNode;
+  /**
+   * Substitui o aviso de validade padrão.
+   *
+   * O padrão só fala quando o certificado está `EMITIDO` e vence em até 60
+   * dias — suficiente na listagem geral, onde a validade é um detalhe. Na tela
+   * de vencimentos ela é o assunto, e o selo precisa aparecer para qualquer
+   * prazo e também para o suspenso. Sem esta porta, as duas informações
+   * apareciam lado a lado dizendo a mesma coisa.
+   */
+  aviso?: ReactNode;
 }
 
-export function CartaoCertificado({ certificado, contexto, acoes }: Props) {
+export function CartaoCertificado({ certificado, contexto, acoes, aviso }: Props) {
   return (
     <article className="nc">
       <header className="nc__topo">
@@ -48,7 +58,7 @@ export function CartaoCertificado({ certificado, contexto, acoes }: Props) {
           <span className={`badge ${CLASSE_STATUS[certificado.status]}`}>
             {ROTULO_STATUS[certificado.status]}
           </span>
-          <AvisoValidade certificado={certificado} />
+          {aviso ?? <AvisoValidade certificado={certificado} />}
         </div>
         <span className="texto-pequeno texto-suave sem-quebra">
           {formatarData(certificado.dataEmissao)} →{' '}

@@ -151,7 +151,8 @@ export const APARENCIA_PADRAO = {
   fonte: FONTE_PADRAO as string,
   temaPadrao: TemaPadrao.ESCURO,
   permitirAlternancia: true,
-  logoUrl: null as string | null,
+  logoTemaClaroUrl: null as string | null,
+  logoTemaEscuroUrl: null as string | null,
   papelParedeUrl: null as string | null,
   /** 0 desliga o papel de parede sem perder o arquivo enviado. */
   papelParedeOpacidade: 35,

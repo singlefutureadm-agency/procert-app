@@ -10,6 +10,12 @@ import {
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
+import {
+  diasAteVencer,
+  FAIXAS_VENCIMENTO,
+  faixaDeVencimento,
+  hojeAMeiaNoite,
+} from '../certificados/vencimento.constantes';
 
 /**
  * Agregados que alimentam os gráficos das telas de Acompanhamento, Certificados
@@ -31,15 +37,6 @@ import { UsuarioAutenticado } from '../../common/decorators/current-user.decorat
 const RANKING_MAXIMO = 8;
 const ETAPAS_MAXIMO = 6;
 
-/** Faixas de vencimento, em dias. A última é aberta. */
-const FAIXAS_VENCIMENTO = [
-  { chave: 'vencido', rotulo: 'Vencido', ate: -1 },
-  { chave: '30', rotulo: 'Até 30 dias', ate: 30 },
-  { chave: '60', rotulo: '31 a 60 dias', ate: 60 },
-  { chave: '90', rotulo: '61 a 90 dias', ate: 90 },
-  { chave: '180', rotulo: '91 a 180 dias', ate: 180 },
-  { chave: 'depois', rotulo: 'Mais de 180 dias', ate: Number.POSITIVE_INFINITY },
-] as const;
 
 export interface DadosGraficos {
   acompanhamento: {
@@ -185,10 +182,7 @@ export class GraficosService {
     const vencimentos: Record<string, number> = {};
     for (const faixa of FAIXAS_VENCIMENTO) vencimentos[faixa.chave] = 0;
 
-    // Meia-noite de hoje: comparar contra o instante atual faria um certificado
-    // que vence hoje cair em "vencido" ou não conforme a hora da requisição.
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
+    const hoje = hojeAMeiaNoite();
 
     let totalVigentes = 0;
 
@@ -209,16 +203,8 @@ export class GraficosService {
 
       totalVigentes += 1;
 
-      const validade = new Date(certificado.dataValidade);
-      validade.setHours(0, 0, 0, 0);
-      const dias = Math.round(
-        (validade.getTime() - hoje.getTime()) / 86_400_000,
-      );
-
-      const faixa =
-        FAIXAS_VENCIMENTO.find((f) => dias <= f.ate) ??
-        FAIXAS_VENCIMENTO[FAIXAS_VENCIMENTO.length - 1];
-      vencimentos[faixa.chave] += 1;
+      const dias = diasAteVencer(certificado.dataValidade, hoje);
+      vencimentos[faixaDeVencimento(dias)] += 1;
     }
 
     return {
