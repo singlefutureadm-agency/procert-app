@@ -1,0 +1,122 @@
+# Integração contínua — build, lint e testes dos dois pacotes.
+#
+# O repositório trabalha direto em `main`, sem branches de feature, então até
+# aqui nada obrigava a suíte a rodar antes do push. Este workflow é essa trava.
+#
+# Dois jobs independentes de propósito: o frontend não tem teste algum e leva
+# segundos; prendê-lo ao PostgreSQL do backend só o deixaria mais lento sem
+# cobrir nada a mais.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Push seguido de push na mesma ref cancela a execução anterior: o resultado
+# dela já não interessa, e a fila do runner é compartilhada.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (build, lint, unitários, e2e)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: procert
+          POSTGRES_PASSWORD: procert
+          POSTGRES_DB: procert
+        # 5433:5432 reproduz o docker-compose. Não é capricho: assim
+        # `.env.test.example` é copiado VERBATIM, sem o CI manter uma segunda
+        # cópia da DATABASE_URL que sairia de sincronia com a do repositório.
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U procert -d procert"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # O postinstall do @prisma/client normalmente gera o client, mas depender
+      # disso deixa o job refém de um detalhe de empacotamento de terceiro.
+      - name: Gerar o Prisma Client
+        run: npx prisma generate
+
+      # `lint:ci`, não `lint`: o script de desenvolvimento tem `--fix` e
+      # reescreveria os arquivos, fazendo o job passar justamente quando há o
+      # que corrigir.
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Testes unitários
+        run: npm test
+
+      # O `.env.test` não é versionado (contém credencial em ambiente real).
+      # O globalSetup exige que ele exista e recusa DATABASE_URL cujo banco não
+      # termine em `_test`; o exemplo já satisfaz as duas condições.
+      - name: Preparar o ambiente do e2e
+        run: cp .env.test.example .env.test
+
+      # O banco `procert_test` não é criado aqui: o globalSetup roda
+      # `prisma migrate deploy`, que o cria e aplica as migrations — o mesmo
+      # caminho do ambiente real.
+      - name: Testes e2e
+        run: npm run test:e2e
+
+  frontend:
+    name: Frontend (build, lint)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint:ci
+
+      # `tsc -b && vite build` — o type-check entra junto, e é a única rede de
+      # segurança que o frontend tem hoje (não há teste algum). Ver
+      # DOCUMENTACAO.md §14.
+      - name: Build
+        run: npm run build

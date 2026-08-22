@@ -9,6 +9,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
+    "lint:ci": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
     "test": "jest",
     "test:cov": "jest --coverage",
