@@ -4,7 +4,7 @@ Migração do sistema legado em PHP (MVC artesanal + MySQL) para uma stack moder
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Backend | Node.js 20 + TypeScript + **NestJS 11** |
+| Backend | Node.js 24 + TypeScript + **NestJS 11** |
 | ORM | **Prisma 6** |
 | Banco | **PostgreSQL 16** |
 | Frontend | **React 19** + TypeScript + **Vite 6** |
@@ -55,6 +55,9 @@ procert-app/
 
 ## Subindo o ambiente
 
+> **Node 24** (ver `.nvmrc`) e Docker. O CI valida em 24; rodar outra major
+> significa que ninguem testa o que voce roda. Com nvm: `nvm use` na raiz.
+
 ### 1. Banco de dados
 
 ```bash
@@ -72,11 +75,15 @@ e o Adminer em http://localhost:8080.
 ```bash
 cd backend
 cp .env.example .env
-npm install
-npx prisma migrate dev --name init
+npm ci
+npx prisma migrate deploy
 npm run seed
 npm run start:dev
 ```
+
+> `migrate deploy` aplica as migrations que ja vem no repositorio, que e o que voce
+> quer num clone novo. Use `migrate dev --name <descricao>` apenas quando estiver
+> **criando** uma migration depois de editar o `schema.prisma`.
 
 API em **http://localhost:3000/api** · Swagger em **http://localhost:3000/api/docs**
 
@@ -91,7 +98,7 @@ Credenciais criadas pelo seed:
 ```bash
 cd frontend
 cp .env.example .env
-npm install
+npm ci
 npm run dev
 ```
 
@@ -111,6 +118,7 @@ Aplicação em **http://localhost:5173**
 | `npm run migrate:categorias` | Catálogo global de etapas → trilhas por categoria |
 | `npm run prisma:studio` | Interface visual do banco |
 | `npm run lint` | ESLint 9 (flat config), com `--fix` |
+| `npm run lint:ci` | ESLint sem `--fix` — o que o CI roda |
 | `npm test` | Unitários dos services (Prisma mockado) |
 | `npm run test:cov` | Idem, com relatório de cobertura |
 | `npm run test:e2e` | e2e de autorização (Supertest + PostgreSQL) — exige `.env.test`, ver abaixo |
@@ -139,12 +147,58 @@ ambiente de desenvolvimento.
 | `npm run build` | Build de produção (`dist/`) |
 | `npm run preview` | Serve o build localmente |
 | `npm run lint` | ESLint |
+| `npm run lint:ci` | ESLint sem `--fix` — o que o CI roda |
 
 > Não há testes automatizados no frontend — é a próxima lacuna depois do CI
 > (`DOCUMENTACAO.md` §17).
 
 ---
 
+## Integração contínua
+
+`.github/workflows/ci.yml` roda em **push para `main`** e em **todo pull request**.
+Dois jobs independentes:
+
+| Job | O que roda |
+|---|---|
+| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 152 unitários → 59 e2e |
+| **Frontend** | `npm ci` → `lint:ci` → `build` (o `tsc -b` é o type-check) |
+
+O e2e sobe um PostgreSQL 16 de serviço mapeado em **5433**, igual ao `docker-compose`.
+É de propósito: assim o job copia `.env.test.example` sem alterar nada, em vez de manter
+uma segunda `DATABASE_URL` que sairia de sincronia com a do repositório sem ninguém notar.
+
+**Dois comandos ficam de fora, e não é esquecimento:**
+
+- `typecheck:scripts` falha hoje porque o ETL do legado está desatualizado. Incluí-lo
+  deixaria o CI vermelho desde o primeiro run e ensinaria todo mundo a ignorar o resultado.
+- `npm audit` tem 3 high sem correção publicada, mais 1 moderate cujo caminho vulnerável
+  não é alcançável. Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
+
+### Antes de abrir um PR
+
+```bash
+cd backend  && npm run lint:ci && npm run build && npm test && npm run test:e2e
+cd frontend && npm run lint:ci && npm run build
+```
+
+É exatamente o que o CI roda. Descobrir a falha aqui custa segundos; descobrir no CI
+custa um ciclo de push.
+
+### Fluxo de contribuição
+
+```bash
+git checkout -b tipo/descricao-curta   # feat/, fix/, ci/, docs/, test/
+# ... altere, commite ...
+git push -u origin tipo/descricao-curta
+gh pr create --base main
+```
+
+O histórico até aqui foi feito direto em `main`. Com mais de uma pessoa no repositório
+isso deixa de servir: dois pushes concorrentes em `main` se atropelam, e nada garante que
+a suíte rodou antes. **Trabalhe em branch e abra PR** — os dois checks precisam passar.
+
+---
 ## Modelo de domínio
 
 ```

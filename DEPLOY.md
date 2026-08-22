@@ -217,7 +217,8 @@ consequências no dia do deploy:
 
 ### Backup
 
-`C:\Users\Miguel\Documents\procert-backups\backup-servidor-procertocp-2026-08-21_0108.zip`
+`procert-backups/backup-servidor-procertocp-2026-08-21_0108.zip`, guardado fora do
+repositório, na máquina de quem fez o levantamento
 — 167 arquivos, 38,1 MB, íntegro (`testzip` sem erros, arquivos-chave conferidos
 um a um). Cobre `/public_html`, `/uploads`, `/home` e os arquivos soltos da raiz
 da conta. O symlink `/logs` (aponta para fora da conta) foi ignorado de
