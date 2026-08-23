@@ -77,7 +77,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 152 unitários, 8 suítes, Prisma mockado |
+| `npm test` | ✅ 173 unitários, 9 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 75 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -90,7 +90,7 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **O backend tem rede de segurança; o frontend não.** 152 unitários + 75 e2e cobrem
+> **O backend tem rede de segurança; o frontend não.** 173 unitários + 75 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
 > **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
@@ -454,14 +454,22 @@ O XLSX tem **aba de visão geral → uma aba por etapa (na ordem da trilha) → 
 histórico**. Detalhes que não são estéticos:
 
 - **Nome de aba passa por `nomeAba()`.** Excel recusa mais de 31 caracteres, recusa
-  `\ / ? * [ ] :` e recusa duplicata — e nome de etapa é texto livre do admin. O erro só
-  apareceria ao ABRIR o arquivo, não ao gerar.
+  `\ / ? * [ ] :` e recusa duplicata — e nome de etapa é texto livre do admin. O exceljs
+  replica essas regras e **lança** em caractere proibido, nome vazio e duplicata (comparada
+  sem caixa); só o excesso de 31 ele trunca, com aviso. Ou seja, sem o saneamento a
+  exportação vira **500 na geração**. O desempate parte sempre da base, nunca do nome já
+  sufixado: derivar do anterior empilhava marcas (`1. Ensaio(2)(3)`) e estourava o limite a
+  partir de `(10)`, que ocupa 4 caracteres.
 - **Data vai como `Date`, não string**, com `numFmt`. É o que faz o autofiltro do Excel
   ordenar de verdade; como texto, 10/01 vem antes de 02/12.
 - **CSV não tem abas.** O arquivo empilha as mesmas seções com linhas de título. Leva
   **BOM de UTF-8** (sem ele o Excel do Windows abre em ANSI e todo acento quebra) e
   separador **`;`** (no Excel em português a vírgula é separador decimal, e com `,` tudo
   cai numa coluna só).
+
+Coberto por `exportacao.service.spec.ts` (21 casos), que **gera o XLSX e relê o buffer** —
+é a releitura que prova que o Excel aceitaria o arquivo. O e2e baixa e não abre, então
+nenhuma dessas regras é alcançável por teste de rota.
 
 No frontend o download passa por blob (`certificacoesApi.exportar`), não por `<a href>`:
 a rota exige o Bearer, e um link direto voltaria 401. O nome do arquivo sai do
