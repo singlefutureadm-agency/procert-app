@@ -79,7 +79,7 @@ npm run dev                   # http://localhost:5173
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
 | `npm test` | ✅ 152 unitários, 8 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 59 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 75 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -90,7 +90,7 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **O backend tem rede de segurança; o frontend não.** 152 unitários + 59 e2e cobrem
+> **O backend tem rede de segurança; o frontend não.** 152 unitários + 75 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
 > **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
@@ -417,7 +417,6 @@ src/
 todas as query keys — **adicione a chave lá antes de usar**, não escreva array solto.
 
 ### Sessão (`auth/AuthContext.tsx`)
-
 Token e usuário no `localStorage` (`procert:token`, `procert:usuario`). Ao abrir o app,
 revalida em `GET /auth/me`; falha limpa tudo. `sair()` também chama `queryClient.clear()`.
 
