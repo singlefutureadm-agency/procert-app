@@ -1355,7 +1355,7 @@ encerramento do terminal. Se a porta continuar ocupada:
 
 ## 14. Qualidade: testes, lint e lacunas reais
 
-Estado medido em **19/08/2026**, com a saída real de cada comando — não por leitura de
+Estado medido em **23/08/2026**, com a saída real de cada comando — não por leitura de
 código.
 
 | Item | Situação |
@@ -1364,9 +1364,11 @@ código.
 | `npm run build` (backend) | ✅ 0 erros |
 | `npm run build` (frontend) | ✅ `tsc -b && vite build`, 239 módulos |
 | **`npm run lint` (backend)** | ✅ **executa e sai 0** — `eslint.config.js` criado em `0966e96` |
+| **`npm run lint:ci` (ambos)** | ✅ 0 — é o que o CI roda: `--max-warnings=0` e **sem `--fix`**. O `lint` de desenvolvimento reescreve os arquivos, então usá-lo no pipeline faria o job passar justamente quando houvesse o que corrigir. |
 | `npm run lint` (frontend) | ✅ |
+| **CI (GitHub Actions)** | ✅ dois jobs obrigatórios, ~1m15s por execução (`8fd0363`, `d9ea0aa`) |
 | **`npm test` (backend)** | ✅ **152 testes, 8 suítes** |
-| **`npm run test:e2e` (backend)** | ✅ **59 testes, 2 suítes**, contra PostgreSQL de verdade |
+| **`npm run test:e2e` (backend)** | ✅ **75 testes, 2 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
 | Testes no frontend | ❌ **inexistentes** — é a lacuna que sobrou |
 | Validação funcional manual | ✅ mantida a cada incremento |
@@ -1387,9 +1389,16 @@ sobre o que foi protegido.
 | `modules/certificacoes/certificacoes.service.ts` | 84,84% | 67,50% |
 | `modules/certificados/certificados.service.ts` | 81,05% | 77,77% |
 
-Somados aos 59 casos de e2e, cobrem as regras que a evolução do sistema acumulou:
+Somados aos 75 casos de e2e, cobrem as regras que a evolução do sistema acumulou:
 imutabilidade de versão de trilha, renumeração 1..N na migração, máquina de estados da NC,
 ciclo do certificado, exigência de evidência e o escopo do CLIENTE.
+
+**Services de `6bb7be8` ainda sem unitário:** `exportacao.service.ts`,
+`graficos.service.ts` e o controller de `health`. Os três têm cobertura de e2e — escopo do
+CLIENTE, formato e códigos de status —, mas nenhum teste de unidade. O `exportacao` é o
+mais carente: `nomeAba()` (limite de 31 caracteres, caracteres proibidos, duplicata) e a
+formatação de data como `Date` são regras de detalhe que só aparecem ao ABRIR o arquivo no
+Excel, e o e2e não abre.
 
 ### Como os testes estão organizados
 
@@ -1430,6 +1439,32 @@ ciclo do certificado, exigência de evidência e o escopo do CLIENTE.
   travessia daria falso verde. Foi exatamente esse erro que invalidou a verificação manual
   de 17/08 (§15).
 
+### A suíte foi verificada por mutação (23/08/2026)
+
+Antes de construir o CI em cima dela, cada invariante foi quebrado de propósito para
+confirmar que a suíte fica vermelha. Um gate montado sobre testes que não detectam nada é
+pior que nenhum gate: dá confiança sem dar proteção.
+
+| Invariante quebrado | Testes vermelhos |
+|---|---|
+| Normalização `$2y$` → `$2b$` removida | 2 |
+| `redefinirSenha` sem `$transaction` | 2 |
+| `listar` confiando no `clienteId` da query (o IDOR) | 1 unitário + 1 e2e |
+| `@Roles(ADMIN)` removido de `expirar-vencidos` | 2 |
+| `forbidNonWhitelisted` removido | 2 |
+| `certificados` movido para `PASTAS_PUBLICAS` | 2 |
+| `pastaPublicaDaRota` lendo o caminho cru | 7 |
+| Escopo do CLIENTE removido de `graficos.service` | 3 |
+
+**8 de 8 detectadas.** Duas merecem nota:
+
+- A do `$transaction` é a que valida o próprio `prisma.mock.ts`. Se o mock fosse ingênuo
+  (`$transaction: (cb) => cb(prisma)`), essa mutação passaria em silêncio e todos os testes
+  de atomicidade seriam decorativos.
+- A do caminho cru reintroduz exatamente o defeito encontrado na reauditoria de 19/08
+  (§15). Derrubar 7 casos confirma que os testes de travessia não são tautologia — é o
+  `requisicaoCrua()` fazendo o trabalho que o supertest não faria.
+
 ### O que ainda falta
 
 1. **CI** — GitHub Actions com build + lint + test nos dois pacotes e PostgreSQL de
@@ -1438,7 +1473,9 @@ ciclo do certificado, exigência de evidência e o escopo do CLIENTE.
    cálculo de contraste de `lib/tema.ts` são os candidatos com mais regra por linha.
 3. Services ainda sem unitário: `ProdutosService.criar` (abertura da trilha),
    `FuncionariosService` (proteção do último ADMIN), `DashboardService` (classificação e
-   escopo), `AparenciaService` (allowlist de tokens), `UploadsService`.
+   escopo), `AparenciaService` (allowlist de tokens), `UploadsService`,
+   `ExportacaoService` (`nomeAba`, data como `Date`) e `GraficosService` (faixas de
+   vencimento, desempate do ranking).
 
 ## 15. Problemas conhecidos e decisões registradas
 
@@ -1896,8 +1933,10 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~Suíte de testes unitários dos services (§14)~~ | `3a4d779` |
 | ~~E2E de autorização (Supertest, papéis × endpoints)~~ | `bd1771a` |
 | ~~Agendar a expiração de certificados~~ | `9edc8a8` |
-| ~~Alinhar `README.md` e esta documentação~~ | esta sessão (19/08/2026) |
+| ~~Alinhar `README.md` e esta documentação~~ | 19/08/2026 |
+| ~~Gráficos, exportação para planilha, `/api/health` e preparação de deploy~~ | `6bb7be8` (21/08/2026) |
 | ~~CI no GitHub Actions (build + lint + testes nos dois pacotes)~~ | `8fd0363`, `d9ea0aa` |
+| ~~Cobertura de e2e das rotas de `6bb7be8` + verificação da suíte por mutação~~ | esta entrega |
 
 ### Prioridade 1 — o que sustenta tudo que foi construído
 
@@ -1955,9 +1994,10 @@ sistema em vez de por fora.*
 *Gatilho: a primeira divergência que chegar ao usuário — ou o CI, que torna a geração
 verificável.*
 
-**8. Observabilidade.** `/api/health`, logs estruturados (JSON) e métricas. *Gatilho:
-qualquer deploy em infraestrutura que precise de health check — contêiner orquestrado, load
-balancer.*
+**8. Observabilidade — parcialmente feita em `6bb7be8`.** `GET /api/health` já existe:
+público, fora do throttler, faz `SELECT 1` e devolve 503 sem vazar detalhe do driver.
+Faltam **logs estruturados (JSON) e métricas**. *Gatilho: o primeiro incidente em produção
+que exigir correlacionar requisições — hoje o log é texto e não tem id de requisição.*
 
 ### Prioridade 4 — condicionados a um evento
 

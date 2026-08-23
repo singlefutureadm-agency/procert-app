@@ -175,6 +175,139 @@ describe('Autorização (e2e)', () => {
     });
   });
 
+  describe('GET /api/health — público por design', () => {
+    it('responde 200 sem token: é o que o load balancer consulta', async () => {
+      const resposta = await pedir('get', '/api/health');
+
+      expect(resposta.status).toBe(200);
+      expect(resposta.body).toMatchObject({ status: 'ok', banco: 'ok' });
+      expect(typeof resposta.body.latenciaBancoMs).toBe('number');
+    });
+
+    it('não vaza nada da string de conexão', async () => {
+      const resposta = await pedir('get', '/api/health');
+      const corpo = JSON.stringify(resposta.body);
+
+      // A rota é pública e consulta o banco. Se um dia o erro do driver
+      // escapar daqui, ele traz host, porta e às vezes usuário — meia string
+      // de conexão entregue a quem perguntar. O service já trata; isto trava.
+      for (const vazamento of ['5433', 'postgres', 'procert_test', 'password', 'localhost']) {
+        expect(corpo.toLowerCase()).not.toContain(vazamento);
+      }
+    });
+  });
+
+  describe('GET /api/dashboard/graficos — agregados com escopo de CLIENTE', () => {
+    it('anônimo → 401', async () => {
+      await expect(
+        pedir('get', '/api/dashboard/graficos').then((r) => r.status),
+      ).resolves.toBe(401);
+    });
+
+    it('ADMIN vê os 2 produtos do cenário', async () => {
+      const resposta = await pedir('get', '/api/dashboard/graficos', c.admin);
+
+      expect(resposta.status).toBe(200);
+      expect(resposta.body.acompanhamento.totalProdutos).toBe(2);
+    });
+
+    it('CLIENTE vê só o próprio produto', async () => {
+      const resposta = await pedir('get', '/api/dashboard/graficos', c.clienteDono);
+
+      expect(resposta.status).toBe(200);
+      expect(resposta.body.acompanhamento.totalProdutos).toBe(1);
+    });
+
+    it('o ranking do CLIENTE não cita produto nem nome de outro cliente', async () => {
+      // Este é o vetor real: `ranking` carrega nome do produto E nome do
+      // cliente. Um gráfico com escopo quebrado não parece errado — só mostra
+      // números maiores —, então a asserção precisa ser sobre o conteúdo.
+      const resposta = await pedir('get', '/api/dashboard/graficos', c.clienteAlheio);
+      const ranking = JSON.stringify(resposta.body.acompanhamento.ranking);
+
+      expect(ranking).toContain('Tomada 20A');
+      expect(ranking).not.toContain('Disjuntor DIN 25A');
+      expect(ranking).not.toContain('Indústria Dona');
+    });
+
+    it('o cliente sem certificado não enxerga o certificado do outro', async () => {
+      const alheio = await pedir('get', '/api/dashboard/graficos', c.clienteAlheio);
+      const dono = await pedir('get', '/api/dashboard/graficos', c.clienteDono);
+
+      const somar = (corpo: { certificados: { porStatus: Array<{ total: number }> } }) =>
+        corpo.certificados.porStatus.reduce((soma, faixa) => soma + faixa.total, 0);
+
+      // O único certificado do cenário é do dono.
+      expect(somar(alheio.body)).toBe(0);
+      expect(somar(dono.body)).toBe(1);
+    });
+  });
+
+  describe('GET /api/certificacoes/produto/:id/exportacao — planilha', () => {
+    it.each([
+      { ator: 'anônimo', token: () => undefined, esperado: 401 },
+      { ator: 'CLIENTE dono', token: () => c.clienteDono, esperado: 200 },
+      { ator: 'CLIENTE alheio', token: () => c.clienteAlheio, esperado: 403 },
+      { ator: 'FUNCIONARIO', token: () => c.funcionario, esperado: 200 },
+      { ator: 'ADMIN', token: () => c.admin, esperado: 200 },
+    ])('$ator → $esperado', async ({ token, esperado }) => {
+      const resposta = await pedir(
+        'get',
+        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao`,
+        token(),
+      );
+
+      expect(resposta.status).toBe(esperado);
+    });
+
+    it('o XLSX sai como anexo, com nome vindo do servidor', async () => {
+      const resposta = await pedir(
+        'get',
+        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao`,
+        c.clienteDono,
+      );
+
+      expect(resposta.headers['content-type']).toContain(
+        'spreadsheetml.sheet',
+      );
+      expect(resposta.headers['content-disposition']).toMatch(
+        /^attachment; filename=".+\.xlsx"$/,
+      );
+    });
+
+    it('formato=csv devolve CSV', async () => {
+      const resposta = await pedir(
+        'get',
+        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao?formato=csv`,
+        c.admin,
+      );
+
+      expect(resposta.status).toBe(200);
+      expect(resposta.headers['content-type']).toContain('text/csv');
+      expect(resposta.headers['content-disposition']).toMatch(/\.csv"$/);
+    });
+
+    it('formato inválido → 400, não um arquivo corrompido', async () => {
+      const resposta = await pedir(
+        'get',
+        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao?formato=pdf`,
+        c.admin,
+      );
+
+      expect(resposta.status).toBe(400);
+    });
+
+    it('parâmetro não declarado no DTO → 400 (forbidNonWhitelisted vale na query)', async () => {
+      const resposta = await pedir(
+        'get',
+        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao?colunas=todas`,
+        c.admin,
+      );
+
+      expect(resposta.status).toBe(400);
+    });
+  });
+
   describe('escopo do CLIENTE vence o query param (o IDOR do legado)', () => {
     it('GET /api/certificados?clienteId=<alheio> devolve só os do próprio token', async () => {
       const resposta = await pedir(
