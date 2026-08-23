@@ -1367,7 +1367,7 @@ código.
 | **`npm run lint:ci` (ambos)** | ✅ 0 — é o que o CI roda: `--max-warnings=0` e **sem `--fix`**. O `lint` de desenvolvimento reescreve os arquivos, então usá-lo no pipeline faria o job passar justamente quando houvesse o que corrigir. |
 | `npm run lint` (frontend) | ✅ |
 | **CI (GitHub Actions)** | ✅ dois jobs obrigatórios, ~1m15s por execução (`8fd0363`, `d9ea0aa`) |
-| **`npm test` (backend)** | ✅ **152 testes, 8 suítes** |
+| **`npm test` (backend)** | ✅ **173 testes, 9 suítes** |
 | **`npm run test:e2e` (backend)** | ✅ **75 testes, 2 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
 | Testes no frontend | ❌ **inexistentes** — é a lacuna que sobrou |
@@ -1388,17 +1388,35 @@ sobre o que foi protegido.
 | `modules/modelos-trilha/modelos-trilha.service.ts` | 90,47% | 90,47% |
 | `modules/certificacoes/certificacoes.service.ts` | 84,84% | 67,50% |
 | `modules/certificados/certificados.service.ts` | 81,05% | 77,77% |
+| `modules/certificacoes/exportacao.service.ts` | 94,36% | 56,84% |
 
 Somados aos 75 casos de e2e, cobrem as regras que a evolução do sistema acumulou:
 imutabilidade de versão de trilha, renumeração 1..N na migração, máquina de estados da NC,
 ciclo do certificado, exigência de evidência e o escopo do CLIENTE.
 
-**Services de `6bb7be8` ainda sem unitário:** `exportacao.service.ts`,
-`graficos.service.ts` e o controller de `health`. Os três têm cobertura de e2e — escopo do
-CLIENTE, formato e códigos de status —, mas nenhum teste de unidade. O `exportacao` é o
-mais carente: `nomeAba()` (limite de 31 caracteres, caracteres proibidos, duplicata) e a
-formatação de data como `Date` são regras de detalhe que só aparecem ao ABRIR o arquivo no
-Excel, e o e2e não abre.
+**Services de `6bb7be8` ainda sem unitário:** `graficos.service.ts` e o controller de
+`health`. Os dois têm cobertura de e2e — escopo do CLIENTE, formato e códigos de status —,
+mas nenhum teste de unidade.
+
+O `exportacao.service.ts` era o terceiro e **deixou de ser.** São 21 casos cobrindo
+`nomeAba()`, a data gravada como `Date` com `numFmt`, a ordenação do histórico e o CSV
+(BOM, separador `;`, escape de aspas e quebra de linha). A suíte **gera o XLSX e relê o
+buffer**: é a releitura que prova que o Excel aceitaria o arquivo — o e2e baixa e não abre,
+então nada disso era alcançável por teste de rota.
+
+Escrevê-la revelou dois defeitos reais em `nomeAba()`, ambos da mesma causa — o laço de
+desempate derivava cada tentativa do nome já sufixado, em vez da base:
+
+1. As marcas **empilhavam** em nome curto: `1. Ensaio(2)(3)(4)` em vez de `1. Ensaio(4)`.
+2. A partir da décima colisão o nome ia a **32 caracteres**, porque `(10)` ocupa 4 e o
+   corte era fixo em 28. O exceljs truncava de volta para 31 e comia o parêntese de
+   fechamento, deixando `(10`.
+
+Nenhum dos dois é alcançável hoje, porque `CertificacaoProduto.ordem` é única por produto
+e o prefixo já separa as abas — o desempate é defensivo. Corrigidos assim mesmo, junto com
+um comentário do service que estava errado: ele dizia que nome inválido só apareceria ao
+abrir o arquivo, quando o exceljs 4.4.0 **lança** em caractere proibido, nome vazio e
+duplicata. Sem o saneamento a exportação daria 500 na geração.
 
 ### Como os testes estão organizados
 
@@ -1961,7 +1979,7 @@ Três detalhes que custam caro se errados:
 
 *Gatilho: nenhum — é o próximo, assim que houver acesso à conta dona.*
 
-**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 152 unitários + 59 e2e. O
+**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 173 unitários + 75 e2e. O
 CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o
 passo. Comece pelo que quebra silencioso — `lib/tema.ts` (`MAPA_CSS`, `checarContrastes`),
 `mensagemDeErro` e as chaves de `lib/queryClient.ts`.

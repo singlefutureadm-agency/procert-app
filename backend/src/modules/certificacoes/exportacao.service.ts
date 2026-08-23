@@ -71,6 +71,9 @@ const ROTULO_CRITICIDADE: Record<CriticidadeNaoConformidade, string> = {
 const AZUL = 'FF0D6EFD';
 const FORMATO_DATA = 'dd/mm/yyyy hh:mm';
 
+/** Limite do Excel para nome de aba. O exceljs trunca (com aviso) acima disso. */
+const LIMITE_NOME_ABA = 31;
+
 @Injectable()
 export class ExportacaoCertificacaoService {
   // ---------------------------------------------------------------- XLSX
@@ -85,8 +88,13 @@ export class ExportacaoCertificacaoService {
     /*
      * Excel recusa nome de aba com mais de 31 caracteres ou com \ / ? * [ ] :,
      * e recusa duplicata. Nome de etapa é texto livre cadastrado pelo admin,
-     * então nada disso é hipotético — e o erro só apareceria na hora de abrir
-     * o arquivo, não na hora de gerar.
+     * então nada disso é hipotético.
+     *
+     * O exceljs 4.4.0 replica essas regras no `addWorksheet` e **lança** em
+     * caractere proibido, nome vazio e duplicata (comparada sem caixa); só o
+     * excesso de 31 ele resolve truncando, com aviso no console. Ou seja, sem
+     * o saneamento abaixo a exportação viraria 500 na geração — não um arquivo
+     * que o Excel recusa depois. Coberto por `exportacao.service.spec.ts`.
      */
     const usados = new Set<string>();
     for (const etapa of detalhe.etapas) {
@@ -102,14 +110,24 @@ export class ExportacaoCertificacaoService {
 
   private nomeAba(etapa: Etapa, usados: Set<string>): string {
     const limpo = etapa.etapa.nome.replace(/[\\/?*[\]:]/g, '-').trim();
-    let nome = `${etapa.ordem}. ${limpo}`.slice(0, 31);
+    const base = `${etapa.ordem}. ${limpo}`;
+    let nome = base.slice(0, LIMITE_NOME_ABA);
 
-    // Duas etapas podem ter o mesmo nome em versões diferentes da trilha; a
-    // ordem é o que as separa, e ela já vai no prefixo. O sufixo cobre o caso
-    // em que o truncamento em 31 caracteres apagou justamente a diferença.
+    /*
+     * Duas etapas podem ter o mesmo nome em versões diferentes da trilha; a
+     * ordem é o que as separa, e ela já vai no prefixo. O sufixo cobre o caso
+     * em que o truncamento em 31 caracteres apagou justamente a diferença.
+     *
+     * Cada tentativa parte da BASE, não do nome já sufixado. Reaproveitar o
+     * anterior empilhava as marcas (`1. Ensaio(2)(3)(4)`) e, com o corte fixo
+     * em 28, estourava o limite a partir de `(10)` — que ocupa 4 caracteres, e
+     * não 3. O exceljs truncava de volta para 31 e comia o parêntese de
+     * fechamento, deixando `(10` no lugar de `(10)`.
+     */
     let sufixo = 2;
     while (usados.has(nome.toLowerCase())) {
-      nome = `${nome.slice(0, 28)}(${sufixo++})`;
+      const marca = `(${sufixo++})`;
+      nome = base.slice(0, LIMITE_NOME_ABA - marca.length) + marca;
     }
     usados.add(nome.toLowerCase());
     return nome;
