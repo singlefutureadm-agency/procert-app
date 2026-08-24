@@ -1,7 +1,7 @@
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './home.css';
 
-import { useTemaInstitucional } from './hooks';
+import { useAncoraInicial, useTemaInstitucional } from './hooks';
 import { BotoesFlutuantes } from './secoes/BotoesFlutuantes';
 import { CabecalhoSite } from './secoes/CabecalhoSite';
 import { ChamadaAcao } from './secoes/ChamadaAcao';
@@ -30,6 +30,8 @@ import { Sobre } from './secoes/Sobre';
  */
 export function HomePage() {
   useTemaInstitucional();
+  // Chegadas de fora com `/#sobre` — o rodapé das páginas legais faz isso.
+  useAncoraInicial();
 
   return (
     <div className="home">

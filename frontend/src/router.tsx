@@ -13,6 +13,8 @@ import { ClienteFormPage } from '@/features/clientes/ClienteFormPage';
 import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { HomePage } from '@/features/home/HomePage';
+import { PoliticaPrivacidadePage } from '@/features/home/PoliticaPrivacidadePage';
+import { TermosDeUsoPage } from '@/features/home/TermosDeUsoPage';
 import { NaoConformidadesPage } from '@/features/nao-conformidades/NaoConformidadesPage';
 import { FuncionarioFormPage } from '@/features/funcionarios/FuncionarioFormPage';
 import { FuncionariosPage } from '@/features/funcionarios/FuncionariosPage';
@@ -29,6 +31,11 @@ const EQUIPE = ['ADMIN', 'FUNCIONARIO'] as const;
 export const router = createBrowserRouter([
   // Site institucional público — porta de entrada da plataforma.
   { path: '/', element: <HomePage /> },
+
+  // Documentos legais: públicos e linkados no rodapé do site. Os caminhos são
+  // a fonte única de PAGINAS_LEGAIS (features/home/conteudo-legal.ts).
+  { path: '/termos-de-uso', element: <TermosDeUsoPage /> },
+  { path: '/politica-de-privacidade', element: <PoliticaPrivacidadePage /> },
 
   { path: '/login', element: <LoginPage /> },
   { path: '/esqueci-senha', element: <EsqueciSenhaPage /> },

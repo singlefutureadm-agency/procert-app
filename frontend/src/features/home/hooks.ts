@@ -116,3 +116,26 @@ export function useTemaInstitucional() {
     return () => document.body.classList.remove('tema-institucional');
   }, []);
 }
+
+/**
+ * Rola até a seção indicada pelo hash da URL depois que a home montou.
+ *
+ * O navegador tenta posicionar assim que o documento carrega, e nessa hora o
+ * React ainda não renderizou as seções — o alvo não existe e a página fica no
+ * topo. Passou a importar quando o cabeçalho e o rodapé ganharam links do tipo
+ * `/#sobre`, usados a partir das páginas legais: dali, toda âncora é uma
+ * navegação para a home, e não uma rolagem dentro dela.
+ */
+export function useAncoraInicial() {
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+
+    const alvo = document.getElementById(id);
+    if (!alvo) return;
+
+    // 'auto' e não 'smooth': quem chegou por link espera a seção já na tela,
+    // não assistir à página desfilar desde o topo.
+    alvo.scrollIntoView({ behavior: 'auto', block: 'start' });
+  }, []);
+}
