@@ -162,7 +162,11 @@ body.tema-institucional {
   text-align: center;
 }
 
-.home__titulo-secao h2 {
+/* O rótulo curto ("Serviços") é sobrelinha, não título: quem nomeia a seção é
+   a frase grande abaixo dele. Estava marcado ao contrário — <h2> no rótulo e
+   <p> no título —, o que dava ao buscador e ao leitor de tela uma estrutura em
+   que a seção se chama "Serviços" e a frase que a descreve não é nada. */
+.home__titulo-secao-rotulo {
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 1.5px;
@@ -175,14 +179,14 @@ body.tema-institucional {
   gap: 10px;
 }
 
-.home__titulo-secao h2::after {
+.home__titulo-secao-rotulo::after {
   content: '';
   width: 120px;
   height: 1px;
   background: var(--home-acento);
 }
 
-.home__titulo-secao p {
+.home__titulo-secao h2 {
   color: var(--home-titulo);
   margin: 6px 0 0;
   font-size: 36px;
@@ -192,7 +196,7 @@ body.tema-institucional {
 }
 
 @media (max-width: 640px) {
-  .home__titulo-secao p {
+  .home__titulo-secao h2 {
     font-size: 26px;
   }
 }
@@ -532,6 +536,12 @@ body.tema-institucional {
   margin-top: 48px;
 }
 
+.home__hero-destaques {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .home__hero-caixa {
   display: flex;
   flex-direction: column;
@@ -551,7 +561,7 @@ body.tema-institucional {
   color: var(--home-acento);
 }
 
-.home__hero-caixa h3 {
+.home__hero-caixa span {
   margin: 0;
   font-size: 20px;
   line-height: 26px;
@@ -564,7 +574,7 @@ body.tema-institucional {
   border-color: var(--home-acento);
 }
 
-.home__hero-caixa:hover h3 {
+.home__hero-caixa:hover span {
   color: var(--home-acento);
 }
 
@@ -837,83 +847,227 @@ body.tema-institucional {
 
 /* ------------------------------ Depoimentos ------------------------------ */
 
+/* --------------------------- Carrossel premium --------------------------- */
+
+/* Fundo em CSS no lugar de `depoimentos-bg.png`. A imagem tinha 2,4 MB — dois
+   terços de todo o peso de imagens do site — e ficava sob um overlay de 70%,
+   então o que se via dela era quase nada. Dois gradientes radiais deslocados
+   dão a mesma profundidade sem transferir byte algum. */
 .home__depoimentos {
   position: relative;
-  padding: 80px 0;
+  padding: 90px 0;
   color: #ffffff;
-  background: var(--home-escuro);
+  background:
+    radial-gradient(90% 120% at 15% 0%, rgba(0, 118, 168, 0.28), transparent 60%),
+    radial-gradient(70% 100% at 85% 100%, rgba(0, 118, 168, 0.16), transparent 55%),
+    var(--home-escuro);
+  overflow: clip;
 }
 
-.home__depoimentos-fundo {
+.home__carrossel {
+  position: relative;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 8px 0 0;
+}
+
+/* O anel de foco do wrapper precisa de folga: sem offset ele encosta no texto. */
+.home__carrossel:focus-visible {
+  outline: 2px solid var(--home-acento);
+  outline-offset: 18px;
+  border-radius: 8px;
+}
+
+/* Aspas em marca d'água. Decorativa e atrás do conteúdo — é o que dá peso
+   editorial à citação sem competir com ela por atenção. */
+.home__carrossel-aspas {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 140px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Palco em grade de uma célula: todos os slides ocupam a mesma área, e a
+   altura acompanha o mais alto. Sem isso, o crossfade exigiria posição
+   absoluta e a seção mudaria de altura a cada troca. */
+.home__carrossel-palco {
+  display: grid;
+  position: relative;
   z-index: 1;
 }
 
-.home__depoimentos::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(6, 6, 6, 0.7);
-  z-index: 2;
-}
-
-.home__depoimentos .home__container {
-  position: relative;
-  z-index: 3;
-}
-
 .home__depoimento {
-  max-width: 820px;
-  margin: 0 auto;
+  grid-area: 1 / 1;
+  margin: 0;
   text-align: center;
+  opacity: 0;
+  transform: translateY(12px) scale(0.99);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+  pointer-events: none;
+}
+
+.home__depoimento--ativo {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.home__depoimento blockquote {
+  margin: 0 0 26px;
+}
+
+.home__depoimento blockquote p {
+  margin: 0;
+  /* A citação é o conteúdo principal do bloco e ganha escala de display; o
+     nome vem depois, menor, como atribuição. Antes era o inverso. */
+  font-family: var(--home-fonte-titulo);
+  font-size: clamp(19px, 2.1vw, 26px);
+  font-style: italic;
+  line-height: 1.55;
+  color: #ffffff;
+  text-wrap: pretty;
+}
+
+.home__depoimento figcaption {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
 }
 
 .home__depoimento-foto {
-  width: 100px;
-  height: 100px;
-  margin: 0 auto;
+  width: 88px;
+  height: 88px;
+  margin-bottom: 12px;
   border-radius: 50%;
-  border: 6px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  /* Anel externo por sombra em vez de borda grossa: a borda de 6px comia da
+     área da foto, que já é pequena. */
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.06);
   object-fit: cover;
 }
 
-.home__depoimento h3 {
-  margin: 12px 0 5px;
-  font-size: 20px;
+.home__depoimento-nome {
+  font-family: var(--home-fonte-titulo);
+  font-size: 17px;
   font-weight: 700;
   color: #ffffff;
 }
 
-.home__depoimento h4 {
-  margin: 0 0 15px;
-  font-size: 14px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+.home__depoimento-cargo {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .home__depoimento-estrelas {
-  margin-bottom: 15px;
+  margin-top: 8px;
+  font-size: 13px;
+  letter-spacing: 2px;
   color: #ffc107;
 }
 
-.home__depoimento-estrelas i {
-  margin: 0 1px;
+/* --- Controles --- */
+
+.home__carrossel-controles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 30px;
 }
 
-.home__depoimento p {
-  margin: 0;
-  font-style: italic;
+.home__carrossel-seta {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
+}
+
+.home__carrossel-seta:hover {
   color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  transform: scale(1.06);
 }
 
-.home__depoimento p i {
-  font-size: 26px;
-  color: rgba(255, 255, 255, 0.6);
-  vertical-align: middle;
+.home__carrossel-seta:active {
+  transform: scale(0.97);
+}
+
+/* --- Barra de progresso do autoplay --- */
+
+/* Diz quanto falta para o próximo slide. Sem ela o carrossel troca sozinho sem
+   aviso, e o leitor perde a linha que estava lendo sem entender por quê. */
+.home__carrossel-progresso {
+  width: 120px;
+  height: 2px;
+  margin: 22px auto 0;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.home__carrossel-progresso span {
+  display: block;
+  height: 100%;
+  background: var(--home-acento);
+  transform-origin: left center;
+  animation-name: home-carrossel-progresso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes home-carrossel-progresso {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .home__carrossel-aspas {
+    font-size: 96px;
+    top: -18px;
+  }
+
+  .home__depoimentos {
+    padding: 64px 0;
+  }
+}
+
+/* Sem movimento: o slide aparece pronto e a barra não corre. O carrossel
+   continua trocando — o que se remove é a animação, não a função. */
+@media (prefers-reduced-motion: reduce) {
+  .home__depoimento {
+    transition: none;
+    transform: none;
+  }
+
+  .home__carrossel-progresso span {
+    animation: none;
+    transform: scaleX(1);
+  }
+
+  .home__carrossel-seta {
+    transition: none;
+  }
+
+  .home__carrossel-seta:hover,
+  .home__carrossel-seta:active {
+    transform: none;
+  }
 }
 
 .home__depoimento-marcadores {
@@ -1149,7 +1303,7 @@ body.tema-institucional {
   color: rgba(255, 255, 255, 0.75);
 }
 
-.home__rodape h4 {
+.home__rodape h2 {
   position: relative;
   padding-bottom: 12px;
   font-size: 16px;

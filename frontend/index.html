@@ -9,6 +9,12 @@
       content="ProCert — Organismo de Certificação de Produto especializado em Equipamentos de Proteção Individual (EPIs). Certificação, auditorias e ensaios com rigor técnico."
     />
     <link rel="icon" href="/img/favicon.png" />
+
+    <!-- Imagem do hero: numa SPA ela só entra no DOM depois que o bundle
+         baixa e o React monta, então o navegador a descobre tarde. O preload
+         antecipa o pedido para o começo do documento, em paralelo com o JS.
+         É o elemento de maior área na primeira tela — ou seja, o LCP. -->
+    <link rel="preload" as="image" href="/img/hero-bg.jpg" fetchpriority="high" />
     <link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
 
     <!-- Tipografia do site institucional (Roboto/Raleway/Poppins, como no legado).

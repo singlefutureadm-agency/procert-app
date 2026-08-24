@@ -9,7 +9,7 @@ export function Sobre() {
           {/* No legado a imagem vinha depois no HTML e era reposicionada com
               order-lg-2; aqui a ordem visual já é a ordem do documento. */}
           <div className="home__sobre-conteudo">
-            <h3>{SOBRE.titulo}</h3>
+            <h2>{SOBRE.titulo}</h2>
             <p className="home__sobre-resumo">{SOBRE.resumo}</p>
             <ul>
               {SOBRE.itens.map((item) => (

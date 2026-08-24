@@ -1,10 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { StrictMode } from 'react';
+import { StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
 import { AuthProvider } from '@/auth/AuthContext';
+import { CarregandoRota } from '@/components/CarregandoRota';
 import { TemaProvider } from '@/features/aparencia/TemaContext';
 import { queryClient } from '@/lib/queryClient';
 import { aplicarTemaDoCache } from '@/lib/tema';
@@ -21,7 +22,13 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <TemaProvider>
         <AuthProvider>
-          <RouterProvider router={router} />
+          {/* Segura as rotas carregadas sob demanda (ver o cabeçalho de
+              `router.tsx`). Fica aqui, e não em cada rota, porque o fallback é
+              o mesmo para todas e um Suspense por rota multiplicaria o mesmo
+              componente por vinte e quatro pontos de montagem. */}
+          <Suspense fallback={<CarregandoRota />}>
+            <RouterProvider router={router} />
+          </Suspense>
           <Toaster position="top-right" richColors closeButton />
         </AuthProvider>
       </TemaProvider>

@@ -69,7 +69,14 @@ export function useContador(destino: number, duracaoMs = 1400) {
   return { referencia, valor };
 }
 
-/** Rotação automática de slides, pausável (equivalente ao autoplay do Swiper). */
+/**
+ * Rotação automática de slides, pausável (equivalente ao autoplay do Swiper).
+ *
+ * `pausado` é exposto porque a barra de progresso do carrossel é uma animação
+ * CSS: ela precisa saber quando congelar. Manter o progresso em estado React
+ * exigiria re-render a cada quadro para desenhar uma barra que o CSS anima
+ * sozinho.
+ */
 export function useCarrossel(total: number, intervaloMs = 5000) {
   const [atual, setAtual] = useState(0);
   const [pausado, setPausado] = useState(false);
@@ -83,11 +90,19 @@ export function useCarrossel(total: number, intervaloMs = 5000) {
     return () => clearInterval(temporizador);
   }, [pausado, total, intervaloMs]);
 
+  // O módulo com `+ total` cobre o retrocesso a partir do índice 0: em
+  // JavaScript, -1 % 5 é -1, e não 4.
+  const irPara = (indice: number) => setAtual(((indice % total) + total) % total);
+
   return {
     atual,
-    irPara: setAtual,
+    pausado,
+    irPara,
+    anterior: () => irPara(atual - 1),
+    proximo: () => irPara(atual + 1),
     pausar: () => setPausado(true),
     retomar: () => setPausado(false),
+    intervaloMs,
   };
 }
 

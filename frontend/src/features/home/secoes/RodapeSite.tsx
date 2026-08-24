@@ -46,7 +46,7 @@ export function RodapeSite() {
           </div>
 
           <div>
-            <h4>Veja mais</h4>
+            <h2>Veja mais</h2>
             <ul>
               {PAGINAS.map((pagina) => (
                 <li key={pagina.caminho}>
@@ -58,7 +58,7 @@ export function RodapeSite() {
           </div>
 
           <div>
-            <h4>Acesso</h4>
+            <h2>Acesso</h2>
             <ul>
               <li>
                 <i className="bi bi-chevron-right" aria-hidden />
