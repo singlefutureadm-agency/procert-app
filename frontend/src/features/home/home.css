@@ -223,20 +223,25 @@ body.tema-institucional {
 .home__marca {
   display: flex;
   align-items: center;
+  /* O link herdava a altura da imagem — 34px no celular. O padding leva o
+     alvo a 44px sem crescer a marca nem o cabeçalho, que já tem folga. */
+  min-height: 44px;
+  padding: 4px 0;
   line-height: 1;
 }
 
-/* O logo carrega a marca sozinho (sem texto ao lado), então tem altura maior
-   que os 36px do legado. Encolhe no mobile para não competir com o menu. */
-.home__marca img {
-  max-height: 96px;
-  margin-right: 6px;
-}
+/* O logo carrega a marca sozinho (sem texto ao lado), então pede mais altura
+   que os 36px do legado — mas 96px fixos faziam um cabeçalho de 116px, alto
+   demais para uma barra fixa que acompanha a rolagem.
 
-@media (max-width: 575px) {
-  .home__marca img {
-    max-height: 42px;
-  }
+   `clamp` escala com a viewport em vez de saltar num único ponto de quebra:
+   antes eram 96px até 575px e 42px logo abaixo, e nenhum dos dois valores
+   servia às larguras intermediárias. `height` com `width: auto` mantém a
+   proporção do arquivo — `max-height` sozinho deixava a imagem decidir. */
+.home__marca img {
+  height: clamp(34px, 3.2vw, 50px);
+  width: auto;
+  margin-right: 6px;
 }
 
 .home__marca-nome {
@@ -338,6 +343,10 @@ body.tema-institucional {
 }
 
 .home__botao-entrar {
+  /* 44px é o piso de alvo de toque; com 8px de padding o botão dava 37px. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding: 8px 30px;
   margin-left: 30px;
   font-size: 14px;
@@ -355,6 +364,12 @@ body.tema-institucional {
 
 .home__menu-movel {
   display: none;
+  /* Quadrado de 44px: o padding de 4px dava 40px de altura, e este é o
+     controle mais tocado do site no celular. */
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
   font-size: 28px;
   color: #ffffff;
   background: none;
@@ -398,7 +413,9 @@ body.tema-institucional {
 /* Navegação no mobile: painel branco deslizante */
 @media (max-width: 1199px) {
   .home__menu-movel {
-    display: block;
+    /* flex, e não block: é o que faz `align-items`/`justify-content` da regra
+       base centrarem o ícone dentro do quadrado de 44px. */
+    display: inline-flex;
     order: 3;
   }
 
@@ -907,18 +924,30 @@ body.tema-institucional {
 }
 
 .home__depoimento-marcadores button {
-  width: 12px;
-  height: 12px;
+  /* O ponto visível continua com 12px; o botão cresce para 40x40 e desenha o
+     ponto num ::before. Um alvo de 12px é um terço do mínimo, e no toque o
+     usuário erra o marcador vizinho. */
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.home__depoimento-marcadores button::before {
+  content: '';
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.5);
   opacity: 0.5;
-  cursor: pointer;
   transition: 0.3s;
 }
 
-.home__depoimento-marcadores button[aria-current='true'] {
+.home__depoimento-marcadores button[aria-current='true']::before {
   background: #ffffff;
   opacity: 1;
 }
@@ -1043,6 +1072,9 @@ body.tema-institucional {
 }
 
 .home__formulario button[type='submit'] {
+  /* Piso de 44px: com 10px de padding o botão dava 38px, e este é o controle
+     que conclui a única conversão da página. */
+  min-height: 44px;
   padding: 10px 30px;
   font-size: 15px;
   font-family: inherit;
@@ -1097,7 +1129,10 @@ body.tema-institucional {
 }
 
 .home__rodape-marca img {
-  max-height: 90px;
+  /* Não tinha ponto de quebra nenhum: eram 90px também num aparelho de 360px,
+     onde a marca ocupava um quarto da coluna. */
+  height: clamp(42px, 4.4vw, 62px);
+  width: auto;
 }
 
 .home__rodape-marca span {
@@ -1132,11 +1167,6 @@ body.tema-institucional {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 10px 0;
-}
-
-.home__rodape ul li:first-child {
-  padding-top: 0;
 }
 
 .home__rodape ul i {
@@ -1147,7 +1177,11 @@ body.tema-institucional {
 
 .home__rodape ul a {
   color: rgba(255, 255, 255, 0.7);
-  line-height: 1;
+  /* O respiro entre itens era `padding` do <li>, então a área clicável do link
+     media a altura da linha — 16px. Movido para o <a>, o mesmo espaço passa a
+     ser alvo de toque, sem mudar o desenho. */
+  padding: 9px 0;
+  line-height: 1.2;
 }
 
 .home__rodape ul a:hover {
@@ -1212,8 +1246,9 @@ body.tema-institucional {
   border-radius: 50%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   transition: background-color 0.3s, transform 0.3s;
-  /* Respiro sutil: 3s de ciclo, com a maior parte do tempo em repouso. */
-  animation: home-whatsapp-respiro 3s ease-in-out infinite;
+  /* Pulso contínuo de 2s. O anterior era um respiro de 3s concentrado nos
+     20% finais do ciclo, com 1.06 de escala: sutil a ponto de não ser visto. */
+  animation: home-whatsapp-pulso 2s ease-in-out infinite;
 }
 
 /* Anel que se expande e desaparece, atrás do botão. */
@@ -1223,7 +1258,19 @@ body.tema-institucional {
   inset: 0;
   border-radius: 50%;
   border: 2px solid #25d366;
-  animation: home-whatsapp-anel 3s ease-out infinite;
+  animation: home-whatsapp-anel 2s ease-out infinite;
+  pointer-events: none;
+}
+
+/* Segundo anel, defasado meio ciclo: é a defasagem que faz o olho ler
+   "pulsando" em vez de "piscou". */
+.home__whatsapp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid #25d366;
+  animation: home-whatsapp-anel 2s ease-out 1s infinite;
   pointer-events: none;
 }
 
@@ -1234,49 +1281,45 @@ body.tema-institucional {
   animation-play-state: paused;
 }
 
-.home__whatsapp:hover::before {
+.home__whatsapp:hover::before,
+.home__whatsapp:hover::after {
   animation-play-state: paused;
   opacity: 0;
 }
 
-@keyframes home-whatsapp-respiro {
+@keyframes home-whatsapp-pulso {
   0%,
-  70%,
   100% {
     transform: scale(1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   }
-  80% {
-    transform: scale(1.06);
-  }
-  90% {
-    transform: scale(1.02);
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 6px 18px rgba(37, 211, 102, 0.45);
   }
 }
 
 @keyframes home-whatsapp-anel {
-  0%,
-  60% {
-    opacity: 0;
-    transform: scale(1);
-  }
-  70% {
-    opacity: 0.55;
+  0% {
+    opacity: 0.6;
     transform: scale(1);
   }
   100% {
     opacity: 0;
-    transform: scale(1.55);
+    transform: scale(1.9);
   }
 }
 
 /* Quem pediu menos movimento no sistema não recebe pulso algum. */
 @media (prefers-reduced-motion: reduce) {
   .home__whatsapp,
-  .home__whatsapp::before {
+  .home__whatsapp::before,
+  .home__whatsapp::after {
     animation: none;
   }
 
-  .home__whatsapp::before {
+  .home__whatsapp::before,
+  .home__whatsapp::after {
     opacity: 0;
   }
 }
