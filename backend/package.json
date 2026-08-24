@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "nest build",
+    "vercel-build": "prisma generate && nest build -p tsconfig.build.json",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",

@@ -1,0 +1,18 @@
+# O que não sobe para o deploy.
+#
+# Existe por um motivo concreto: o builder da Vercel roda um type-check PRÓPRIO,
+# com descoberta de arquivos própria — ele não respeita o `exclude` do
+# `tsconfig.json` nem o do `tsconfig.build.json`. Com `prisma/migrate-legacy.ts`
+# presente, o deploy reprova nos dois erros de tipo que esse ETL acumula desde as
+# trilhas versionadas (DOCUMENTACAO.md §15) e que `npm run typecheck:scripts`
+# continua acusando de propósito.
+#
+# A lista abaixo espelha o `exclude` de `tsconfig.build.json`: nada aqui é código
+# da API. Os ETLs são scripts de `ts-node` rodados à mão contra o MySQL legado, e
+# testes não têm o que fazer numa função.
+prisma/migrate-legacy.ts
+prisma/migrate-categorias.ts
+
+test
+src/testing
+**/*.spec.ts

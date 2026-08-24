@@ -23,5 +23,11 @@
       "@/*": ["src/*"]
     }
   },
-  "exclude": ["node_modules", "dist"]
+  // `prisma` fica de fora do type-check padrão: são scripts de `ts-node` (seed e
+  // os dois ETLs), não código da API. Quem os verifica é `tsconfig.scripts.json`,
+  // que declara o próprio `include`/`exclude` e portanto não é afetado por esta
+  // linha. Sem ela, qualquer `tsc -p tsconfig.json` — inclusive o que a Vercel
+  // dispara no deploy — reprova por causa do `migrate-legacy.ts`, que está
+  // desatualizado em relação ao schema desde as trilhas versionadas (§15).
+  "exclude": ["node_modules", "dist", "prisma"]
 }

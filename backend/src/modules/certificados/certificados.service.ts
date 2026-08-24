@@ -12,7 +12,6 @@ import {
   StatusCertificacao,
   StatusCertificado,
 } from '@prisma/client';
-import { readFile } from 'node:fs/promises';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -366,7 +365,7 @@ export class CertificadosService {
     });
   }
 
-  /** Devolve o PDF, gerando-o se ainda não existir em disco. */
+  /** Devolve o PDF, gerando-o se ainda não existir no armazenamento. */
   async obterPdf(
     id: number,
     usuario: UsuarioAutenticado,
@@ -374,20 +373,15 @@ export class CertificadosService {
     const certificado = await this.buscarPorId(id, usuario);
 
     if (certificado.arquivoPdf) {
-      const caminho = this.uploads.caminhoAbsoluto(certificado.arquivoPdf);
-      if (caminho) {
-        try {
-          return {
-            nome: `${certificado.numero}.pdf`,
-            conteudo: await readFile(caminho),
-          };
-        } catch {
-          // Arquivo sumiu do disco: cai para a regeração abaixo.
-          this.logger.warn(
-            `PDF ausente para ${certificado.numero}; regerando a partir do registro.`,
-          );
-        }
+      const conteudo = await this.uploads.ler(certificado.arquivoPdf);
+      if (conteudo) {
+        return { nome: `${certificado.numero}.pdf`, conteudo };
       }
+
+      // Arquivo sumiu do armazenamento: cai para a regeração abaixo.
+      this.logger.warn(
+        `PDF ausente para ${certificado.numero}; regerando a partir do registro.`,
+      );
     }
 
     return {

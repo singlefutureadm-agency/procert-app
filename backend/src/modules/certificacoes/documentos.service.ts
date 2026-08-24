@@ -4,7 +4,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
-import { readFile } from 'node:fs/promises';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -128,22 +127,18 @@ export class DocumentosCertificacaoService {
       );
     }
 
-    const caminho = this.uploads.caminhoAbsoluto(documento.arquivoUrl);
-    if (!caminho) {
-      throw new NotFoundException('Arquivo indisponível.');
-    }
-
-    try {
-      return {
-        nome: documento.nomeArquivo,
-        tipo: documento.tipoMime,
-        conteudo: await readFile(caminho),
-      };
-    } catch {
+    const conteudo = await this.uploads.ler(documento.arquivoUrl);
+    if (!conteudo) {
       throw new NotFoundException(
         'O arquivo deste documento não está mais disponível no servidor.',
       );
     }
+
+    return {
+      nome: documento.nomeArquivo,
+      tipo: documento.tipoMime,
+      conteudo,
+    };
   }
 
   /**
