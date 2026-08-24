@@ -1,9 +1,171 @@
 # Deploy
 
-Guia de subida do ProCert. O banco de produção **já está migrado e populado**
-(PostgreSQL 15.6 na Locaweb); o que falta é publicar a aplicação.
+O ProCert roda hoje em **Vercel + Supabase**, publicado em 23/08/2026. Este
+documento tem duas partes, e a ordem importa:
+
+- **Parte I — a produção de hoje.** É o que está no ar e o que você mexe no dia
+  a dia.
+- **Parte II — hospedagem própria (Node + FTP).** O caminho anterior, com o
+  levantamento do servidor da Locaweb. Continua válido para quem for subir numa
+  máquina com runtime Node, e é onde vive o histórico do domínio
+  `procertocp.com.br`, que **ainda serve o sistema legado**.
 
 ---
+
+# Parte I — A produção de hoje
+
+## 1. O que está no ar
+
+| Peça | Onde | Endereço |
+|---|---|---|
+| Painel + site institucional | Vercel, projeto `procert-app` | https://procert-app.vercel.app |
+| API NestJS | Vercel, projeto `procert-api` (função serverless) | https://procert-api-singlefutureadm-9995s-projects.vercel.app/api |
+| PostgreSQL 17 | Supabase, projeto `procert` (`sa-east-1`) | pooler `aws-0-sa-east-1.pooler.supabase.com` |
+| Arquivos enviados | Supabase Storage | buckets `procert-publico` e `procert-privado` |
+
+Os dois projetos da Vercel apontam para **o mesmo repositório**, com
+`rootDirectory` diferente (`backend/` e `frontend/`) e branch de produção `main`.
+
+## 2. Como uma mudança vai ao ar
+
+**Push em `main` publica em produção.** Push em branch ou PR publica um
+*preview*. Não há passo manual — a integração com o GitHub faz o deploy sozinha.
+
+O fluxo é o do `README.md`: branch → PR → CI verde → merge. O CI (build, lint,
+234 unitários e 75 e2e) roda no PR e é a rede de segurança **antes** do deploy;
+a Vercel não roda os testes.
+
+> **Variável de ambiente alterada NÃO redeploya nada.** O valor entra no
+> ambiente da função no momento em que o deployment é criado. Depois de mexer em
+> qualquer variável é preciso um deploy novo — qualquer push serve, ou
+> *Redeploy* no painel da Vercel.
+
+## 3. Variáveis de ambiente
+
+Ficam na Vercel (Settings → Environment Variables), **só em Production**. Não
+foram replicadas para Preview de propósito: o preview de um PR apontaria para o
+banco de produção, e uma branch em desenvolvimento poderia alterar certificado de
+verdade. A consequência é conhecida e aceita — **preview de PR sobe com a API
+fora do ar**, e a validação de um PR se faz pelo CI e localmente. Para testar um
+PR contra dados reais, crie um projeto Supabase próprio e aponte o Preview para
+ele.
+
+`procert-api`:
+
+| Variável | Valor em produção | Por quê |
+|---|---|---|
+| `DATABASE_URL` | pooler **:6543** com `?pgbouncer=true&connection_limit=1` | é o *transaction pooler*, o modo para função stateless. A **:5432** é o *session pooler*, e é ela que o `prisma migrate` exige |
+| `SUPABASE_SERVICE_ROLE_KEY` | chave secreta do projeto | ignora RLS; é o que autoriza a API a ler e gravar nos dois buckets |
+| `SUPABASE_URL` | `https://mnwkdtfuvbblmhtdpdsv.supabase.co` | base do REST do Storage |
+| `UPLOAD_DRIVER` | `supabase` | disco em serverless é efêmero: o arquivo some na próxima instância fria |
+| `UPLOAD_MAX_SIZE_MB` | `4` | o corpo de requisição na Vercel para em **4,5 MB**. Com 5, o usuário veria erro de plataforma em vez da mensagem da API |
+| `CORS_ORIGINS` / `FRONTEND_URL` | `https://procert-app.vercel.app` | domínio do **site**, não o da API |
+| `EXPIRACAO_CRON_ATIVA` | `false` | ver §4 |
+| `CRON_SECRET` | segredo dedicado | ver §4 |
+| `JWT_SECRET`, `JWT_EXPIRES_IN`, `BCRYPT_SALT_ROUNDS`, `API_PREFIX`, `SUPABASE_BUCKET_*` | ver `.env.example` | |
+
+`procert-app`: só `VITE_API_URL`, com a URL absoluta da API **incluindo `/api`**.
+Ela vence o `frontend/.env.production` (verificado no bundle), que segue válido
+para o deploy de mesma origem da Parte II. `/uploads` acompanha sozinho —
+`lib/arquivos.ts` deriva a origem dessa mesma variável.
+
+> Variável com prefixo `VITE_` não aceita visibilidade *secret* na Vercel, e a
+> recusa é correta: tudo que começa com `VITE_` é embutido no bundle e fica
+> visível para qualquer visitante. Pela CLI, use
+> `--visibility config --no-sensitive`.
+
+## 4. A expiração de certificados em serverless
+
+`@nestjs/schedule` **não roda em função**: o timer é criado no boot e morre com a
+instância, sem nunca chegar às 03:00. Por isso `EXPIRACAO_CRON_ATIVA=false` na
+Vercel — deixá-la ligada não quebra nada, só mente no log.
+
+Quem acorda a rotina é o **Vercel Cron**, declarado em `backend/vercel.json`,
+chamando `GET /api/certificados/cron/expirar-vencidos` às 06:00 UTC (03:00 em
+Brasília, o mesmo horário do job em processo). A Vercel manda
+`Authorization: Bearer $CRON_SECRET` sozinha quando a variável existe.
+
+O `expiracao.cron.ts` recusa agendador externo porque ele exigiria um token de
+ADMIN guardado fora do sistema — credencial capaz de excluir cliente e cancelar
+certificado. Essa objeção continua valendo, e o desenho responde a ela: o segredo
+**não é sessão**, não vira usuário, não passa pelo `RolesGuard`, não aceita corpo
+nem parâmetro, e abre **uma única porta** — um `updateMany` idempotente derivado
+da data. Vazado, o estrago possível é disparar hoje o que ia rodar de madrugada.
+Sem `CRON_SECRET` configurado a rota fica **fechada**, nunca aberta.
+
+## 5. Banco e arquivos
+
+Migrations e seed rodam **da sua máquina**, contra o *session pooler* (:5432):
+
+```powershell
+cd backend
+$env:DATABASE_URL="postgresql://postgres.mnwkdtfuvbblmhtdpdsv:<SENHA>@aws-0-sa-east-1.pooler.supabase.com:5432/postgres"
+npx prisma migrate deploy
+npm run seed        # idempotente
+```
+
+A senha do banco **não é recuperável** depois de criada — só resetável em
+Settings → Database. Resetar quebra as conexões existentes, então depois é
+preciso atualizar `DATABASE_URL` na Vercel **e redeployar**.
+
+Os buckets espelham a fronteira de `uploads.constantes.ts`: `procert-publico` com
+leitura anônima (logo, papel de parede, fotos — coisas que entram em `<img src>`
+antes de existir sessão) e `procert-privado` sem leitura anônima (PDF de
+certificado e evidência de etapa, que só saem por rota autenticada). **Nenhuma
+policy de RLS foi criada, e isso é intencional**: quem grava e lê é a API com a
+`service_role`, que ignora RLS. Sem policy, o bucket privado não responde à chave
+anônima — que é exatamente o desejado.
+
+## 6. Verificação depois de subir
+
+```bash
+API=https://procert-api-singlefutureadm-9995s-projects.vercel.app
+
+# 1. Processo de pé E banco visível (são duas perguntas diferentes)
+curl $API/api/health          # {"status":"ok","banco":"ok",...}
+
+# 2. A porta continua fechada
+curl -o /dev/null -w '%{http_code}\n' $API/api/clientes   # 401
+curl -o /dev/null -w '%{http_code}\n' $API/api/docs       # 404 (Swagger fora do ar)
+
+# 3. Login com senha errada: 401 com mensagem genérica, NUNCA 500.
+#    500 aqui significa banco fora, não credencial errada.
+curl -s -X POST $API/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"admin@procertocp.com.br","senha":"errada"}'
+
+# 4. Storage: pasta pública redireciona para o bucket, privada é negada
+curl -o /dev/null -w '%{http_code} %{redirect_url}\n' $API/uploads/produtos/x.png   # 302 -> supabase
+curl -o /dev/null -w '%{http_code}\n' $API/uploads/certificados/x.pdf               # 404
+```
+
+No navegador, **nesta ordem** — cada passo isola uma camada:
+
+1. Home abre → o deploy do frontend está certo.
+2. `/login` abre **com o tema aplicado** → o painel alcança a API (o tema vem de
+   `GET /api/aparencia`). Tema padrão onde deveria haver logo = a chamada falhou,
+   quase sempre `VITE_API_URL` ou `CORS_ORIGINS`.
+3. Login entra → JWT e banco de ponta a ponta.
+4. **F5 em `/dashboard`** → o fallback de SPA do `frontend/vercel.json` subiu.
+5. Produto com foto → `/uploads` e o bucket acessíveis a partir do painel.
+
+## 7. Armadilhas desta hospedagem
+
+| Armadilha | Detalhe |
+|---|---|
+| **Preset de framework** | `"framework": null` no `backend/vercel.json` é obrigatório. Detectado como "nestjs", o builder roda um type-check próprio sobre **todo** `.ts` do diretório — ignorando `exclude` de tsconfig e `.vercelignore` — e reprova nos erros conhecidos de `prisma/migrate-legacy.ts` |
+| **`api/index.js` é JavaScript** | a Vercel compila `api/` com esbuild, que não implementa `emitDecoratorMetadata`. Em TypeScript, o Nest sobe e quebra em "can't resolve dependencies" |
+| **Projeto Supabase pausa** | no plano free, após ~7 dias sem tráfego. Volta pelo painel |
+| **Sem backup automático** | o plano free do Supabase não faz backup. Exportar o banco é responsabilidade sua |
+| **Plano Hobby** | os termos da Vercel reservam o Hobby para uso **não comercial**. Operação comercial pede Pro |
+| **Cold start** | a primeira requisição depois de ociosidade paga o boot do Nest + conexão ao pooler (~600 ms medidos no `/health`) |
+
+---
+
+# Parte II — Hospedagem própria (Node + FTP)
+
+> O caminho anterior, preservado porque continua correto para uma máquina com
+> runtime Node e porque descreve o servidor onde o **sistema legado** ainda roda.
+> Nada aqui vale para a produção da Parte I.
 
 ## 1. A decisão que vem antes de tudo: onde a API roda
 
@@ -267,9 +429,10 @@ O que fazer, nesta ordem:
 
 Nenhum destes impede subir — mas é melhor saber antes:
 
-- **Sem CI/CD.** Deploy é manual: buildar, subir, reiniciar.
+- **Sem CI/CD nesta hospedagem.** Aqui o deploy é manual: buildar, subir,
+  reiniciar. Na Parte I o push publica sozinho.
 - **Sem logs estruturados nem métricas.** `/api/health` é o único sinal.
 - **Sessão sem revogação.** Token vazado vale até expirar (8h). A revalidação no
   banco cobre conta desativada, não token roubado.
-- **Sem testes no frontend.** O backend tem 152 unitários e 59 e2e; o frontend,
+- **Sem testes no frontend.** O backend tem 234 unitários e 75 e2e; o frontend,
   zero. Mudança de UI só é validada olhando.

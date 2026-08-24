@@ -9,5 +9,11 @@
       "includeFiles": "{dist,node_modules/.prisma}/**"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "crons": [
+    {
+      "path": "/api/certificados/cron/expirar-vencidos",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

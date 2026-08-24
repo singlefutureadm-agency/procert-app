@@ -1175,6 +1175,7 @@ mantém o chunk principal pequeno e melhora o cache entre deploys.
 | `JWT_SECRET` | — | **Obrigatória** (`getOrThrow`); gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `JWT_EXPIRES_IN` | `8h` | Validade do access token |
 | `BCRYPT_SALT_ROUNDS` | `12` | Custo do bcrypt |
+| `CRON_SECRET` | vazio | Segredo do gatilho externo da expiração (§9). **Vazio = rota fechada** |
 | `UPLOAD_DRIVER` | `disco` | Onde os arquivos ficam: `disco` ou `supabase` (§9) |
 | `UPLOAD_DIR` | `./uploads` | Raiz dos arquivos enviados (só com `disco`; absoluto é respeitado) |
 | `UPLOAD_MAX_SIZE_MB` | `5` | Tamanho máximo por imagem |
@@ -1327,6 +1328,39 @@ Coberto por `expiracao.cron.spec.ts`, que inclui um caso levantando o Nest de ve
 conferir que o job está registrado no `SchedulerRegistry` — instanciar a classe na mão não
 exercita o decorator, e um `@Cron` removido por acidente passaria despercebido.
 
+**E em serverless? O gatilho externo, desenhado contra a própria objeção acima (23/08/2026)**
+
+Nada disso roda numa função. `@nestjs/schedule` agenda um timer no processo, e em serverless
+não existe processo entre uma requisição e outra: o timer nasce no boot da instância e morre
+com ela, sem nunca chegar às 03:00. Por isso a produção na Vercel tem
+`EXPIRACAO_CRON_ATIVA=false` — deixá-la ligada não quebra nada, apenas mente no log.
+
+Lá quem acorda a rotina é o **Vercel Cron** declarado em `backend/vercel.json`, chamando
+`GET /api/certificados/cron/expirar-vencidos` às 06:00 UTC (03:00 em Brasília, o mesmo
+horário do job em processo).
+
+Isso é exatamente o "cron externo chamando a rota" recusado acima — mas **sem a credencial
+que era o motivo da recusa**. O que foi recusado era um token de `ADMIN` de longa duração
+guardado no agendador; o que existe agora é `CRON_SECRET`, e a diferença é de natureza:
+
+| | Token de ADMIN | `CRON_SECRET` |
+|---|---|---|
+| É sessão? | Sim — passa pelo `JwtStrategy`, vira `UsuarioAutenticado` | **Não.** A rota é `@Public()` e compara o segredo em `timingSafeEqual`, sem tocar no `JwtStrategy` nem no `RolesGuard` |
+| O que abre | Toda a API: excluir cliente, emitir e cancelar certificado | **Uma porta só**, sem corpo nem parâmetro: um `updateMany` idempotente derivado da data |
+| Estrago se vazar | Total, até o vencimento, sem revogação | Disparar hoje o que rodaria de madrugada |
+| Como se revoga | Não há lista de revogação | Trocar a variável e redeployar |
+
+Duas decisões que não são estéticas: **sem `CRON_SECRET` configurado a rota fica fechada**,
+nunca aberta — um deploy sem a variável deve falhar visível no log do agendador, e não
+executar rotina de negócio para quem pedir; e a comparação é em **tempo constante**, porque
+`===` sobre segredo vaza o tamanho do prefixo correto pelo tempo de resposta, e aqui quem
+chama pode medir à vontade. A rota fica **fora do Swagger** (`@ApiExcludeEndpoint`) e tem
+`@Throttle` estreito (4/min): a rotina legítima roda uma vez por dia.
+
+Coberto por `expiracao.cron.controller.spec.ts` (10 casos). O que os testes travam não é o
+401 — é que a **rotina de negócio não roda** em nenhum caminho de recusa, e que a mensagem
+não distingue segredo errado de segredo ausente.
+
 ### Scripts — frontend
 
 | Comando | Ação |
@@ -1413,7 +1447,7 @@ código.
 | **`npm run lint:ci` (ambos)** | ✅ 0 — é o que o CI roda: `--max-warnings=0` e **sem `--fix`**. O `lint` de desenvolvimento reescreve os arquivos, então usá-lo no pipeline faria o job passar justamente quando houvesse o que corrigir. |
 | `npm run lint` (frontend) | ✅ |
 | **CI (GitHub Actions)** | ✅ dois jobs obrigatórios, ~1m15s por execução (`8fd0363`, `d9ea0aa`) |
-| **`npm test` (backend)** | ✅ **224 testes, 11 suítes** |
+| **`npm test` (backend)** | ✅ **234 testes, 12 suítes** |
 | **`npm run test:e2e` (backend)** | ✅ **75 testes, 2 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
 | Testes no frontend | ❌ **inexistentes** — é a lacuna que sobrou |
@@ -2025,7 +2059,7 @@ Três detalhes que custam caro se errados:
 
 *Gatilho: nenhum — é o próximo, assim que houver acesso à conta dona.*
 
-**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 224 unitários + 75 e2e. O
+**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 234 unitários + 75 e2e. O
 CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o
 passo. Comece pelo que quebra silencioso — `lib/tema.ts` (`MAPA_CSS`, `checarContrastes`),
 `mensagemDeErro` e as chaves de `lib/queryClient.ts`.
