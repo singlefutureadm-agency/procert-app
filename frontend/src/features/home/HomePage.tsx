@@ -1,6 +1,8 @@
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './home.css';
 
+import { grafo, organizacao, URL_SITE } from '@/lib/seo';
+import { useSeo } from '@/lib/seo';
 import { useAncoraInicial, useTemaInstitucional } from './hooks';
 import { BotoesFlutuantes } from './secoes/BotoesFlutuantes';
 import { CabecalhoSite } from './secoes/CabecalhoSite';
@@ -30,8 +32,22 @@ import { Sobre } from './secoes/Sobre';
  */
 export function HomePage() {
   useTemaInstitucional();
-  // Chegadas de fora com `/#sobre` — o rodapé das páginas legais faz isso.
+  // Chegadas de fora com `/#sobre` — links antigos e compartilhados continuam
+  // válidos mesmo depois que o menu passou a apontar para páginas próprias.
   useAncoraInicial();
+
+  useSeo({
+    titulo: 'ProCert | Certificação de EPI e de produtos',
+    descricao:
+      'Organismo de Certificação de Produto especializado em equipamentos de proteção individual para trabalho em altura. Certificação, auditoria de fábrica, ensaios e emissão de certificado.',
+    caminho: '/',
+    dadosEstruturados: grafo(organizacao(), {
+      '@type': 'WebSite',
+      name: 'ProCert',
+      url: URL_SITE,
+      inLanguage: 'pt-BR',
+    }),
+  });
 
   return (
     <div className="home">

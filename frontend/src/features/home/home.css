@@ -1325,6 +1325,7 @@ body.tema-institucional {
 /* Faixa escura sob o cabeçalho fixo. Ver o comentário em PaginaLegal.tsx:
    sem ela o menu (branco, transparente até rolar) cai sobre o papel branco
    do documento. O padding-top acomoda o logo de 96px mais o respiro. */
+.home__hero-pagina,
 .home__legal-topo {
   padding: 150px 0 50px;
   background: var(--home-escuro);
@@ -1332,6 +1333,7 @@ body.tema-institucional {
   text-align: center;
 }
 
+.home__hero-pagina h1,
 .home__legal-topo h1 {
   color: #ffffff;
   font-size: 40px;
@@ -1418,15 +1420,456 @@ body.tema-institucional {
 }
 
 @media (max-width: 640px) {
-  .home__legal-topo {
+  .home__hero-pagina,
+.home__legal-topo {
     padding: 120px 0 40px;
   }
 
-  .home__legal-topo h1 {
+  .home__hero-pagina h1,
+.home__legal-topo h1 {
     font-size: 28px;
   }
 
   .home__legal-secao h2 {
     font-size: 19px;
+  }
+}
+
+/* ---------------------- Páginas institucionais internas ------------------- */
+
+/* O hero destas páginas reaproveita `.home__hero-pagina, .home__legal-topo`
+   declarado na seção anterior. Só o texto de apoio é próprio. */
+
+.home__hero-pagina-rotulo {
+  margin: 0 0 10px;
+  color: var(--home-acento);
+  font-family: var(--home-fonte-nav);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.home__hero-pagina-subtitulo {
+  max-width: 640px;
+  margin: 16px auto 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+/* Coluna de leitura. O container tem 1320px e uma linha corrida nessa largura
+   passa de 150 caracteres — as seções de marketing escapam disso porque são
+   grades; texto corrido, não. */
+.home__prosa {
+  max-width: 780px;
+  font-size: 16.5px;
+  line-height: 1.8;
+}
+
+.home__prosa h2 {
+  font-size: 30px;
+  margin-bottom: 16px;
+  /* Evita a última linha do título sozinha com uma palavra. */
+  text-wrap: balance;
+}
+
+.home__prosa p {
+  margin: 0 0 16px;
+  text-wrap: pretty;
+}
+
+.home__titulo-bloco {
+  font-size: 30px;
+  margin: 0 0 32px;
+  text-wrap: balance;
+}
+
+/* --- Serviços em zig-zag --- */
+
+.home__servicos-lista {
+  display: grid;
+  gap: 20px;
+}
+
+.home__servico-detalhe > article {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 28px;
+  align-items: start;
+  padding: 32px;
+  background: var(--home-superficie);
+  border-radius: 6px;
+  /* Sombra tingida de azul em vez de preto puro: o preto sobre fundo claro
+     lê como sujeira, e o tom do acento mantém a peça na mesma paleta. */
+  box-shadow: 0 1px 2px rgba(0, 118, 168, 0.06), 0 12px 28px rgba(0, 118, 168, 0.07);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.home__servico-detalhe > article:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 2px 4px rgba(0, 118, 168, 0.08), 0 18px 40px rgba(0, 118, 168, 0.11);
+}
+
+/* Alterna o lado da marca. Quebra a repetição vertical sem mexer na ordem do
+   documento — o leitor de tela continua ouvindo ícone, título, texto. */
+.home__servico-detalhe--invertido > article {
+  grid-template-columns: 1fr 96px;
+}
+
+.home__servico-detalhe--invertido .home__servico-marca {
+  order: 2;
+}
+
+.home__servico-marca {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 6px;
+  background: linear-gradient(150deg, var(--home-acento), #005a80);
+  color: #ffffff;
+  font-size: 38px;
+}
+
+.home__servico-corpo h3 {
+  font-size: 21px;
+  margin-bottom: 10px;
+}
+
+.home__servico-corpo p {
+  margin: 0 0 16px;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+.home__servico-corpo ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+}
+
+.home__servico-corpo li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.home__servico-corpo li i {
+  color: var(--home-acento);
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .home__servico-detalhe > article,
+  .home__servico-detalhe--invertido > article {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 26px;
+  }
+
+  .home__servico-detalhe--invertido .home__servico-marca {
+    order: 0;
+  }
+
+  .home__servico-marca {
+    width: 64px;
+    height: 64px;
+    font-size: 28px;
+  }
+
+  .home__servico-corpo ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Etapas numeradas --- */
+
+.home__etapas {
+  list-style: none;
+  margin: 40px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.home__etapa {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 24px;
+  padding: 26px 0;
+  border-top: 1px solid var(--home-borda);
+}
+
+.home__etapa:last-child {
+  border-bottom: 1px solid var(--home-borda);
+}
+
+.home__etapa-numero {
+  font-family: var(--home-fonte-titulo);
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+  /* Número em contorno: presença de display sem competir com o título da
+     etapa, que é o que precisa ser lido. */
+  color: transparent;
+  -webkit-text-stroke: 1px var(--home-acento);
+  opacity: 0.75;
+}
+
+.home__etapa h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.home__etapa p {
+  margin: 0;
+  max-width: 720px;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+@media (max-width: 640px) {
+  .home__etapa {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .home__etapa-numero {
+    font-size: 32px;
+  }
+}
+
+/* --- Princípios (Sobre) --- */
+
+.home__principios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.home__principio {
+  padding: 30px;
+  background: var(--home-superficie);
+  border-radius: 6px;
+  border-top: 3px solid var(--home-acento);
+  box-shadow: 0 10px 26px rgba(0, 118, 168, 0.06);
+}
+
+.home__principio i {
+  display: block;
+  font-size: 30px;
+  color: var(--home-acento);
+  margin-bottom: 14px;
+}
+
+.home__principio h3 {
+  font-size: 19px;
+  margin-bottom: 10px;
+}
+
+.home__principio p {
+  margin: 0;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+.home__sobre-topo {
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .home__principios {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Perguntas frequentes --- */
+
+.home__faq {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.home__faq-item {
+  padding: 24px 0;
+  border-top: 1px solid var(--home-borda);
+}
+
+.home__faq-item:last-child {
+  border-bottom: 1px solid var(--home-borda);
+}
+
+.home__faq dt {
+  font-family: var(--home-fonte-titulo);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--home-titulo);
+  margin-bottom: 10px;
+  text-wrap: balance;
+}
+
+.home__faq dd {
+  margin: 0;
+  max-width: 820px;
+  line-height: 1.8;
+  text-wrap: pretty;
+}
+
+/* --- Canais de contato --- */
+
+.home__canais {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 48px;
+}
+
+.home__canal a {
+  display: grid;
+  gap: 4px;
+  padding: 26px;
+  background: var(--home-superficie);
+  border-radius: 6px;
+  box-shadow: 0 10px 26px rgba(0, 118, 168, 0.06);
+  color: var(--home-texto);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.home__canal a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(0, 118, 168, 0.12);
+  color: var(--home-texto);
+}
+
+/* Feedback de pressão: o cartão inteiro é o alvo de toque. */
+.home__canal a:active {
+  transform: translateY(-1px);
+}
+
+.home__canal i {
+  font-size: 26px;
+  color: var(--home-acento);
+  margin-bottom: 6px;
+}
+
+.home__canal-titulo {
+  font-family: var(--home-fonte-nav);
+  font-size: 13px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(68, 68, 68, 0.6);
+}
+
+.home__canal-valor {
+  font-family: var(--home-fonte-titulo);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--home-titulo);
+}
+
+.home__contato-nota {
+  padding-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .home__canais {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Faixa de chamada para ação --- */
+
+.home__cta-faixa {
+  background: var(--home-escuro);
+  color: #ffffff;
+  text-align: center;
+}
+
+.home__cta-faixa h2 {
+  color: #ffffff;
+  font-size: 32px;
+  margin-bottom: 12px;
+  text-wrap: balance;
+}
+
+.home__cta-faixa p {
+  max-width: 620px;
+  margin: 0 auto 26px;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.7;
+}
+
+.home__cta-botoes {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.home__botao-primario,
+.home__botao-secundario {
+  display: inline-block;
+  /* 14px vertical mais a altura de linha passa de 44px — alvo de toque, não
+     medida estética. */
+  padding: 14px 32px;
+  border-radius: 6px;
+  font-family: var(--home-fonte-nav);
+  font-size: 15px;
+  font-weight: 500;
+  transition: background-color 0.25s ease, transform 0.25s ease, color 0.25s ease;
+}
+
+.home__botao-primario {
+  background: var(--home-acento);
+  color: #ffffff;
+}
+
+.home__botao-primario:hover {
+  background: #3a9bc8;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.home__botao-secundario {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.home__botao-secundario:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.home__botao-primario:active,
+.home__botao-secundario:active {
+  transform: translateY(0);
+}
+
+/* Marca o item da página atual no menu — sem isso o menu vira uma lista de
+   links idênticos e o usuário não sabe onde está. */
+.home__nav a[aria-current="page"] {
+  color: var(--home-acento);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home__servico-detalhe > article,
+  .home__canal a,
+  .home__botao-primario,
+  .home__botao-secundario {
+    transition: none;
+  }
+
+  .home__servico-detalhe > article:hover,
+  .home__canal a:hover,
+  .home__botao-primario:hover,
+  .home__botao-secundario:hover {
+    transform: none;
   }
 }

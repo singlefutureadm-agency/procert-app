@@ -1,0 +1,34 @@
+# ProCert — site institucional
+#
+# O painel fica sob o mesmo domínio do site. Suas rotas exigem JWT e devolvem a
+# tela de login para quem não tem sessão, então o crawler nunca alcança dado de
+# cliente — mas indexar essas URLs gastaria orçamento de rastreio em páginas que
+# só rendem um formulário de login, e ainda espalharia links para /dashboard nos
+# resultados de busca.
+
+User-agent: *
+Allow: /
+
+Disallow: /login
+Disallow: /esqueci-senha
+Disallow: /redefinir-senha
+Disallow: /sem-permissao
+Disallow: /dashboard
+Disallow: /certificacoes
+Disallow: /certificados
+Disallow: /nao-conformidades
+Disallow: /produtos
+Disallow: /clientes
+Disallow: /categorias
+Disallow: /equipe
+
+# Os PDFs institucionais são conteúdo público de propósito (manual da qualidade,
+# política de imparcialidade) e rankeiam por conta própria.
+Allow: /documentos/
+
+# `/uploads` serve evidência de etapa e PDF de certificado. As pastas privadas
+# não são montadas como estático, mas o Disallow existe para que nem a pública
+# entre no índice: são arquivos de cliente, não conteúdo de marketing.
+Disallow: /uploads/
+
+Sitemap: https://procert-app.vercel.app/sitemap.xml

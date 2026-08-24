@@ -12,8 +12,11 @@ import { CertificadosPage } from '@/features/certificados/CertificadosPage';
 import { ClienteFormPage } from '@/features/clientes/ClienteFormPage';
 import { ClientesPage } from '@/features/clientes/ClientesPage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
+import { ContatoPage } from '@/features/home/ContatoPage';
 import { HomePage } from '@/features/home/HomePage';
 import { PoliticaPrivacidadePage } from '@/features/home/PoliticaPrivacidadePage';
+import { ServicosPage } from '@/features/home/ServicosPage';
+import { SobrePage } from '@/features/home/SobrePage';
 import { TermosDeUsoPage } from '@/features/home/TermosDeUsoPage';
 import { NaoConformidadesPage } from '@/features/nao-conformidades/NaoConformidadesPage';
 import { FuncionarioFormPage } from '@/features/funcionarios/FuncionarioFormPage';
@@ -31,6 +34,15 @@ const EQUIPE = ['ADMIN', 'FUNCIONARIO'] as const;
 export const router = createBrowserRouter([
   // Site institucional público — porta de entrada da plataforma.
   { path: '/', element: <HomePage /> },
+
+  // Páginas institucionais. Cada uma existe como URL própria — e não como
+  // âncora da home — para disputar o próprio conjunto de termos de busca, com
+  // título, descrição e dados estruturados próprios. Os caminhos são a fonte
+  // única de PAGINAS (features/home/conteudo-paginas.ts), que alimenta o menu
+  // e o rodapé; ao acrescentar rota pública, atualize também public/sitemap.xml.
+  { path: '/sobre', element: <SobrePage /> },
+  { path: '/servicos', element: <ServicosPage /> },
+  { path: '/contato', element: <ContatoPage /> },
 
   // Documentos legais: públicos e linkados no rodapé do site. Os caminhos são
   // a fonte única de PAGINAS_LEGAIS (features/home/conteudo-legal.ts).
