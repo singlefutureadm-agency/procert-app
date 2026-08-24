@@ -77,7 +77,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 173 unitários, 9 suítes, Prisma mockado |
+| `npm test` | ✅ 224 unitários, 11 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 75 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -90,7 +90,7 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **O backend tem rede de segurança; o frontend não.** 173 unitários + 75 e2e cobrem
+> **O backend tem rede de segurança; o frontend não.** 224 unitários + 75 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
 > **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
@@ -223,10 +223,29 @@ migração corrigiu.
 
 ### Uploads
 
-`UploadsService` grava em `UPLOAD_DIR` (default `./uploads`) com nome `randomUUID()` e
-allowlist de MIME (imagens; documentos de etapa aceitam também PDF/DOC/XLS). Protege
-contra path traversal em `remover` e `caminhoAbsoluto`. Devolve sempre URL relativa
-`/uploads/<pasta>/<uuid>.<ext>`.
+`UploadsService` cuida do que não muda entre ambientes — allowlist de MIME (imagens;
+documentos de etapa aceitam também PDF/DOC/XLS), limite de tamanho, nome `randomUUID()` e a
+URL relativa `/uploads/<pasta>/<uuid>.<ext>` que vai para o banco. **Onde o byte fica é do
+`Armazenamento`**, o driver injetado por `UPLOAD_DRIVER`:
+
+| Driver | Grava em | `/uploads/<pasta>/<arquivo>` |
+|---|---|---|
+| `disco` (padrão) | `UPLOAD_DIR` no filesystem local | `useStaticAssets` por pasta pública |
+| `supabase` | Supabase Storage (REST por `fetch`) | **302** para a URL pública do bucket |
+
+A abstração existe porque em serverless (Vercel) o filesystem é efêmero: um PDF gravado com
+`writeFile` some na próxima instância fria e o registro no banco fica apontando para nada.
+**A URL guardada no banco é idêntica nos dois drivers** — é o que mantém válidas as linhas
+antigas e deixa o frontend fora do assunto. Faltando `SUPABASE_URL`/
+`SUPABASE_SERVICE_ROLE_KEY`, a API **recusa subir** em vez de cair de volta no disco:
+degradar em silêncio num ambiente efêmero perde arquivo sem erro. O bucket privado não sai
+por URL assinada — seria um segundo caminho até o mesmo byte, com uma segunda chance de
+esquecer a checagem de posse.
+
+Toda leitura e remoção passa por `arquivoDeUpload()`, que decompõe a URL do banco em
+`<pasta>/<arquivo>` e devolve `null` para qualquer outra forma — travessia inclusive. Quem
+lê o conteúdo chama `uploads.ler(url)`: `caminhoAbsoluto` saiu junto com o pressuposto de
+que existe caminho em disco.
 
 > **Só as pastas públicas são servidas como estático.** `uploads.constantes.ts` é a fonte
 > única: `PASTAS_PUBLICAS` (`clientes`, `funcionarios`, `produtos`, `aparencia`) ganha um
@@ -237,8 +256,13 @@ contra path traversal em `remover` e `caminhoAbsoluto`. Devolve sempre URL relat
 > allowlist — é redundante hoje, e existe para que remontar o estático por engano não
 > reabra a exposição. **Ao criar uma pasta nova, decida de que lado da linha ela fica.**
 >
-> A decisão passa por `pastaPublicaDaRota()`, que **decodifica o caminho uma vez** antes de
-> olhar a allowlist — a mesma decodificação que o `serve-static` faz — e recusa qualquer
+> Com driver externo não há `serve-static` nenhum como segunda barreira, e o middleware
+> passa a ser a única: por isso ele usa `arquivoPublicoDaRota()`, que exige
+> `<pasta>/<arquivo>` — dois segmentos exatos — e é quem decide entre redirecionar para o
+> bucket e deixar o estático servir.
+>
+> Ela **decodifica o caminho uma vez** antes de olhar a allowlist — a mesma decodificação
+> que o `serve-static` faz — e recusa qualquer
 > segmento `..`/`.` ou codificação inválida. Ler o texto cru deixava
 > `/uploads/produtos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como se
 > `%2e%2e%2fcertificados` fosse nome de pasta (ver `DOCUMENTACAO.md` §15). Coberto por

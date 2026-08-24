@@ -1,9 +1,14 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname } from 'node:path';
 
+import {
+  type Armazenamento,
+  ARMAZENAMENTO,
+  mimeDaExtensao,
+} from './uploads.armazenamento';
+import { arquivoDeUpload, PREFIXO_UPLOADS } from './uploads.constantes';
 import type { PastaUpload } from './uploads.constantes';
 
 /** Reexportado para não quebrar quem já importava o tipo daqui. */
@@ -30,43 +35,35 @@ const MIMES_DOCUMENTO: Record<string, string> = {
 };
 
 /**
- * Armazenamento de imagens enviadas pelos usuários.
+ * Armazenamento de imagens e documentos enviados pelos usuários.
  *
  * Corrige três falhas do legado:
  *  • gravava em '../uploads/' e lia de DOCUMENT_ROOT.'/uploads/' (caminhos divergentes)
  *  • aceitava qualquer extensão, inclusive .php
  *  • nunca removia o arquivo antigo ao trocar a foto
+ *
+ * Onde o byte fica é decisão do `Armazenamento` injetado (disco ou Supabase
+ * Storage) — este service cuida só do que não muda entre os dois: allowlist de
+ * MIME, limite de tamanho, nome em UUID e a forma da URL guardada no banco.
  */
 @Injectable()
 export class UploadsService {
-  private readonly logger = new Logger(UploadsService.name);
-  private readonly baseDir: string;
   private readonly tamanhoMaximo: number;
 
-  constructor(private readonly config: ConfigService) {
-    this.baseDir = join(
-      process.cwd(),
-      this.config.get<string>('UPLOAD_DIR', './uploads'),
-    );
+  constructor(
+    private readonly config: ConfigService,
+    @Inject(ARMAZENAMENTO) private readonly armazenamento: Armazenamento,
+  ) {
     this.tamanhoMaximo =
       Number(this.config.get<number>('UPLOAD_MAX_SIZE_MB', 5)) * 1024 * 1024;
   }
 
-  /** Salva o arquivo e devolve a URL pública relativa (ex.: /uploads/clientes/x.jpg). */
+  /** Salva o arquivo e devolve a URL relativa (ex.: /uploads/clientes/x.jpg). */
   async salvarImagem(
     arquivo: Express.Multer.File,
     pasta: PastaUpload,
   ): Promise<string> {
-    this.validar(arquivo);
-
-    const extensao = MIMES_PERMITIDOS[arquivo.mimetype] ?? extname(arquivo.originalname);
-    const nomeArquivo = `${randomUUID()}${extensao}`;
-    const destino = join(this.baseDir, pasta);
-
-    await mkdir(destino, { recursive: true });
-    await writeFile(join(destino, nomeArquivo), arquivo.buffer);
-
-    return `/uploads/${pasta}/${nomeArquivo}`;
+    return this.salvarEnviado(arquivo, pasta, MIMES_PERMITIDOS);
   }
 
   /** Salva uma evidência de etapa (PDF, planilha, imagem) e devolve a URL. */
@@ -74,17 +71,7 @@ export class UploadsService {
     arquivo: Express.Multer.File,
     pasta: PastaUpload,
   ): Promise<string> {
-    this.validar(arquivo, MIMES_DOCUMENTO);
-
-    const extensao =
-      MIMES_DOCUMENTO[arquivo.mimetype] ?? extname(arquivo.originalname);
-    const nomeArquivo = `${randomUUID()}${extensao}`;
-    const destino = join(this.baseDir, pasta);
-
-    await mkdir(destino, { recursive: true });
-    await writeFile(join(destino, nomeArquivo), arquivo.buffer);
-
-    return `/uploads/${pasta}/${nomeArquivo}`;
+    return this.salvarEnviado(arquivo, pasta, MIMES_DOCUMENTO);
   }
 
   /**
@@ -100,44 +87,38 @@ export class UploadsService {
     extensao: string,
   ): Promise<string> {
     const nomeArquivo = `${randomUUID()}${extensao}`;
-    const destino = join(this.baseDir, pasta);
 
-    await mkdir(destino, { recursive: true });
-    await writeFile(join(destino, nomeArquivo), conteudo);
-
-    return `/uploads/${pasta}/${nomeArquivo}`;
-  }
-
-  /** Caminho absoluto de um arquivo salvo, para leitura/streaming. */
-  caminhoAbsoluto(urlRelativa: string): string | null {
-    if (!urlRelativa.startsWith('/uploads/')) return null;
-
-    const caminho = normalize(
-      join(this.baseDir, urlRelativa.replace('/uploads/', '')),
+    await this.armazenamento.gravar(
+      pasta,
+      nomeArquivo,
+      conteudo,
+      mimeDaExtensao(extensao),
     );
 
-    // Mesma proteção contra path traversal usada na remoção.
-    return caminho.startsWith(this.baseDir) ? caminho : null;
+    return `${PREFIXO_UPLOADS}${pasta}/${nomeArquivo}`;
+  }
+
+  /**
+   * Bytes de um arquivo salvo, ou `null` se ele não existe mais.
+   *
+   * Substitui o antigo `caminhoAbsoluto`: caminho em disco só faz sentido para
+   * um dos drivers, e quem chama (PDF de certificado, evidência de etapa) quer
+   * o conteúdo, não o caminho. O `null` cobre os dois casos que já eram
+   * tratados — URL fora do padrão e arquivo ausente — com a mesma resposta.
+   */
+  async ler(urlRelativa?: string | null): Promise<Buffer | null> {
+    const partes = arquivoDeUpload(urlRelativa);
+    if (!partes) return null;
+
+    return this.armazenamento.ler(partes.pasta, partes.arquivo);
   }
 
   /** Remove um arquivo previamente salvo. Falhas são apenas registradas em log. */
   async remover(urlRelativa?: string | null): Promise<void> {
-    if (!urlRelativa?.startsWith('/uploads/')) return;
+    const partes = arquivoDeUpload(urlRelativa);
+    if (!partes) return;
 
-    const caminho = normalize(
-      join(this.baseDir, urlRelativa.replace('/uploads/', '')),
-    );
-
-    // Proteção contra path traversal.
-    if (!caminho.startsWith(this.baseDir)) return;
-
-    try {
-      await unlink(caminho);
-    } catch (error) {
-      this.logger.warn(
-        `Não foi possível remover ${urlRelativa}: ${(error as Error).message}`,
-      );
-    }
+    await this.armazenamento.remover(partes.pasta, partes.arquivo);
   }
 
   /** Substitui a foto atual removendo a anterior. */
@@ -149,6 +130,26 @@ export class UploadsService {
     const novaUrl = await this.salvarImagem(arquivo, pasta);
     await this.remover(urlAnterior);
     return novaUrl;
+  }
+
+  private async salvarEnviado(
+    arquivo: Express.Multer.File,
+    pasta: PastaUpload,
+    permitidos: Record<string, string>,
+  ): Promise<string> {
+    this.validar(arquivo, permitidos);
+
+    const extensao = permitidos[arquivo.mimetype] ?? extname(arquivo.originalname);
+    const nomeArquivo = `${randomUUID()}${extensao}`;
+
+    await this.armazenamento.gravar(
+      pasta,
+      nomeArquivo,
+      arquivo.buffer,
+      arquivo.mimetype,
+    );
+
+    return `${PREFIXO_UPLOADS}${pasta}/${nomeArquivo}`;
   }
 
   private validar(

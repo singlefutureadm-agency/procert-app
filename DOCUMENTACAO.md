@@ -951,6 +951,49 @@ CLIENTE e devolvem o arquivo como blob. O download da evidência vem com
 `Content-Disposition: attachment` para que um SVG ou HTML anexado não execute no domínio
 da API.
 
+### Onde o byte fica: `UPLOAD_DRIVER`
+
+O disco deixou de ser uma escolha universal. Em ambiente serverless (Vercel) o filesystem é
+efêmero e recriado a cada instância fria: uma evidência de etapa gravada com `writeFile`
+desaparece **sem erro nenhum**, e o registro no banco fica apontando para um arquivo que não
+existe mais. O `UploadsService` passou a conversar só com a interface `Armazenamento`
+(`modules/uploads/uploads.armazenamento.ts`), e quem implementa é o driver escolhido por
+`UPLOAD_DRIVER`:
+
+| Driver | Grava em | `/uploads/<pasta>/<arquivo>` |
+|---|---|---|
+| `disco` (padrão) | `UPLOAD_DIR` no filesystem local | `useStaticAssets` por pasta pública, como sempre |
+| `supabase` | Supabase Storage, via REST | **302** para a URL pública do bucket |
+
+Três decisões que sustentam isso:
+
+- **A URL guardada no banco é a mesma nos dois drivers** — `/uploads/<pasta>/<uuid>.<ext>`.
+  Não é economia de código: é o que mantém válidas as linhas gravadas antes da migração e o
+  que deixa o frontend sem saber de onde o byte vem. Com o driver externo, quem vai atrás do
+  arquivo é o navegador seguindo o 302 — o byte não passa pela API, que em serverless
+  pagaria a banda duas vezes.
+- **Dois buckets, espelhando `PASTAS_PUBLICAS` × `PASTAS_PRIVADAS`.** O bucket privado
+  **não** sai por URL assinada: PDF de certificado e evidência continuam saindo por
+  `GET /certificados/:id/pdf` e `GET /certificacoes/documentos/:id/arquivo`, que conferem a
+  posse. URL assinada seria um segundo caminho de acesso ao mesmo byte, com uma segunda
+  chance de esquecer a checagem — exatamente o IDOR que a migração corrigiu.
+- **Configuração faltando quebra no boot**, em vez de cair de volta no disco. Degradar em
+  silêncio num ambiente efêmero é o pior dos mundos: o upload responde 200 e o arquivo some
+  na próxima instância fria.
+
+O driver do Storage fala o REST por `fetch`, sem o `@supabase/supabase-js` — o SDK traz
+junto PostgREST, realtime e um cliente de auth que este projeto não usa, pela mesma razão
+que o painel não tem biblioteca de gráficos nem de ícones.
+
+O allowlist de `/uploads` decide **antes** dos dois caminhos e é o mesmo nos dois: com o
+driver externo não existe `serve-static` para servir de segunda barreira, e
+`arquivoPublicoDaRota` passa a ser a única. Por isso ela exige `<pasta>/<arquivo>` — dois
+segmentos exatos, decodificados uma vez, sem `..` nem `.`.
+
+O e2e roda sempre em `disco`: ele grava arquivos de verdade e confere presença em disco
+antes de afirmar qualquer 404. O driver do Supabase é coberto no unitário
+(`uploads.armazenamento.spec.ts`), com o `fetch` interceptado.
+
 Em dev, o Vite faz proxy de `/uploads` para a API, então o mesmo caminho relativo funciona
 nos dois ambientes — inclusive o 404 das pastas privadas.
 
@@ -1132,8 +1175,11 @@ mantém o chunk principal pequeno e melhora o cache entre deploys.
 | `JWT_SECRET` | — | **Obrigatória** (`getOrThrow`); gere com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
 | `JWT_EXPIRES_IN` | `8h` | Validade do access token |
 | `BCRYPT_SALT_ROUNDS` | `12` | Custo do bcrypt |
-| `UPLOAD_DIR` | `./uploads` | Raiz dos arquivos enviados |
+| `UPLOAD_DRIVER` | `disco` | Onde os arquivos ficam: `disco` ou `supabase` (§9) |
+| `UPLOAD_DIR` | `./uploads` | Raiz dos arquivos enviados (só com `disco`; absoluto é respeitado) |
 | `UPLOAD_MAX_SIZE_MB` | `5` | Tamanho máximo por imagem |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | vazio | **Obrigatórias** com `UPLOAD_DRIVER=supabase` — sem elas a API recusa subir |
+| `SUPABASE_BUCKET_PUBLICO` / `SUPABASE_BUCKET_PRIVADO` | `procert-publico` / `procert-privado` | Buckets que espelham `PASTAS_PUBLICAS` × `PASTAS_PRIVADAS` |
 | `PUBLIC_URL` | `http://localhost:3000` | Base pública dos arquivos |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_SECURE` | `smtp.hostinger.com` / `465` / `true` | SMTP |
 | `MAIL_USER` / `MAIL_PASS` / `MAIL_FROM` | vazio | Credenciais; **vazio ⇒ e-mail apenas logado** |
@@ -1367,7 +1413,7 @@ código.
 | **`npm run lint:ci` (ambos)** | ✅ 0 — é o que o CI roda: `--max-warnings=0` e **sem `--fix`**. O `lint` de desenvolvimento reescreve os arquivos, então usá-lo no pipeline faria o job passar justamente quando houvesse o que corrigir. |
 | `npm run lint` (frontend) | ✅ |
 | **CI (GitHub Actions)** | ✅ dois jobs obrigatórios, ~1m15s por execução (`8fd0363`, `d9ea0aa`) |
-| **`npm test` (backend)** | ✅ **173 testes, 9 suítes** |
+| **`npm test` (backend)** | ✅ **224 testes, 11 suítes** |
 | **`npm run test:e2e` (backend)** | ✅ **75 testes, 2 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
 | Testes no frontend | ❌ **inexistentes** — é a lacuna que sobrou |
@@ -1979,7 +2025,7 @@ Três detalhes que custam caro se errados:
 
 *Gatilho: nenhum — é o próximo, assim que houver acesso à conta dona.*
 
-**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 173 unitários + 75 e2e. O
+**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 224 unitários + 75 e2e. O
 CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o
 passo. Comece pelo que quebra silencioso — `lib/tema.ts` (`MAPA_CSS`, `checarContrastes`),
 `mensagemDeErro` e as chaves de `lib/queryClient.ts`.

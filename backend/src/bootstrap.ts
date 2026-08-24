@@ -4,14 +4,19 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import type { NextFunction, Request, Response } from 'express';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import {
+  ARMAZENAMENTO,
+  type Armazenamento,
+  ArmazenamentoDisco,
+} from './modules/uploads/uploads.armazenamento';
+import {
+  arquivoPublicoDaRota,
   PASTAS_PUBLICAS,
   PASTAS_UPLOAD,
-  pastaPublicaDaRota,
 } from './modules/uploads/uploads.constantes';
 
 /**
@@ -62,7 +67,7 @@ export function configurarApp(app: NestExpressApplication): void {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  configurarEstaticos(app, uploadDir);
+  configurarUploads(app, uploadDir);
 }
 
 /**
@@ -112,20 +117,27 @@ function validarSegredosDeProducao(config: ConfigService): void {
 /**
  * Arquivos enviados pelos usuários.
  *
- * Todas as pastas são criadas no boot, públicas e privadas: os métodos do
- * UploadsService já fazem `mkdir` recursivo na gravação, mas manter a criação
- * aqui preserva o comportamento anterior (diretório existente desde a subida) e
- * evita que o estático de uma pasta pública aponte para caminho inexistente.
+ * Duas montagens possíveis, decididas pelo driver de armazenamento:
+ *
+ *  • **disco** — um `useStaticAssets` por pasta pública, como sempre foi.
+ *  • **externo** (Supabase Storage) — não há arquivo local para servir, então
+ *    `/uploads/<pasta>/<arquivo>` responde 302 para a URL pública do bucket.
+ *
+ * O redirecionamento existe para que a URL guardada no banco continue sendo
+ * `/uploads/...` nos dois casos: o frontend não precisa saber de onde o byte
+ * vem, e as linhas gravadas antes da migração seguem válidas. Quem for atrás
+ * do arquivo é o navegador, que segue o 302 sozinho — o byte não passa pela
+ * API, que num ambiente serverless pagaria a banda duas vezes.
+ *
+ * A allowlist decide ANTES dos dois caminhos, e é a mesma nos dois.
  */
-function configurarEstaticos(
+function configurarUploads(
   app: NestExpressApplication,
   uploadDir: string,
 ): void {
-  const raizUploads = join(process.cwd(), uploadDir);
-  mkdirSync(raizUploads, { recursive: true });
-  for (const pasta of PASTAS_UPLOAD) {
-    mkdirSync(join(raizUploads, pasta), { recursive: true });
-  }
+  const armazenamento = app.get<Armazenamento>(ARMAZENAMENTO);
+  // Mesma resolução do driver de disco (ver `criarArmazenamento`).
+  const raizUploads = resolve(process.cwd(), uploadDir);
 
   // Nega tudo que não seja pasta pública, ANTES de qualquer mount estático.
   //
@@ -136,13 +148,15 @@ function configurarEstaticos(
   // registrado antes — continua valendo se alguém remontar o diretório inteiro
   // como estático no futuro.
   //
-  // `pastaPublicaDaRota` decodifica o caminho antes de olhar a allowlist: a
-  // decisão precisa ser tomada sobre o mesmo texto que o `serve-static` usa para
-  // resolver o arquivo em disco.
+  // `arquivoPublicoDaRota` decodifica o caminho antes de olhar a allowlist: a
+  // decisão precisa ser tomada sobre o mesmo texto que o `serve-static` usa
+  // para resolver o arquivo em disco.
   app.use(
     '/uploads',
     (req: Request, res: Response, proximo: NextFunction): void => {
-      if (pastaPublicaDaRota(req.path) === null) {
+      const alvo = arquivoPublicoDaRota(req.path);
+
+      if (alvo === null) {
         res.status(404).json({
           statusCode: 404,
           message: 'Arquivo não encontrado.',
@@ -153,9 +167,28 @@ function configurarEstaticos(
         return;
       }
 
+      const urlExterna = armazenamento.urlPublica(alvo.pasta, alvo.arquivo);
+      if (urlExterna) {
+        res.redirect(302, urlExterna);
+        return;
+      }
+
       proximo();
     },
   );
+
+  // Sem arquivo local não há o que criar nem o que montar: o driver externo
+  // publica sozinho e o middleware acima já resolveu a requisição.
+  if (!(armazenamento instanceof ArmazenamentoDisco)) return;
+
+  // Todas as pastas são criadas no boot, públicas e privadas: o driver de disco
+  // já faz `mkdir` recursivo na gravação, mas manter a criação aqui preserva o
+  // comportamento anterior (diretório existente desde a subida) e evita que o
+  // estático de uma pasta pública aponte para caminho inexistente.
+  mkdirSync(raizUploads, { recursive: true });
+  for (const pasta of PASTAS_UPLOAD) {
+    mkdirSync(join(raizUploads, pasta), { recursive: true });
+  }
 
   // Um mount por pasta pública. PDF de certificado e evidência de etapa ficam
   // de fora de propósito: saem só por /certificados/:id/pdf e
