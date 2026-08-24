@@ -1,4 +1,13 @@
 import { useId, useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+import {
+  formatarBytes,
+  ImagemInvalidaError,
+  PERFIL,
+  prepararImagem,
+  type OpcoesImagem,
+} from '@/lib/imagem';
 
 interface Props {
   rotulo: string;
@@ -6,6 +15,12 @@ interface Props {
   /** Mesmo formato do atributo `accept` do input. */
   aceita: string;
   aoEscolher: (arquivo: File | null) => void;
+  /**
+   * Redimensiona e recomprime a imagem antes de entregá-la (padrão: ligado).
+   * Passe `false` para arquivos que precisam subir intactos — um PDF de
+   * evidência, por exemplo, que este componente não deve tocar.
+   */
+  otimizar?: boolean | OpcoesImagem;
 }
 
 /**
@@ -22,11 +37,59 @@ interface Props {
  * ser texto nosso, e o `aria-describedby` liga o botão a ele — senão o leitor
  * de tela anuncia "Escolher arquivo" sem dizer qual está escolhido.
  */
-export function CampoArquivo({ rotulo, dica, aceita, aoEscolher }: Props) {
+export function CampoArquivo({
+  rotulo,
+  dica,
+  aceita,
+  aoEscolher,
+  otimizar = true,
+}: Props) {
   const entrada = useRef<HTMLInputElement>(null);
   const [nome, setNome] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
   const id = useId();
   const idEstado = `${id}-estado`;
+
+  async function selecionar(arquivo: File | null) {
+    if (!arquivo) {
+      setNome(null);
+      aoEscolher(null);
+      return;
+    }
+
+    const querOtimizar = otimizar !== false && arquivo.type.startsWith('image/');
+    if (!querOtimizar) {
+      setNome(arquivo.name);
+      aoEscolher(arquivo);
+      return;
+    }
+
+    setOcupado(true);
+    try {
+      const opcoes = typeof otimizar === 'object' ? otimizar : PERFIL;
+      const pronto = await prepararImagem(arquivo, opcoes);
+      setNome(pronto.name);
+      aoEscolher(pronto);
+
+      // Só avisa quando houve ganho de verdade — um "reduzida de 900 KB para
+      // 880 KB" é ruído.
+      if (arquivo.size - pronto.size > 256 * 1024) {
+        toast.success(
+          `Imagem otimizada: ${formatarBytes(arquivo.size)} → ${formatarBytes(pronto.size)}.`,
+        );
+      }
+    } catch (erro) {
+      setNome(null);
+      aoEscolher(null);
+      toast.error(
+        erro instanceof ImagemInvalidaError
+          ? erro.message
+          : 'Não foi possível preparar a imagem.',
+      );
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   return (
     <div className="campo">
@@ -40,10 +103,11 @@ export function CampoArquivo({ rotulo, dica, aceita, aoEscolher }: Props) {
           hidden
           onChange={(evento) => {
             const arquivo = evento.target.files?.[0] ?? null;
-            setNome(arquivo?.name ?? null);
-            aoEscolher(arquivo);
-            // Permite reescolher o mesmo arquivo depois de remover.
+            // Permite reescolher o mesmo arquivo depois de remover. Precisa
+            // acontecer antes do await: o input é reaproveitado pelo React e
+            // limpá-lo depois apagaria uma escolha já feita.
             evento.target.value = '';
+            void selecionar(arquivo);
           }}
         />
 
@@ -51,23 +115,25 @@ export function CampoArquivo({ rotulo, dica, aceita, aoEscolher }: Props) {
           type="button"
           className="btn btn--pequeno"
           aria-describedby={idEstado}
+          disabled={ocupado}
           onClick={() => entrada.current?.click()}
         >
           {nome ? 'Trocar arquivo' : 'Escolher arquivo'}
         </button>
 
-        <span className="texto-pequeno texto-suave campo-arquivo__nome" id={idEstado}>
-          {nome ?? 'Nenhum arquivo escolhido'}
+        <span
+          className="texto-pequeno texto-suave campo-arquivo__nome"
+          id={idEstado}
+          role="status"
+        >
+          {ocupado ? 'Preparando imagem…' : (nome ?? 'Nenhum arquivo escolhido')}
         </span>
 
         {nome && (
           <button
             type="button"
             className="btn btn--pequeno"
-            onClick={() => {
-              setNome(null);
-              aoEscolher(null);
-            }}
+            onClick={() => void selecionar(null)}
           >
             Remover
           </button>
