@@ -421,6 +421,7 @@ src/
 ├── features/       Um diretório por domínio: api.ts + páginas + componentes locais
 │                   Inclui `home` (site institucional público) e `aparencia`
 ├── lib/            api.ts (axios), queryClient.ts (chaves de cache), tema.ts, formatadores
+│                   seo.ts (meta por rota), imagem.ts (reduz upload), cep.ts + useCep.ts
 ├── pages/          Telas fora do painel (login, reset, 404, sem-permissão)
 ├── styles/         global.css — tema "liquid glass" herdado do legado
 └── types/          Contratos espelhando os enums/selects do Prisma
@@ -457,12 +458,91 @@ revalida em `GET /auth/me`; falha limpa tudo. `sair()` também chama `queryClien
 
 ### Roteamento (`router.tsx`)
 
-`/` é o **site institucional público**. O painel fica sob uma rota de layout **sem `path`**
-envolvida em `<RotaProtegida>`, com os filhos declarando caminhos absolutos
-(`dashboard`, `certificacoes`, `produtos`, …). Rotas restritas usam
-`<RotaProtegida papeis={['ADMIN']}>` — **isso é UX, não controle**: o backend repete a
-checagem em todo endpoint. Ao adicionar uma rota, ajuste também `components/layout/Sidebar.tsx`
-(que filtra itens por `papeis`).
+`/` é o **site institucional público**, com quatro páginas próprias além dele:
+`/sobre`, `/servicos`, `/contato` e as duas legais (`/termos-de-uso`,
+`/politica-de-privacidade`). O painel fica sob uma rota de layout **sem `path`** envolvida
+em `<RotaProtegida>`, com os filhos declarando caminhos absolutos (`dashboard`,
+`certificacoes`, `produtos`, …). Rotas restritas usam `<RotaProtegida papeis={['ADMIN']}>`
+— **isso é UX, não controle**: o backend repete a checagem em todo endpoint. Ao adicionar
+uma rota, ajuste também `components/layout/Sidebar.tsx` (que filtra itens por `papeis`).
+
+**Só a home e o login entram no pacote inicial.** Todo o resto é `lazy`, e o `<Suspense>`
+que os segura fica no `main.tsx`, com `CarregandoRota` de fallback. O pacote saiu de 512 KB
+para ~332 KB: antes, quem chegava pela busca para ler a página de serviços baixava o painel
+inteiro — dashboard, certificações, produtos, clientes, categorias, equipe, aparência —
+antes da primeira linha de texto.
+
+Ao acrescentar rota pública, atualize **três** lugares além do router: `PAGINAS` em
+`features/home/conteudo-paginas.ts` (menu e rodapé), `public/sitemap.xml` e, se ela não
+deve ser rastreada, `public/robots.txt`.
+
+> **Pedaço obsoleto após deploy.** Cada build gera hash novo, e uma aba aberta antes de um
+> deploy pede um nome que não existe mais — "Failed to fetch dynamically imported module".
+> `pagina()` no topo de `router.tsx` recarrega a página uma vez nesse caso, com trava em
+> `sessionStorage` contra laço. **Isso depende do `vercel.json`**, cujo fallback de SPA
+> exclui `/assets/`: com o catch-all cru, o pedaço ausente voltava como `index.html` com
+> status 200 e `content-type: text/html`, e o erro era falha ao executar HTML como módulo,
+> não um 404. Mexeu num, confira o outro.
+
+### SEO do site institucional (`lib/seo.ts`)
+
+O `index.html` traz **um** `<title>` e **uma** `<meta description>` para o site inteiro.
+Isso bastava enquanto a home era a única página pública; com `/sobre`, `/servicos` e
+`/contato`, as páginas passariam a disputar o mesmo título no resultado de busca.
+
+`aplicarSeo()` / `useSeo()` definem por rota: title, description, canonical, Open Graph,
+Twitter Card e um bloco JSON-LD. Escrito à mão em vez de `react-helmet-async`, pelo mesmo
+critério que manteve gráficos e ícones sem biblioteca.
+
+- `organizacao()` só declara o que é verificável no próprio site. **Não afirma acreditação
+  junto ao Inmetro/Cgcre, escopo acreditado nem norma coberta** — para um OCP são
+  declarações com efeito regulatório, e schema.org é lido por agregadores. O campo próprio,
+  havendo confirmação documental, é `hasCredential`.
+- O mesmo limite vale para o texto das páginas: está registrado no topo de
+  `features/home/conteudo-paginas.ts`. **Leia antes de acrescentar conteúdo lá.**
+- `FAQPage` exige que a resposta esteja **visível** na página — é por isso que o bloco de
+  perguntas não é acordeão.
+
+`public/robots.txt` fecha o painel e `/uploads` ao rastreio; `public/sitemap.xml` lista as
+seis rotas públicas. Ambos são mantidos à mão.
+
+> **Limite conhecido:** tudo isso roda no cliente. O Googlebot executa JS e lê o resultado,
+> mas crawlers sem JS — e as prévias de link do WhatsApp, LinkedIn e X — recebem o
+> `<div id="root">` vazio. Fechar isso é pré-renderizar as rotas públicas no build (SSG);
+> não toca em componente, é configuração. Anotado no fim de `lib/seo.ts`.
+
+### Upload de imagem — o erro que chega como "CORS"
+
+**O corpo de uma requisição na Vercel para em 4,5 MB**, e o corte é feito pela plataforma
+antes da função rodar: a resposta 413 sai sem passar pelo middleware de CORS, e o navegador
+relata `No 'Access-Control-Allow-Origin' header`. O sintoma esconde a causa. Se um upload
+falhar com CORS em produção, **olhe o status no log da função antes de mexer em CORS**.
+
+`lib/imagem.ts` redimensiona e recomprime em `<canvas>` antes de enviar, e está ligado no
+`CampoArquivo` — então funcionário, cliente e produto ganham juntos. Uma foto de 8,7 MB vira
+427 KB. Três regras que não são detalhe:
+
+- PNG e WebP saem como **WebP, nunca JPEG** — converter achataria em preto o fundo
+  transparente de uma logo.
+- Arquivo que já cabe no limite e nas dimensões volta **intacto**: recomprimir o que já
+  está bom só degrada.
+- O que ainda não couber depois de reduzido é **recusado com mensagem clara**, em vez de
+  virar outro 413 disfarçado.
+
+Passe `otimizar={false}` para arquivo que precisa subir intacto — um PDF de evidência, por
+exemplo, que este componente não deve tocar.
+
+### Formulários — CEP e senha
+
+- **`lib/cep.ts` + `useCep.ts`** preenchem logradouro, bairro, cidade e UF pelo ViaCEP.
+  Dispara ao completar oito dígitos (não no `blur`: quem digita CEP segue direto para o
+  número). **Não sobrescreve campo já preenchido** — trocar o CEP de um cadastro antigo não
+  pode apagar um complemento corrigido à mão, e CEP de logradouro único volta sem rua.
+  Serviço fora do ar não vira toast de erro; CEP inexistente, sim (o ViaCEP o devolve como
+  200 com `erro` verdadeiro, não 404). A consulta **não passa pela nossa API** de propósito.
+- **`CampoSenha`** substitui todo `<input type="password">`. O alternador é
+  `type="button"` — o padrão dentro de um `<form>` é submit, e sem isso revelar a senha
+  enviaria o formulário.
 
 ### Tema / aparência (`lib/tema.ts` + `features/aparencia/`)
 
@@ -669,8 +749,21 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
   `exceljs` importa **só `uuid.v4`** (`lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js`)
   — o caminho vulnerável não é alcançável. A "correção" que o `npm audit` propõe é
   descer o `exceljs` para 3.4.0, um major para trás; não é correção.
+- **Erro de CORS num upload quase nunca é CORS.** O corpo de requisição na Vercel para em
+  4,5 MB e a plataforma responde 413 sem passar pelo middleware — o navegador então não
+  acha `Access-Control-Allow-Origin` e culpa o que não é. Confira o status no log da função
+  antes de mexer em CORS.
+- **`vercel.json` não aceita campo fora do schema.** Um `comment` dentro de `rewrites[]`
+  derruba o deploy na validação, antes de compilar. JSON não tem comentário; a explicação
+  vai no código que depende da regra.
+- **Categoria sem trilha não aceita produto**, e a primeira trilha precisa vir com etapas
+  (não há versão anterior para copiar). A tela cobre isso desde `97b16c1`; a regra do
+  servidor não mudou.
 - **Assets da home são pesados** e vieram do legado sem reprocessamento
-  (`depoimentos-bg.png` tem 2,4 MB). O `bootstrap-icons.css` completo (~106 KB) é carregado
+  — mas o pior deles saiu do caminho: `depoimentos-bg.png`, de 2,4 MB, era dois terços do
+  peso e virou gradiente CSS em `841a6b7`. **O arquivo continua em `public/img/`, agora sem
+  referência**: reprocessar para WebP e reativar, ou apagar, é decisão em aberto. `cta-bg.jpg`
+  (332 KB) e `hero-bg.jpg` (218 KB) seguem como estão. O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.
 - **Dados de contato divergentes** em `features/home/conteudo.ts`: o legado tinha três
   telefones diferentes (contato, rodapé, WhatsApp). Preservados como estavam — precisa de
@@ -735,21 +828,36 @@ fim de mês. Verde que nunca ficou vermelho não prova nada.
     hoje; **Parte II** é a hospedagem própria com FTP, que continua descrevendo o servidor
     do legado.
 
-**A próxima coisa a fazer é a branch protection em `main`.** O CI roda, mas nada impede um
-push direto que ignore o resultado. Está **bloqueada por permissão**: o repositório
-pertence a uma **conta pessoal** (`singlefutureadm-agency`), não a uma organização — e
-repositório de conta pessoal só tem dono e colaborador, sem papel de admin intermediário.
-Só a conta dona configura. Quando for feita, três pontos que não são óbvios:
+**Site institucional e painel** (24/08/2026) — tudo verificado em produção:
 
-- `required_approving_review_count` em **0**. Qualquer valor acima trava o merge para quem
-  trabalha sozinho: ninguém aprova o próprio PR.
-- `contexts` precisa bater **exatamente** com o `name:` dos jobs (`Backend (build, lint,
-  unitários, e2e)` e `Frontend (build, lint)`), acentos incluídos. Nome divergente faz a
-  proteção esperar para sempre um check que nunca chega.
-- `enforce_admins: false` deixa uma saída de emergência para o dono se o CI quebrar por
-  causa externa.
+15. `72884a9` páginas `/sobre`, `/servicos` e `/contato`, com a camada que as torna
+    indexáveis: `lib/seo.ts` (meta por rota, canonical, Open Graph, JSON-LD), `robots.txt`
+    e `sitemap.xml`, que não existiam.
+16. `9ef75db` proporção das logos por `clamp` (o cabeçalho tinha 96px fixos sobre uma barra
+    de 116px; o rodapé, 90px em qualquer largura) e alvos de toque medidos — botão de
+    login 37→44px, marcadores do carrossel 12→40px, links do rodapé 16→35px.
+17. `841a6b7` carrossel reescrito (`figure`/`blockquote`/`figcaption`, crossfade, barra de
+    progresso), hierarquia de headings corrigida — a home tinha `h1 → h3` e seções sem
+    `h2` — e carga sob demanda: 512 KB → ~332 KB. O fundo dos depoimentos saiu de um PNG de
+    **2,4 MB** para gradiente; ele ficava sob um overlay de 70%.
+18. `1865fa4` upload que falhava como "CORS" (era 413 da plataforma), autopreenchimento por
+    CEP e alternância de visibilidade da senha.
+19. `7f03cc4` + `fe7166e` recuperação de pedaço obsoleto após deploy, e `/assets/` fora do
+    fallback de SPA. Regressão do item 17, encontrada em produção.
+20. `97b16c1` primeira trilha de uma categoria — sem isso, categoria criada pelo painel
+    nunca aceitava produto.
 
-Depois dela, a lacuna nº 1 volta a ser **teste no frontend**, que segue em zero. Ver
+**A branch protection em `main` está ATIVA** (verificado em 24/08/2026 — um push direto
+foi recusado com `GH013: Changes must be made through a pull request` e `2 of 2 required
+status checks are expected`). Foi configurada por *repository rules*, que funcionam em
+repositório de conta pessoal — a anotação anterior, de que estaria bloqueada por
+permissão, não vale mais.
+
+Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs do CI, e
+`gh pr merge --auto` não está disponível neste plano (o repositório recusa
+`enablePullRequestAutoMerge`) — aguarde os checks e faça o merge.
+
+Com ela no ar, a lacuna nº 1 volta a ser **teste no frontend**, que segue em zero. Ver
 `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada item.
 
 **Riscos abertos e conscientemente não corrigidos** (todos em `DOCUMENTACAO.md` §15, com a

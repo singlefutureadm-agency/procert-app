@@ -1908,7 +1908,11 @@ de milhares de produtos, migre para agregação SQL.
 ### Peso dos assets da home
 
 As imagens vieram do legado sem reprocessamento e algumas são grandes para uso web:
-`depoimentos-bg.png` tem **2,4 MB** e `cta-bg.jpg` 340 KB. Todas carregam com
+`depoimentos-bg.png` tinha **2,4 MB** — dois terços do peso de imagens do site — e deixou
+de ser carregado em `841a6b7`: ficava sob um overlay de 70%, então foi trocado por dois
+gradientes radiais. O arquivo permanece em `public/img/` sem referência, à espera de
+reprocessamento para WebP ou remoção. `cta-bg.jpg` (332 KB) e `hero-bg.jpg` (218 KB)
+seguem como estão. Todas carregam com
 `loading="lazy"` (exceto o hero, que usa `fetchPriority="high"`), mas o certo é converter
 para WebP/AVIF e redimensionar — provavelmente 90% de redução sem perda perceptível.
 
@@ -1980,6 +1984,83 @@ Decisão consciente de **deixar como está** em 22/08/2026. Ao tratar, duas cois
 
 ---
 
+### RLS ausente nas tabelas do schema `public` — ✅ RESOLVIDO (24/08/2026)
+
+As 18 tabelas estavam **sem row level security** enquanto os roles `anon` e
+`authenticated` do Supabase tinham `SELECT, INSERT, UPDATE, DELETE, TRUNCATE` em todas.
+O PostgREST expõe o schema `public` para a chave anônima — que é pública por construção —,
+então dava para ler `funcionarios` inteira **incluindo `senha_hash`**, ler o CPF/CNPJ dos
+`clientes`, ler `tokens_redefinicao_senha` e apagar certificado, tudo **sem passar pela
+API**. Toda a autorização de `garantirAcesso()` vive no service e não cobre essa porta.
+
+A armadilha é que o `DEPLOY.md` já dizia "sem policy = fechado", e isso é verdade para o
+**Storage**, onde `storage.objects` já vem com RLS ligado. Nas tabelas do `public` o RLS
+vem **desligado**, e ali "sem policy" significa aberto.
+
+Corrigido habilitando RLS nas 18 tabelas, **sem criar policy alguma** — policy só devolveria
+acesso. A aplicação não sente: o Prisma conecta como `postgres`, dono das tabelas, e o dono
+ignora RLS. O advisor de segurança do Supabase passou de 18 `ERROR` a zero, restando 18
+`INFO` de "RLS enabled, no policy", que aqui é o estado correto e **não deve ser
+"resolvido"**.
+
+`prisma migrate deploy` não conhece RLS: **banco recriado do zero volta ao estado aberto.**
+O SQL para reaplicar está em `DEPLOY.md` §5.
+
+### O 413 da plataforma que chega ao navegador como erro de CORS
+
+Sintoma: `Access to XMLHttpRequest ... has been blocked by CORS policy: No
+'Access-Control-Allow-Origin' header`, num upload de foto que funcionava em
+desenvolvimento.
+
+Não era CORS. O corpo de uma requisição na Vercel para em **4,5 MB**, e o corte é feito pela
+plataforma antes de a função rodar — a resposta 413 sai sem passar pelo middleware, o
+navegador não encontra o cabeçalho e relata o que não é. No log da função aparece como
+`413 [info/static]`, e o `[info/static]` é a pista de que quem respondeu foi a plataforma.
+
+Corrigido no cliente (`frontend/src/lib/imagem.ts`): a imagem é redimensionada e
+recomprimida em `<canvas>` antes do envio — 8,7 MB viram ~430 KB. A dica dos formulários
+dizia "até 5 MB", acima do que o backend aceita **e** do que a plataforma deixa passar.
+
+**Regra geral:** erro de CORS num endpoint que já funcionava merece um olhar no status da
+resposta antes de qualquer mexida em `CORS_ORIGINS`.
+
+### Pedaço de código obsoleto após deploy — ✅ RESOLVIDO (24/08/2026)
+
+Regressão introduzida pelo carregamento sob demanda (`841a6b7`) e encontrada em produção:
+uma aba aberta antes de um deploy pedia um chunk com hash já substituído e exibia
+"Failed to fetch dynamically imported module" numa tela de erro crua.
+
+Duas causas somadas. A primeira é inerente ao code splitting. A segunda é que o fallback de
+SPA era `/(.*)`, capturando também `/assets/`:
+
+```
+/assets/FuncionariosPage-BF5bvhsa.js   →  200  text/html
+/assets/nao-existe-mesmo-123.js        →  200  text/html
+```
+
+O `import()` recebia o `index.html` e falhava ao executar HTML como módulo — por isso o erro
+não era um 404 legível.
+
+Corrigido com `pagina()` em `router.tsx` (recarrega uma vez, com trava em `sessionStorage`
+contra laço) e `/assets/` fora do rewrite no `vercel.json`. **Os dois andam juntos:** o
+retry depende de o asset ausente devolver 404 de verdade.
+
+Lição de bônus do mesmo episódio: `vercel.json` **recusa propriedade fora do schema**. Um
+campo `comment` dentro de `rewrites[]` derruba o deploy na validação, antes de compilar.
+
+### Categoria criada pelo painel não aceitava trilha — ✅ RESOLVIDO (24/08/2026)
+
+Encontrado ao percorrer o fluxo do admin em produção. `POST
+/categorias-produto/:id/modelos-trilha` sem `etapas` copia as da versão vigente; numa
+categoria nova não há vigente, e o servidor recusa corretamente. A tela chamava sempre sem
+etapas e o modal era só uma confirmação — **não havia caminho para criar a primeira
+trilha**, e sem trilha a categoria não aceita produto.
+
+Corrigido em `97b16c1`, só no frontend. Junto foram dois textos que descreviam um estado
+impossível: "esta versão já está em uso por 0 produto(s)" sem versão nenhuma (`editavel` é
+`Boolean(modelo?.editavel)`, e sem modelo caía no ramo de imutável), e "a versão 1 será
+encerrada" antes de a versão 1 existir.
+
 ## 16. Postura de segurança
 
 | Controle | Implementação |
@@ -2036,28 +2117,33 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~CI no GitHub Actions (build + lint + testes nos dois pacotes)~~ | `8fd0363`, `d9ea0aa` |
 | ~~Cobertura de e2e das rotas de `6bb7be8` + verificação da suíte por mutação~~ | esta entrega |
 
+### Concluído em 23 e 24/08/2026
+
+| Item | Commit |
+|---|---|
+| ~~Armazenamento externo (Supabase Storage) e publicação na Vercel~~ | `87339f7` |
+| ~~Expiração por Vercel Cron~~ | `6d38869` |
+| ~~Redefinição de senha de ADMIN fora do seed~~ | `33e3c50` |
+| ~~RLS nas 18 tabelas do schema `public`~~ | aplicado no banco, registrado em `DEPLOY.md` §5 |
+| ~~Páginas `/sobre`, `/servicos`, `/contato` + base de SEO~~ | `72884a9` |
+| ~~Proporção das logos e alvos de toque~~ | `9ef75db` |
+| ~~Carrossel, hierarquia de headings e carga sob demanda~~ | `841a6b7` |
+| ~~Upload de imagem, CEP e senha visível~~ | `1865fa4` |
+| ~~Pedaço obsoleto após deploy~~ | `7f03cc4`, `fe7166e` |
+| ~~Primeira trilha de uma categoria~~ | `97b16c1` |
+| ~~**Branch protection em `main`**~~ | ativa desde 24/08/2026 |
+
 ### Prioridade 1 — o que sustenta tudo que foi construído
 
-**1. Branch protection em `main`.** O CI existe e roda, mas nada impede um push direto que
-ignore o resultado — o gate só vira gate com a proteção ligada. Exige `Require status
-checks` (os dois jobs) + `Require a pull request`.
+**1. ~~Branch protection em `main`~~ — FEITA.** Verificada em 24/08/2026: um push direto foi
+recusado com `GH013: Changes must be made through a pull request` e `2 of 2 required status
+checks are expected`. Foi configurada por *repository rules*, que funcionam em repositório
+de conta pessoal — a anotação anterior, de que estaria bloqueada por falta de papel de
+admin, não valia.
 
-**Está bloqueada por permissão, e a razão não é a óbvia:** o repositório pertence a uma
-**conta pessoal** (`singlefutureadm-agency`), não a uma organização. Repositório de conta
-pessoal tem apenas dono e colaborador — não existe papel de admin intermediário para
-conceder. Só a conta dona configura, ou transfere o repositório para uma organização.
-
-Três detalhes que custam caro se errados:
-
-- `required_approving_review_count` em **0**. Qualquer valor acima trava o merge para quem
-  trabalha sozinho: ninguém aprova o próprio PR.
-- `contexts` precisa bater **exatamente** com o `name:` dos jobs — `Backend (build, lint,
-  unitários, e2e)` e `Frontend (build, lint)`, acentos incluídos. Nome divergente faz a
-  proteção esperar para sempre um check que nunca chega, e nenhum merge passa.
-- `enforce_admins: false` preserva uma saída de emergência para o dono se o CI quebrar por
-  causa externa.
-
-*Gatilho: nenhum — é o próximo, assim que houver acesso à conta dona.*
+Consequências práticas para quem trabalha aqui: todo trabalho vai por branch + PR, e
+`gh pr merge --auto` **não** está disponível neste plano (o repositório recusa
+`enablePullRequestAutoMerge`) — aguarde os dois checks e faça o merge.
 
 **2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 234 unitários + 75 e2e. O
 CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o

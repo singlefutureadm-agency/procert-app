@@ -12,6 +12,7 @@ documento tem duas partes, e a ordem importa:
 
 ---
 
+
 # Parte I — A produção de hoje
 
 ## 1. O que está no ar
