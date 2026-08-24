@@ -207,16 +207,34 @@ export function CategoriaDetalhePage() {
     onError: (erro) => toast.error(mensagemDeErro(erro)),
   });
 
+  /**
+   * Cria uma versão da trilha.
+   *
+   * Sem `etapas`, a API copia as da versão vigente. Isso não serve para a
+   * PRIMEIRA versão de uma categoria: não há de onde copiar, e o servidor
+   * recusa com "informe as etapas da nova versão". A tela chamava sempre sem
+   * etapas, então categoria criada pelo painel ficava sem trilha para sempre —
+   * e sem trilha ela não aceita produto nenhum.
+   */
   const criarVersao = useMutation({
-    mutationFn: () => modelosTrilhaApi.criarVersao(categoriaId),
+    mutationFn: (etapasIniciais?: EtapaModeloEntrada[]) =>
+      modelosTrilhaApi.criarVersao(categoriaId, etapasIniciais),
     onSuccess: (nova) => {
-      toast.success(`Versão ${nova.versao} criada a partir da vigente.`);
+      toast.success(
+        nova.versao === 1
+          ? 'Trilha criada. Acrescente as demais etapas do processo.'
+          : `Versão ${nova.versao} criada a partir da vigente.`,
+      );
       setVersaoSelecionada(nova.id);
       setConfirmarVersao(false);
+      setModalEtapa(false);
       invalidar();
     },
     onError: (erro) => toast.error(mensagemDeErro(erro)),
   });
+
+  /** Nenhuma versão ainda: o botão cria a trilha, não uma "nova versão". */
+  const semTrilha = !versoes.isLoading && (versoes.data?.length ?? 0) === 0;
 
   function paraEntrada(lista: ModeloEtapa[]): EtapaModeloEntrada[] {
     return lista.map((etapa) => ({
@@ -277,9 +295,18 @@ export function CategoriaDetalhePage() {
             <button
               type="button"
               className="btn btn--primario"
-              onClick={() => setConfirmarVersao(true)}
+              onClick={() => {
+                // Sem versão anterior o modal de confirmação não tem o que
+                // confirmar — o que falta é a primeira etapa.
+                if (semTrilha) {
+                  setEtapaEmEdicao(null);
+                  setModalEtapa(true);
+                } else {
+                  setConfirmarVersao(true);
+                }
+              }}
             >
-              + Nova versão
+              {semTrilha ? '+ Criar trilha' : '+ Nova versão'}
             </button>
           </>
         }
@@ -335,11 +362,17 @@ export function CategoriaDetalhePage() {
       <section className="vidro">
         <div className="entre" style={{ padding: '4px 4px 12px' }}>
           <div>
-            <h3 style={{ margin: 0 }}>Etapas da versão {modelo?.versao ?? '—'}</h3>
+            <h3 style={{ margin: 0 }}>
+              {semTrilha ? 'Trilha de certificação' : `Etapas da versão ${modelo?.versao ?? '—'}`}
+            </h3>
             <p className="texto-pequeno texto-fraco" style={{ margin: '4px 0 0' }}>
-              {editavel
-                ? 'Arraste para reordenar. A ordem é salva automaticamente.'
-                : `Esta versão já está em uso por ${modelo?.totalProdutos ?? 0} produto(s) e não pode ser alterada — crie uma nova versão para mudar o processo.`}
+              {/* Sem trilha, a mensagem de imutabilidade dizia "já está em uso
+                  por 0 produto(s)" — descrevia uma versão que não existe. */}
+              {semTrilha
+                ? 'Esta categoria ainda não tem trilha. Crie a primeira para que ela aceite produtos.'
+                : editavel
+                  ? 'Arraste para reordenar. A ordem é salva automaticamente.'
+                  : `Esta versão já está em uso por ${modelo?.totalProdutos ?? 0} produto(s) e não pode ser alterada — crie uma nova versão para mudar o processo.`}
             </p>
           </div>
           {editavel && (
@@ -359,16 +392,19 @@ export function CategoriaDetalhePage() {
         {etapas.length === 0 ? (
           <EstadoVazio
             icone="peca"
-            titulo="Nenhuma etapa nesta versão"
+            titulo={semTrilha ? 'Nenhuma trilha definida' : 'Nenhuma etapa nesta versão'}
             descricao="Sem etapas, a categoria não aceita produtos."
             acao={
-              editavel ? (
+              editavel || semTrilha ? (
                 <button
                   type="button"
                   className="btn btn--primario"
-                  onClick={() => setModalEtapa(true)}
+                  onClick={() => {
+                    setEtapaEmEdicao(null);
+                    setModalEtapa(true);
+                  }}
                 >
-                  Adicionar etapa
+                  {semTrilha ? 'Criar trilha' : 'Adicionar etapa'}
                 </button>
               ) : undefined
             }
@@ -421,12 +457,19 @@ export function CategoriaDetalhePage() {
       <ModalEtapaModelo
         aberto={modalEtapa}
         etapa={etapaEmEdicao}
-        salvando={salvarEtapas.isPending}
+        salvando={salvarEtapas.isPending || criarVersao.isPending}
         aoFechar={() => {
           setModalEtapa(false);
           setEtapaEmEdicao(null);
         }}
         aoSalvar={(dados) => {
+          // Primeira trilha da categoria: não há versão para substituir as
+          // etapas, então a própria criação da versão leva a etapa inicial.
+          if (semTrilha) {
+            criarVersao.mutate([dados]);
+            return;
+          }
+
           const lista = paraEntrada(etapas);
           if (etapaEmEdicao) {
             const indice = etapas.findIndex((e) => e.id === etapaEmEdicao.id);
@@ -469,7 +512,7 @@ export function CategoriaDetalhePage() {
         rotuloConfirmar="Criar versão"
         carregando={criarVersao.isPending}
         aoCancelar={() => setConfirmarVersao(false)}
-        aoConfirmar={() => criarVersao.mutate()}
+        aoConfirmar={() => criarVersao.mutate(undefined)}
       />
     </>
   );
