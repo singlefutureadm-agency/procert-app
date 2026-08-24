@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Campo } from '@/components/Campo';
+import { CampoSenha } from '@/components/CampoSenha';
 import { CampoArquivo } from '@/components/CampoArquivo';
 import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
@@ -17,6 +18,7 @@ import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { paraInputDate } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import { mascararCep, mascararCpf, mascararTelefone } from '@/lib/mascaras';
+import { usePreencherPorCep } from '@/lib/useCep';
 import { funcionariosApi, type DadosFuncionario } from './api';
 
 const senhaValida = z
@@ -81,6 +83,7 @@ export function FuncionarioFormPage() {
     handleSubmit,
     reset,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<Formulario>({
     resolver: zodResolver(esquemaDoModo(editando)),
@@ -93,6 +96,15 @@ export function FuncionarioFormPage() {
     (campo: 'cpf' | 'telefone' | 'cep', mascara: (v: string) => string) =>
     (evento: ChangeEvent<HTMLInputElement>) =>
       setValue(campo, mascara(evento.target.value), { shouldDirty: true });
+
+  /* Preenchimento por CEP. `definir` e `valorAtual` estreitam o setValue/
+     getValues do react-hook-form para os campos de endereço — o hook serve os
+     dois formulários, que têm esquemas diferentes e o mesmo endereço. */
+  const { consultar: consultarCep, consultando: consultandoCep } = usePreencherPorCep({
+    definir: (campo, valor) => setValue(campo, valor, { shouldDirty: true }),
+    valorAtual: (campo) => getValues(campo),
+    estados,
+  });
 
   useEffect(() => {
     if (!integrante) return;
@@ -197,7 +209,7 @@ export function FuncionarioFormPage() {
               }
               obrigatorio={!editando}
             >
-              <input type="password" autoComplete="new-password" {...register('senha')} />
+              <CampoSenha autoComplete="new-password" {...register('senha')} />
             </Campo>
           </div>
         </fieldset>
@@ -232,13 +244,19 @@ export function FuncionarioFormPage() {
         <fieldset className="secao-form">
           <legend>Endereço</legend>
           <div className="form-grade">
-            <Campo label="CEP" erro={errors.cep?.message}>
+            <Campo
+              label={consultandoCep ? 'CEP (buscando…)' : 'CEP'}
+              erro={errors.cep?.message}
+            >
               <input
                 type="text"
                 placeholder="00000-000"
                 inputMode="numeric"
                 {...register('cep')}
-                onChange={aoDigitar('cep', mascararCep)}
+                onChange={(evento) => {
+                  aoDigitar('cep', mascararCep)(evento);
+                  void consultarCep(evento.target.value);
+                }}
               />
             </Campo>
             <Campo label="Logradouro">
@@ -271,7 +289,7 @@ export function FuncionarioFormPage() {
             )}
             <CampoArquivo
               rotulo="Enviar imagem"
-              dica="JPG, PNG ou WebP, até 5 MB."
+              dica="JPG, PNG ou WebP. Imagens grandes são reduzidas automaticamente."
               aceita="image/jpeg,image/png,image/webp"
               aoEscolher={setFoto}
             />

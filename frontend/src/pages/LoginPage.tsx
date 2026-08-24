@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { useAuth } from '@/auth/useAuth';
 import { Campo } from '@/components/Campo';
+import { CampoSenha } from '@/components/CampoSenha';
 import { Icone } from '@/components/Icone';
 import { mensagemDeErro } from '@/lib/api';
 
@@ -70,8 +71,7 @@ export function LoginPage() {
           </Campo>
 
           <Campo label="Senha" erro={errors.senha?.message} obrigatorio>
-            <input
-              type="password"
+            <CampoSenha
               autoComplete="current-password"
               placeholder="••••••••"
               {...register('senha')}

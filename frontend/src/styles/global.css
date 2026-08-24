@@ -2544,3 +2544,54 @@ fieldset.secao-form legend {
     opacity: 0.6;
   }
 }
+
+/* ----------------------------- Campo de senha ----------------------------- */
+
+/* O alternador fica dentro da moldura do input, sobreposto à direita. O campo
+   ganha padding para que o texto digitado nunca corra por baixo do botão —
+   inclusive com a senha revelada, que é mais larga que os pontinhos. */
+.campo-senha {
+  position: relative;
+  display: block;
+}
+
+.campo-senha__entrada {
+  width: 100%;
+  padding-right: 46px;
+}
+
+.campo-senha__alternar {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  /* 40×40: mesmo alvo de toque de `.btn--icone`, pelo mesmo motivo. */
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: var(--cor-texto-suave);
+  background: none;
+  border: 0;
+  border-radius: var(--raio-xs);
+  cursor: pointer;
+  transition: color var(--mov-rapido, 0.15s) ease, background-color var(--mov-rapido, 0.15s) ease;
+}
+
+.campo-senha__alternar:hover {
+  color: var(--cor-texto);
+  background: var(--cor-superficie-2, rgba(127, 127, 127, 0.12));
+}
+
+/* O anel de foco global usa :focus-visible com especificidade zero; aqui só
+   garantimos que ele não seja cortado pela borda do input. */
+.campo-senha__alternar:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campo-senha__alternar {
+    transition: none;
+  }
+}

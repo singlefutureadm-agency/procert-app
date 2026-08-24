@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { Campo } from '@/components/Campo';
+import { CampoSenha } from '@/components/CampoSenha';
 import { api, mensagemDeErro } from '@/lib/api';
 
 const esquema = z
@@ -75,11 +76,11 @@ export function RedefinirSenhaPage() {
             dica="Mínimo de 8 caracteres, com letras e números."
             obrigatorio
           >
-            <input type="password" autoComplete="new-password" {...register('novaSenha')} />
+            <CampoSenha autoComplete="new-password" {...register('novaSenha')} />
           </Campo>
 
           <Campo label="Confirme a nova senha" erro={errors.confirmacao?.message} obrigatorio>
-            <input type="password" autoComplete="new-password" {...register('confirmacao')} />
+            <CampoSenha autoComplete="new-password" {...register('confirmacao')} />
           </Campo>
 
           <button type="submit" className="btn btn--primario" disabled={isSubmitting}>

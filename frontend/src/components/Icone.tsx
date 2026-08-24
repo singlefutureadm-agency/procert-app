@@ -43,6 +43,7 @@ export type NomeIcone =
   | 'proibido'
   | 'reciclar'
   | 'olho'
+  | 'olho-fechado'
   | 'lixeira'
   | 'peca'
   | 'bussola'
@@ -198,6 +199,16 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
     <>
       <path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0" />
       <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  // Olho cortado. A pálpebra é desenhada em dois arcos, e não com o olho
+  // inteiro sob um risco: na grade de 24 o traço em cima do círculo empasta.
+  'olho-fechado': (
+    <>
+      <path d="M10.73 5.08A10.94 10.94 0 0 1 12 5c5.5 0 9.1 3.6 9.94 6.65a1 1 0 0 1 0 .7 12.9 12.9 0 0 1-2.16 3.35" />
+      <path d="M6.61 6.61A13.5 13.5 0 0 0 2.06 11.65a1 1 0 0 0 0 .7C2.9 15.4 6.5 19 12 19a10.9 10.9 0 0 0 5.39-1.39" />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+      <path d="M3 3l18 18" />
     </>
   ),
   lixeira: (

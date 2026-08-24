@@ -254,7 +254,7 @@ export function ProdutoFormPage() {
             )}
             <CampoArquivo
               rotulo="Enviar imagem"
-              dica="JPG, PNG ou WebP, até 5 MB."
+              dica="JPG, PNG ou WebP. Imagens grandes são reduzidas automaticamente."
               aceita="image/jpeg,image/png,image/webp"
               aoEscolher={setFoto}
             />
