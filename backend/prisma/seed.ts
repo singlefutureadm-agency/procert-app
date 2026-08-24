@@ -152,6 +152,11 @@ async function main(): Promise<void> {
 
   await prisma.funcionario.upsert({
     where: { email },
+    // `update: {}` é deliberado: reexecutar o seed não pode resetar a senha de
+    // um admin em produção a cada deploy. Em troca, uma vez criado o registro
+    // o seed nunca mais corrige a senha — se o banco foi semeado com outro
+    // SEED_ADMIN_PASSWORD, o login devolve 401 e a saída é
+    // `npm run senha:admin` (prisma/redefinir-senha-admin.ts).
     update: {},
     create: {
       nome: 'Administrador ProCert',

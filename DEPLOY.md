@@ -116,6 +116,39 @@ policy de RLS foi criada, e isso é intencional**: quem grava e lê é a API com
 `service_role`, que ignora RLS. Sem policy, o bucket privado não responde à chave
 anônima — que é exatamente o desejado.
 
+> **O mesmo raciocínio se inverte nas tabelas, e foi assim que elas ficaram
+> abertas até 24/08/2026.** Em `storage.objects` o RLS já vem **ligado** de
+> fábrica, então "nenhuma policy" significa fechado. Nas tabelas do schema
+> `public` ele vem **desligado**, e aí "nenhuma policy" significa aberto: o
+> PostgREST expõe o schema para os roles `anon` e `authenticated`, que o Supabase
+> cria com `SELECT, INSERT, UPDATE, DELETE, TRUNCATE` em tudo. Com a chave
+> anônima — pública por construção — dava para ler `funcionarios` inteira,
+> incluindo `senha_hash`, ler o CPF/CNPJ dos `clientes`, ler
+> `tokens_redefinicao_senha` e apagar certificado, **sem passar pela API**. Toda a
+> autorização de `garantirAcesso()` vive no service e não cobre essa porta.
+>
+> Corrigido habilitando RLS nas 18 tabelas, **sem criar policy alguma** — policy
+> só devolveria acesso. A aplicação não sente: o Prisma conecta como `postgres`,
+> dono das tabelas, e o dono ignora RLS. O advisor de segurança passou de 18
+> `ERROR` a zero, restando 18 `INFO` de "RLS enabled, no policy", que aqui é o
+> estado correto e não deve ser "resolvido".
+>
+> **Banco recriado do zero volta ao estado aberto**: `prisma migrate deploy` não
+> conhece RLS. Depois de recriar, rode:
+>
+> ```sql
+> do $$ declare t record; begin
+>   for t in select tablename from pg_tables where schemaname = 'public' loop
+>     execute format('alter table public.%I enable row level security', t.tablename);
+>   end loop;
+> end $$;
+> ```
+
+Se o login do admin devolver 401 com a senha que você espera, é o hash no banco,
+não configuração: o `upsert` do seed usa `update: {}` e **nunca** corrige a senha
+de um registro já existente. A saída é `npm run senha:admin`, com a nova senha em
+`SEED_ADMIN_PASSWORD` (nunca em argumento — argv fica no histórico do shell).
+
 ## 6. Verificação depois de subir
 
 ```bash
