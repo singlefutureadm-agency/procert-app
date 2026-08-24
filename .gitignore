@@ -28,3 +28,6 @@ logs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Vinculo local com os projetos da Vercel (contem ids da conta).
+.vercel

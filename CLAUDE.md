@@ -77,7 +77,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 224 unitários, 11 suítes, Prisma mockado |
+| `npm test` | ✅ 234 unitários, 12 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 75 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -90,7 +90,7 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **O backend tem rede de segurança; o frontend não.** 224 unitários + 75 e2e cobrem
+> **O backend tem rede de segurança; o frontend não.** 234 unitários + 75 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
 > **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
@@ -343,6 +343,12 @@ silenciosa: `verificarVersaoTrilha` é uma consulta pura, e a migração exige P
   `POST /certificados/expirar-vencidos` (ADMIN) segue disponível para acionamento manual.
   Com múltiplas instâncias o job dispara em todas — é `updateMany` idempotente, mas deixe a
   variável em `true` em exatamente uma. Razão da escolha em `DOCUMENTACAO.md` §9.
+  **Em serverless nada disso roda**: o timer morre com a instância. Lá a variável fica
+  `false` e quem acorda a rotina é o Vercel Cron, por `GET /certificados/cron/expirar-vencidos`
+  (`expiracao.cron.controller.ts`), autenticado por `CRON_SECRET` — um segredo **dedicado**,
+  que não vira sessão e abre uma única porta. É a resposta à objeção registrada no
+  `expiracao.cron.ts`, que recusa agendador externo por causa do token de ADMIN guardado
+  fora do sistema.
 - `CANCELADO` é terminal.
 
 ### Evidências
@@ -719,6 +725,15 @@ O CI foi **verificado nos dois sentidos**: verde em `main`, e vermelho num PR de
 que trocava `setDate(0)` por `setDate(diaOriginal)` em `somarMeses` — regressão limpa para
 lint e type-check, para que quem reprovasse fosse o teste. Reprovou em 3 casos da regra de
 fim de mês. Verde que nunca ficou vermelho não prova nada.
+
+**Publicação** (23/08/2026):
+
+14. `87339f7` armazenamento externo (driver de `Armazenamento`: disco | Supabase Storage) e
+    publicação em **Vercel + Supabase**. A API roda como função (`framework: null` e
+    `api/index.js`, pelos motivos em `DEPLOY.md` §7), o painel como estático, e push em
+    `main` publica sozinho. O `DEPLOY.md` foi reorganizado: **Parte I** é a produção de
+    hoje; **Parte II** é a hospedagem própria com FTP, que continua descrevendo o servidor
+    do legado.
 
 **A próxima coisa a fazer é a branch protection em `main`.** O CI roda, mas nada impede um
 push direto que ignore o resultado. Está **bloqueada por permissão**: o repositório
