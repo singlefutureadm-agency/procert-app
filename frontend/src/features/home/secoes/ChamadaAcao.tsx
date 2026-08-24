@@ -15,7 +15,7 @@ export function ChamadaAcao() {
       />
 
       <Revelar className="home__container">
-        <h3>{CHAMADA_ACAO.titulo}</h3>
+        <h2>{CHAMADA_ACAO.titulo}</h2>
         <p>{CHAMADA_ACAO.texto}</p>
         <a className="home__cta-botao" href="#contato">
           {CHAMADA_ACAO.botao}

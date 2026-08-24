@@ -5,8 +5,8 @@ export function Servicos() {
   return (
     <section id="servicos" className="home__secao">
       <Revelar className="home__container home__titulo-secao">
-        <h2>{SERVICOS.rotulo}</h2>
-        <p>{SERVICOS.titulo}</p>
+        <p className="home__titulo-secao-rotulo">{SERVICOS.rotulo}</p>
+        <h2>{SERVICOS.titulo}</h2>
       </Revelar>
 
       <div className="home__container">

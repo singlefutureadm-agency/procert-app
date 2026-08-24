@@ -1,33 +1,113 @@
+import { lazy } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 
 import { RotaProtegida } from '@/auth/RotaProtegida';
-import { LayoutPainel } from '@/components/layout/LayoutPainel';
-import { AparenciaPage } from '@/features/aparencia/AparenciaPage';
-import { CategoriaDetalhePage } from '@/features/categorias-produto/CategoriaDetalhePage';
-import { CategoriasPage } from '@/features/categorias-produto/CategoriasPage';
-import { CertificacaoDetalhePage } from '@/features/certificacoes/CertificacaoDetalhePage';
-import { CertificacoesPage } from '@/features/certificacoes/CertificacoesPage';
-import { CertificadosEmRiscoPage } from '@/features/certificados/CertificadosEmRiscoPage';
-import { CertificadosPage } from '@/features/certificados/CertificadosPage';
-import { ClienteFormPage } from '@/features/clientes/ClienteFormPage';
-import { ClientesPage } from '@/features/clientes/ClientesPage';
-import { DashboardPage } from '@/features/dashboard/DashboardPage';
-import { ContatoPage } from '@/features/home/ContatoPage';
 import { HomePage } from '@/features/home/HomePage';
-import { PoliticaPrivacidadePage } from '@/features/home/PoliticaPrivacidadePage';
-import { ServicosPage } from '@/features/home/ServicosPage';
-import { SobrePage } from '@/features/home/SobrePage';
-import { TermosDeUsoPage } from '@/features/home/TermosDeUsoPage';
-import { NaoConformidadesPage } from '@/features/nao-conformidades/NaoConformidadesPage';
-import { FuncionarioFormPage } from '@/features/funcionarios/FuncionarioFormPage';
-import { FuncionariosPage } from '@/features/funcionarios/FuncionariosPage';
-import { ProdutoFormPage } from '@/features/produtos/ProdutoFormPage';
-import { ProdutosPage } from '@/features/produtos/ProdutosPage';
-import { EsqueciSenhaPage } from '@/pages/EsqueciSenhaPage';
 import { LoginPage } from '@/pages/LoginPage';
-import { NaoEncontradaPage } from '@/pages/NaoEncontradaPage';
-import { RedefinirSenhaPage } from '@/pages/RedefinirSenhaPage';
-import { SemPermissaoPage } from '@/pages/SemPermissaoPage';
+
+/**
+ * Rotas da aplicação.
+ *
+ * **Carregamento sob demanda.** Só a home e o login entram no pacote inicial:
+ * são as duas portas de entrada, e fazê-las esperar um segundo pedaço de código
+ * atrasaria justamente a primeira tela que o visitante vê. Todo o resto é
+ * `lazy`, baixado quando a rota é aberta.
+ *
+ * O motivo é medido, não estético: o pacote inicial tinha 512 KB porque levava
+ * junto o painel inteiro — dashboard, certificações, produtos, clientes,
+ * categorias, equipe e a tela de aparência, com dnd-kit atrás. Quem chegava
+ * pela busca para ler a página de serviços baixava tudo isso antes de ver a
+ * primeira linha de texto, e tempo de carregamento é sinal de ranqueamento.
+ *
+ * `lazy` espera um módulo com export default, e todas as páginas aqui usam
+ * export nomeado — daí o `.then` que reembala cada uma.
+ *
+ * O `<Suspense>` que segura essas rotas fica no `main.tsx`, em volta do
+ * RouterProvider.
+ */
+
+// --- Site institucional ---------------------------------------------------
+const SobrePage = lazy(() =>
+  import('@/features/home/SobrePage').then((m) => ({ default: m.SobrePage })),
+);
+const ServicosPage = lazy(() =>
+  import('@/features/home/ServicosPage').then((m) => ({ default: m.ServicosPage })),
+);
+const ContatoPage = lazy(() =>
+  import('@/features/home/ContatoPage').then((m) => ({ default: m.ContatoPage })),
+);
+const TermosDeUsoPage = lazy(() =>
+  import('@/features/home/TermosDeUsoPage').then((m) => ({ default: m.TermosDeUsoPage })),
+);
+const PoliticaPrivacidadePage = lazy(() =>
+  import('@/features/home/PoliticaPrivacidadePage').then((m) => ({ default: m.PoliticaPrivacidadePage })),
+);
+
+// --- Autenticação e erro --------------------------------------------------
+const EsqueciSenhaPage = lazy(() =>
+  import('@/pages/EsqueciSenhaPage').then((m) => ({ default: m.EsqueciSenhaPage })),
+);
+const RedefinirSenhaPage = lazy(() =>
+  import('@/pages/RedefinirSenhaPage').then((m) => ({ default: m.RedefinirSenhaPage })),
+);
+const SemPermissaoPage = lazy(() =>
+  import('@/pages/SemPermissaoPage').then((m) => ({ default: m.SemPermissaoPage })),
+);
+const NaoEncontradaPage = lazy(() =>
+  import('@/pages/NaoEncontradaPage').then((m) => ({ default: m.NaoEncontradaPage })),
+);
+
+// --- Painel ---------------------------------------------------------------
+// O layout entra aqui junto das páginas: ele carrega a Sidebar e o conjunto de
+// ícones do painel, que não têm uso nenhum para quem só abriu o site.
+const LayoutPainel = lazy(() =>
+  import('@/components/layout/LayoutPainel').then((m) => ({ default: m.LayoutPainel })),
+);
+const DashboardPage = lazy(() =>
+  import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const CertificacoesPage = lazy(() =>
+  import('@/features/certificacoes/CertificacoesPage').then((m) => ({ default: m.CertificacoesPage })),
+);
+const CertificacaoDetalhePage = lazy(() =>
+  import('@/features/certificacoes/CertificacaoDetalhePage').then((m) => ({ default: m.CertificacaoDetalhePage })),
+);
+const NaoConformidadesPage = lazy(() =>
+  import('@/features/nao-conformidades/NaoConformidadesPage').then((m) => ({ default: m.NaoConformidadesPage })),
+);
+const CertificadosPage = lazy(() =>
+  import('@/features/certificados/CertificadosPage').then((m) => ({ default: m.CertificadosPage })),
+);
+const CertificadosEmRiscoPage = lazy(() =>
+  import('@/features/certificados/CertificadosEmRiscoPage').then((m) => ({ default: m.CertificadosEmRiscoPage })),
+);
+const ProdutosPage = lazy(() =>
+  import('@/features/produtos/ProdutosPage').then((m) => ({ default: m.ProdutosPage })),
+);
+const ProdutoFormPage = lazy(() =>
+  import('@/features/produtos/ProdutoFormPage').then((m) => ({ default: m.ProdutoFormPage })),
+);
+const ClientesPage = lazy(() =>
+  import('@/features/clientes/ClientesPage').then((m) => ({ default: m.ClientesPage })),
+);
+const ClienteFormPage = lazy(() =>
+  import('@/features/clientes/ClienteFormPage').then((m) => ({ default: m.ClienteFormPage })),
+);
+const CategoriasPage = lazy(() =>
+  import('@/features/categorias-produto/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
+);
+const CategoriaDetalhePage = lazy(() =>
+  import('@/features/categorias-produto/CategoriaDetalhePage').then((m) => ({ default: m.CategoriaDetalhePage })),
+);
+const FuncionariosPage = lazy(() =>
+  import('@/features/funcionarios/FuncionariosPage').then((m) => ({ default: m.FuncionariosPage })),
+);
+const FuncionarioFormPage = lazy(() =>
+  import('@/features/funcionarios/FuncionarioFormPage').then((m) => ({ default: m.FuncionarioFormPage })),
+);
+const AparenciaPage = lazy(() =>
+  import('@/features/aparencia/AparenciaPage').then((m) => ({ default: m.AparenciaPage })),
+);
 
 const EQUIPE = ['ADMIN', 'FUNCIONARIO'] as const;
 

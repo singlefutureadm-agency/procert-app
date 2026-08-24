@@ -2478,3 +2478,69 @@ fieldset.secao-form legend {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------------------- Espera de rota carregada sob demanda ----------------- */
+
+/* Fallback do <Suspense> em volta do roteador (ver `router.tsx`).
+
+   Ocupa a viewport inteira de propósito: um indicador pequeno no topo de uma
+   página vazia empurraria o conteúdo para baixo assim que ele chegasse, e esse
+   salto conta como layout shift — a métrica que o carregamento sob demanda
+   existe para melhorar, não para piorar.
+
+   Usa o fundo do tema em vez de branco fixo porque serve tanto o painel
+   (escuro) quanto o site institucional (claro). */
+.carregando-rota {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  min-height: 100dvh;
+  background: var(--cor-fundo, #ffffff);
+}
+
+.carregando-rota__marca {
+  display: flex;
+  gap: 8px;
+}
+
+/* Três barras em sequência, em vez de um disco girando: a progressão da
+   esquerda para a direita lê como "carregando", enquanto o giro contínuo não
+   informa nada além de "ocupado". */
+.carregando-rota__marca span {
+  width: 8px;
+  height: 34px;
+  border-radius: 4px;
+  background: var(--cor-primaria, #0076a8);
+  opacity: 0.25;
+  animation: carregando-rota-barra 1.1s ease-in-out infinite;
+}
+
+.carregando-rota__marca span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.carregando-rota__marca span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes carregando-rota-barra {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scaleY(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Sem animação, as barras ficam visíveis e estáticas: o indicador continua
+   dizendo que algo está em curso, sem movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .carregando-rota__marca span {
+    animation: none;
+    opacity: 0.6;
+  }
+}

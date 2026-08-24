@@ -46,7 +46,7 @@ export function Numeros() {
           />
 
           <div>
-            <h3>{NUMEROS.titulo}</h3>
+            <h2>{NUMEROS.titulo}</h2>
             <p>{NUMEROS.texto}</p>
 
             <div className="home__grade home__grade--2 home__numeros-lista">

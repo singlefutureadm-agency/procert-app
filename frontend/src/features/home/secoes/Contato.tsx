@@ -52,8 +52,8 @@ export function Contato() {
   return (
     <section id="contato" className="home__secao home__secao--suave">
       <Revelar className="home__container home__titulo-secao">
-        <h2>{CONTATO.rotulo}</h2>
-        <p>{CONTATO.titulo}</p>
+        <p className="home__titulo-secao-rotulo">{CONTATO.rotulo}</p>
+        <h2>{CONTATO.titulo}</h2>
       </Revelar>
 
       <div className="home__container">

@@ -22,12 +22,16 @@ export function Hero() {
           <p className="home__hero-subtitulo">{HERO.subtitulo}</p>
         </Revelar>
 
-        <Revelar className="home__grade home__grade--5 home__hero-destaques" atraso={150}>
+        <Revelar
+          como="ul"
+          className="home__grade home__grade--5 home__hero-destaques"
+          atraso={150}
+        >
           {HERO.destaques.map((destaque) => (
-            <div key={destaque.titulo} className="home__hero-caixa">
+            <li key={destaque.titulo} className="home__hero-caixa">
               <i className={`bi ${destaque.icone}`} aria-hidden />
-              <h3>{destaque.titulo}</h3>
-            </div>
+              <span>{destaque.titulo}</span>
+            </li>
           ))}
         </Revelar>
       </div>
