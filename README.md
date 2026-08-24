@@ -17,6 +17,29 @@ Migração do sistema legado em PHP (MVC artesanal + MySQL) para uma stack moder
 
 ---
 
+## No ar
+
+| | |
+|---|---|
+| Site e painel | https://procert-app.vercel.app |
+| API | https://procert-api-singlefutureadm-9995s-projects.vercel.app/api |
+| Banco e arquivos | Supabase (PostgreSQL 17 + Storage), região `sa-east-1` |
+
+Push em `main` publica sozinho. O passo a passo, as variáveis de ambiente e as armadilhas
+desta hospedagem estão em **[DEPLOY.md](./DEPLOY.md)**.
+
+### Rotas públicas
+
+`/` (home) · `/sobre` · `/servicos` · `/contato` · `/termos-de-uso` ·
+`/politica-de-privacidade`
+
+Cada uma tem título, descrição e dados estruturados próprios (`src/lib/seo.ts`). Ao
+acrescentar uma rota pública, atualize também `PAGINAS` em
+`src/features/home/conteudo-paginas.ts`, o `public/sitemap.xml` e — se ela não deve ser
+rastreada — o `public/robots.txt`.
+
+---
+
 ## Estrutura
 
 ```
@@ -114,6 +137,7 @@ Aplicação em **http://localhost:5173**
 | `npm run start:dev` | API em modo watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
 | `npm run seed` | Popula UFs, a categoria padrão com sua trilha v1 e o admin inicial |
+| `npm run senha:admin` | Redefine a senha de um ADMIN. A senha vem de `SEED_ADMIN_PASSWORD` no ambiente — o `upsert` do seed nunca corrige a senha de um registro existente |
 | `npm run migrate:legacy` | ETL do MySQL legado para o PostgreSQL |
 | `npm run migrate:categorias` | Catálogo global de etapas → trilhas por categoria |
 | `npm run prisma:studio` | Interface visual do banco |
@@ -235,10 +259,15 @@ validade por categoria e PDF).
 ## Rotinas automáticas
 
 Todo dia às **03:00**, a API marca como `VENCIDO` os certificados fora da validade. Ligada
-por padrão; desligue com `EXPIRACAO_CRON_ATIVA=false` se preferir um agendador externo
-chamando `POST /api/certificados/expirar-vencidos` (ADMIN). Rodando a API em mais de uma
-instância, deixe a variável em `true` em exatamente uma. Detalhes e o porquê da escolha em
-`DOCUMENTACAO.md` §9.
+por padrão; rodando a API em mais de uma instância, deixe `EXPIRACAO_CRON_ATIVA=true` em
+exatamente uma.
+
+**Em serverless nada disso roda** — o timer nasce no boot e morre com a instância, sem
+chegar às 03:00. É por isso que na Vercel a variável fica `false` e quem acorda a rotina é
+o **Vercel Cron**, chamando `GET /api/certificados/cron/expirar-vencidos`, autenticado por
+`CRON_SECRET` — um segredo dedicado, que não vira sessão e abre uma única porta. A rota
+`POST /api/certificados/expirar-vencidos` (ADMIN) segue disponível para acionamento manual.
+Detalhes e o porquê da escolha em `DOCUMENTACAO.md` §9 e `DEPLOY.md` §4.
 
 ---
 
