@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
 import { useTema } from '@/features/aparencia/useTema';
 import { urlArquivo } from '@/lib/arquivos';
 import { logoDoTema } from '@/lib/tema';
-import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
+import { DOCUMENTOS, EMPRESA } from '../conteudo';
+import { PAGINAS } from '../conteudo-paginas';
 import { useRolagem } from '../hooks';
 
 /**
@@ -19,12 +20,6 @@ export function CabecalhoSite() {
   const { aparencia } = useTema();
   const [menuAberto, setMenuAberto] = useState(false);
   const [linksAbertos, setLinksAbertos] = useState(false);
-
-  // O cabeçalho também serve as páginas legais, onde as seções da home não
-  // existem: ali `#sobre` não rola para lugar nenhum. Fora da raiz, a âncora
-  // vira caminho absoluto e o navegador volta à home já posicionado.
-  const naHome = useLocation().pathname === '/';
-  const ancora = (hash: string) => (naHome ? hash : `/${hash}`);
 
   // Trava a rolagem do fundo enquanto o menu móvel está aberto.
   useEffect(() => {
@@ -42,7 +37,7 @@ export function CabecalhoSite() {
   return (
     <header className={`home__cabecalho ${rolou ? 'home__cabecalho--rolado' : ''}`}>
       <div className="home__container home__cabecalho-interno">
-        <a href={ancora('#hero')} className="home__marca" onClick={fechar}>
+        <Link to="/" className="home__marca" onClick={fechar}>
           {/* Versão branca: o logo padrão é escuro e some sobre o hero.
               Sem o texto ao lado, a imagem passa a ser o nome acessível
               da marca — por isso `alt` preenchido em vez de decorativa.
@@ -56,8 +51,7 @@ export function CabecalhoSite() {
             src={urlArquivo(logoDoTema(aparencia, 'ESCURO'), '/img/logo-branco.png')}
             alt={EMPRESA.nome}
           />
-
-        </a>
+        </Link>
 
         <nav
           id="home-navegacao"
@@ -65,11 +59,11 @@ export function CabecalhoSite() {
           aria-label="Navegação principal"
         >
           <ul>
-            {NAVEGACAO.map((item) => (
-              <li key={item.ancora}>
-                <a href={ancora(item.ancora)} onClick={fechar}>
-                  {item.rotulo}
-                </a>
+            {PAGINAS.map((pagina) => (
+              <li key={pagina.caminho}>
+                <NavLink to={pagina.caminho} onClick={fechar} end>
+                  {pagina.rotulo}
+                </NavLink>
               </li>
             ))}
 

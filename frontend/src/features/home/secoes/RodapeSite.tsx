@@ -1,23 +1,18 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
-import { EMPRESA, NAVEGACAO, REDES_SOCIAIS } from '../conteudo';
+import { EMPRESA, REDES_SOCIAIS } from '../conteudo';
 import { PAGINAS_LEGAIS } from '../conteudo-legal';
+import { PAGINAS } from '../conteudo-paginas';
 
 export function RodapeSite() {
-  // Mesma razão do CabecalhoSite: o rodapé aparece nas páginas legais, onde as
-  // seções da home não existem e a âncora crua não levaria a lugar nenhum.
-  const naHome = useLocation().pathname === '/';
-  const ancora = (hash: string) => (naHome ? hash : `/${hash}`);
-
   return (
     <footer className="home__rodape">
       <div className="home__rodape-topo">
         <div className="home__container home__rodape-grade">
           <div>
-            <a href={ancora('#hero')} className="home__rodape-marca">
+            <Link to="/" className="home__rodape-marca">
               <img src="/img/logo-branco.png" alt="" aria-hidden />
-         
-            </a>
+            </Link>
 
             <div style={{ paddingTop: 12 }}>
               {EMPRESA.enderecoCurto.map((linha) => (
@@ -53,10 +48,10 @@ export function RodapeSite() {
           <div>
             <h4>Veja mais</h4>
             <ul>
-              {NAVEGACAO.map((item) => (
-                <li key={item.ancora}>
+              {PAGINAS.map((pagina) => (
+                <li key={pagina.caminho}>
                   <i className="bi bi-chevron-right" aria-hidden />
-                  <a href={ancora(item.ancora)}>{item.rotulo}</a>
+                  <Link to={pagina.caminho}>{pagina.rotulo}</Link>
                 </li>
               ))}
             </ul>
@@ -67,7 +62,7 @@ export function RodapeSite() {
             <ul>
               <li>
                 <i className="bi bi-chevron-right" aria-hidden />
-                <a href="/login">Área do cliente</a>
+                <Link to="/login">Área do cliente</Link>
               </li>
               <li>
                 <i className="bi bi-chevron-right" aria-hidden />
