@@ -1,12 +1,20 @@
+import { Link, useLocation } from 'react-router-dom';
+
 import { EMPRESA, NAVEGACAO, REDES_SOCIAIS } from '../conteudo';
+import { PAGINAS_LEGAIS } from '../conteudo-legal';
 
 export function RodapeSite() {
+  // Mesma razão do CabecalhoSite: o rodapé aparece nas páginas legais, onde as
+  // seções da home não existem e a âncora crua não levaria a lugar nenhum.
+  const naHome = useLocation().pathname === '/';
+  const ancora = (hash: string) => (naHome ? hash : `/${hash}`);
+
   return (
     <footer className="home__rodape">
       <div className="home__rodape-topo">
         <div className="home__container home__rodape-grade">
           <div>
-            <a href="#hero" className="home__rodape-marca">
+            <a href={ancora('#hero')} className="home__rodape-marca">
               <img src="/img/logo-branco.png" alt="" aria-hidden />
          
             </a>
@@ -48,7 +56,7 @@ export function RodapeSite() {
               {NAVEGACAO.map((item) => (
                 <li key={item.ancora}>
                   <i className="bi bi-chevron-right" aria-hidden />
-                  <a href={item.ancora}>{item.rotulo}</a>
+                  <a href={ancora(item.ancora)}>{item.rotulo}</a>
                 </li>
               ))}
             </ul>
@@ -77,6 +85,15 @@ export function RodapeSite() {
                   Política e objetivos
                 </a>
               </li>
+
+              {/* Rotas internas: <Link> em vez de <a href>, senão cada clique
+                  descarrega e rebaixa o bundle inteiro. */}
+              {PAGINAS_LEGAIS.map((pagina) => (
+                <li key={pagina.caminho}>
+                  <i className="bi bi-chevron-right" aria-hidden />
+                  <Link to={pagina.caminho}>{pagina.rotulo}</Link>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

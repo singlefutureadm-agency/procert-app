@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
 import { useTema } from '@/features/aparencia/useTema';
@@ -20,6 +20,12 @@ export function CabecalhoSite() {
   const [menuAberto, setMenuAberto] = useState(false);
   const [linksAbertos, setLinksAbertos] = useState(false);
 
+  // O cabeçalho também serve as páginas legais, onde as seções da home não
+  // existem: ali `#sobre` não rola para lugar nenhum. Fora da raiz, a âncora
+  // vira caminho absoluto e o navegador volta à home já posicionado.
+  const naHome = useLocation().pathname === '/';
+  const ancora = (hash: string) => (naHome ? hash : `/${hash}`);
+
   // Trava a rolagem do fundo enquanto o menu móvel está aberto.
   useEffect(() => {
     document.body.style.overflow = menuAberto ? 'hidden' : '';
@@ -36,7 +42,7 @@ export function CabecalhoSite() {
   return (
     <header className={`home__cabecalho ${rolou ? 'home__cabecalho--rolado' : ''}`}>
       <div className="home__container home__cabecalho-interno">
-        <a href="#hero" className="home__marca" onClick={fechar}>
+        <a href={ancora('#hero')} className="home__marca" onClick={fechar}>
           {/* Versão branca: o logo padrão é escuro e some sobre o hero.
               Sem o texto ao lado, a imagem passa a ser o nome acessível
               da marca — por isso `alt` preenchido em vez de decorativa.
@@ -61,7 +67,7 @@ export function CabecalhoSite() {
           <ul>
             {NAVEGACAO.map((item) => (
               <li key={item.ancora}>
-                <a href={item.ancora} onClick={fechar}>
+                <a href={ancora(item.ancora)} onClick={fechar}>
                   {item.rotulo}
                 </a>
               </li>
