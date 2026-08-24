@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "comment": "Fallback de SPA — mas /assets/ fica de fora. O catch-all cru capturava também os pedaços de JS com hash: um chunk ausente (aba aberta de antes do deploy, que pede um hash já substituído) recebia o index.html com status 200 e content-type text/html, e o import() falhava ao executar HTML como módulo. Fora do rewrite, asset ausente devolve 404 de verdade, que é o que o retry em router.tsx sabe tratar.",
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

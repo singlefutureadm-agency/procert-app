@@ -26,87 +26,191 @@ import { LoginPage } from '@/pages/LoginPage';
  * RouterProvider.
  */
 
+/**
+ * Envolve o `import()` de uma página com recuperação de pedaço obsoleto.
+ *
+ * Cada build gera nomes com hash novo. Uma aba aberta antes de um deploy segue
+ * com o `index.html` antigo em memória e, ao navegar, pede um pedaço que não
+ * existe mais — a tela que aparece é "Failed to fetch dynamically imported
+ * module". Não é hipótese: aconteceu em produção logo depois que o
+ * carregamento sob demanda entrou.
+ *
+ * Recarregar resolve, porque o navegador busca o `index.html` novo com os
+ * hashes atuais. A trava em `sessionStorage` existe para o caso de o pedaço
+ * falhar por outro motivo — rede fora, bloqueio de rede corporativa: sem ela, o
+ * reload viraria um laço infinito.
+ *
+ * A marca é limpa no primeiro import bem-sucedido, para que o próximo deploy
+ * que passar por baixo de uma aba aberta também tenha sua recuperação.
+ *
+ * Complemento necessário no `vercel.json`: o fallback de SPA exclui `/assets/`.
+ * Com o catch-all cru, o pedaço ausente vinha como `index.html` com status 200
+ * e `content-type: text/html`, e o erro era falha ao executar HTML como módulo
+ * — não um 404, que é o que este retry sabe tratar.
+ */
+const CHAVE_RECARGA = 'procert:recarregou-por-modulo';
+
+function pagina<T>(carregando: Promise<T>): Promise<T> {
+  // Recebe a promessa já iniciada, e não uma função: a recuperação é recarregar
+  // a página, não repetir o import. O `import()` continua dentro da arrow do
+  // `lazy`, então nada é baixado antes da rota ser aberta.
+  return carregando.then(
+    (modulo) => {
+      try {
+        sessionStorage.removeItem(CHAVE_RECARGA);
+      } catch {
+        // Modo privado sem storage: nada a limpar.
+      }
+      return modulo;
+    },
+    (erro: unknown) => {
+      try {
+        if (!sessionStorage.getItem(CHAVE_RECARGA)) {
+          sessionStorage.setItem(CHAVE_RECARGA, '1');
+          window.location.reload();
+          // Promessa que nunca resolve: segura o Suspense até a página trocar,
+          // em vez de piscar a tela de erro no caminho para o reload.
+          return new Promise<T>(() => {});
+        }
+      } catch {
+        // Sem sessionStorage não há como impedir o laço — melhor propagar.
+      }
+      throw erro;
+    },
+  );
+}
+
 // --- Site institucional ---------------------------------------------------
 const SobrePage = lazy(() =>
-  import('@/features/home/SobrePage').then((m) => ({ default: m.SobrePage })),
+  pagina(
+    import('@/features/home/SobrePage').then((m) => ({ default: m.SobrePage })),
+  ),
 );
 const ServicosPage = lazy(() =>
-  import('@/features/home/ServicosPage').then((m) => ({ default: m.ServicosPage })),
+  pagina(
+    import('@/features/home/ServicosPage').then((m) => ({ default: m.ServicosPage })),
+  ),
 );
 const ContatoPage = lazy(() =>
-  import('@/features/home/ContatoPage').then((m) => ({ default: m.ContatoPage })),
+  pagina(
+    import('@/features/home/ContatoPage').then((m) => ({ default: m.ContatoPage })),
+  ),
 );
 const TermosDeUsoPage = lazy(() =>
-  import('@/features/home/TermosDeUsoPage').then((m) => ({ default: m.TermosDeUsoPage })),
+  pagina(
+    import('@/features/home/TermosDeUsoPage').then((m) => ({ default: m.TermosDeUsoPage })),
+  ),
 );
 const PoliticaPrivacidadePage = lazy(() =>
-  import('@/features/home/PoliticaPrivacidadePage').then((m) => ({ default: m.PoliticaPrivacidadePage })),
+  pagina(
+    import('@/features/home/PoliticaPrivacidadePage').then((m) => ({ default: m.PoliticaPrivacidadePage })),
+  ),
 );
 
 // --- Autenticação e erro --------------------------------------------------
 const EsqueciSenhaPage = lazy(() =>
-  import('@/pages/EsqueciSenhaPage').then((m) => ({ default: m.EsqueciSenhaPage })),
+  pagina(
+    import('@/pages/EsqueciSenhaPage').then((m) => ({ default: m.EsqueciSenhaPage })),
+  ),
 );
 const RedefinirSenhaPage = lazy(() =>
-  import('@/pages/RedefinirSenhaPage').then((m) => ({ default: m.RedefinirSenhaPage })),
+  pagina(
+    import('@/pages/RedefinirSenhaPage').then((m) => ({ default: m.RedefinirSenhaPage })),
+  ),
 );
 const SemPermissaoPage = lazy(() =>
-  import('@/pages/SemPermissaoPage').then((m) => ({ default: m.SemPermissaoPage })),
+  pagina(
+    import('@/pages/SemPermissaoPage').then((m) => ({ default: m.SemPermissaoPage })),
+  ),
 );
 const NaoEncontradaPage = lazy(() =>
-  import('@/pages/NaoEncontradaPage').then((m) => ({ default: m.NaoEncontradaPage })),
+  pagina(
+    import('@/pages/NaoEncontradaPage').then((m) => ({ default: m.NaoEncontradaPage })),
+  ),
 );
 
 // --- Painel ---------------------------------------------------------------
 // O layout entra aqui junto das páginas: ele carrega a Sidebar e o conjunto de
 // ícones do painel, que não têm uso nenhum para quem só abriu o site.
 const LayoutPainel = lazy(() =>
-  import('@/components/layout/LayoutPainel').then((m) => ({ default: m.LayoutPainel })),
+  pagina(
+    import('@/components/layout/LayoutPainel').then((m) => ({ default: m.LayoutPainel })),
+  ),
 );
 const DashboardPage = lazy(() =>
-  import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+  pagina(
+    import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+  ),
 );
 const CertificacoesPage = lazy(() =>
-  import('@/features/certificacoes/CertificacoesPage').then((m) => ({ default: m.CertificacoesPage })),
+  pagina(
+    import('@/features/certificacoes/CertificacoesPage').then((m) => ({ default: m.CertificacoesPage })),
+  ),
 );
 const CertificacaoDetalhePage = lazy(() =>
-  import('@/features/certificacoes/CertificacaoDetalhePage').then((m) => ({ default: m.CertificacaoDetalhePage })),
+  pagina(
+    import('@/features/certificacoes/CertificacaoDetalhePage').then((m) => ({ default: m.CertificacaoDetalhePage })),
+  ),
 );
 const NaoConformidadesPage = lazy(() =>
-  import('@/features/nao-conformidades/NaoConformidadesPage').then((m) => ({ default: m.NaoConformidadesPage })),
+  pagina(
+    import('@/features/nao-conformidades/NaoConformidadesPage').then((m) => ({ default: m.NaoConformidadesPage })),
+  ),
 );
 const CertificadosPage = lazy(() =>
-  import('@/features/certificados/CertificadosPage').then((m) => ({ default: m.CertificadosPage })),
+  pagina(
+    import('@/features/certificados/CertificadosPage').then((m) => ({ default: m.CertificadosPage })),
+  ),
 );
 const CertificadosEmRiscoPage = lazy(() =>
-  import('@/features/certificados/CertificadosEmRiscoPage').then((m) => ({ default: m.CertificadosEmRiscoPage })),
+  pagina(
+    import('@/features/certificados/CertificadosEmRiscoPage').then((m) => ({ default: m.CertificadosEmRiscoPage })),
+  ),
 );
 const ProdutosPage = lazy(() =>
-  import('@/features/produtos/ProdutosPage').then((m) => ({ default: m.ProdutosPage })),
+  pagina(
+    import('@/features/produtos/ProdutosPage').then((m) => ({ default: m.ProdutosPage })),
+  ),
 );
 const ProdutoFormPage = lazy(() =>
-  import('@/features/produtos/ProdutoFormPage').then((m) => ({ default: m.ProdutoFormPage })),
+  pagina(
+    import('@/features/produtos/ProdutoFormPage').then((m) => ({ default: m.ProdutoFormPage })),
+  ),
 );
 const ClientesPage = lazy(() =>
-  import('@/features/clientes/ClientesPage').then((m) => ({ default: m.ClientesPage })),
+  pagina(
+    import('@/features/clientes/ClientesPage').then((m) => ({ default: m.ClientesPage })),
+  ),
 );
 const ClienteFormPage = lazy(() =>
-  import('@/features/clientes/ClienteFormPage').then((m) => ({ default: m.ClienteFormPage })),
+  pagina(
+    import('@/features/clientes/ClienteFormPage').then((m) => ({ default: m.ClienteFormPage })),
+  ),
 );
 const CategoriasPage = lazy(() =>
-  import('@/features/categorias-produto/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
+  pagina(
+    import('@/features/categorias-produto/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
+  ),
 );
 const CategoriaDetalhePage = lazy(() =>
-  import('@/features/categorias-produto/CategoriaDetalhePage').then((m) => ({ default: m.CategoriaDetalhePage })),
+  pagina(
+    import('@/features/categorias-produto/CategoriaDetalhePage').then((m) => ({ default: m.CategoriaDetalhePage })),
+  ),
 );
 const FuncionariosPage = lazy(() =>
-  import('@/features/funcionarios/FuncionariosPage').then((m) => ({ default: m.FuncionariosPage })),
+  pagina(
+    import('@/features/funcionarios/FuncionariosPage').then((m) => ({ default: m.FuncionariosPage })),
+  ),
 );
 const FuncionarioFormPage = lazy(() =>
-  import('@/features/funcionarios/FuncionarioFormPage').then((m) => ({ default: m.FuncionarioFormPage })),
+  pagina(
+    import('@/features/funcionarios/FuncionarioFormPage').then((m) => ({ default: m.FuncionarioFormPage })),
+  ),
 );
 const AparenciaPage = lazy(() =>
-  import('@/features/aparencia/AparenciaPage').then((m) => ({ default: m.AparenciaPage })),
+  pagina(
+    import('@/features/aparencia/AparenciaPage').then((m) => ({ default: m.AparenciaPage })),
+  ),
 );
 
 const EQUIPE = ['ADMIN', 'FUNCIONARIO'] as const;
