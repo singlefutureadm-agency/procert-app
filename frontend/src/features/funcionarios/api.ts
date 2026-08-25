@@ -1,5 +1,10 @@
 import { api } from '@/lib/api';
-import type { Funcionario, RespostaPaginada, StatusRegistro } from '@/types';
+import type {
+  Funcionario,
+  FuncionarioResumo,
+  RespostaPaginada,
+  StatusRegistro,
+} from '@/types';
 
 export type RoleEquipe = 'ADMIN' | 'FUNCIONARIO';
 
@@ -33,6 +38,12 @@ export const funcionariosApi = {
     const { data } = await api.get<RespostaPaginada<Funcionario>>('/funcionarios', {
       params: filtros,
     });
+    return data;
+  },
+
+  /** Equipe ativa, enxuta — popula o select de responsável pela carteira. */
+  listarResumido: async () => {
+    const { data } = await api.get<FuncionarioResumo[]>('/funcionarios/resumo');
     return data;
   },
 

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { BadgeStatus } from '@/components/Badge';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
+import { Campo } from '@/components/Campo';
 import { CampoBusca } from '@/components/CampoBusca';
 import { EsqueletoTabela } from '@/components/Esqueleto';
 import { EstadoVazio } from '@/components/EstadoVazio';
@@ -15,6 +16,7 @@ import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { formatarUltimoAcesso, mascararDocumento } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
+import { funcionariosApi } from '@/features/funcionarios/api';
 import type { Cliente, StatusRegistro } from '@/types';
 import { clientesApi, type FiltrosClientes } from './api';
 
@@ -31,6 +33,12 @@ export function ClientesPage() {
   const { data, isLoading } = useQuery({
     queryKey: chaves.clientes(filtros),
     queryFn: () => clientesApi.listar(filtros),
+  });
+
+  const { data: equipe } = useQuery({
+    queryKey: chaves.funcionariosResumo,
+    queryFn: funcionariosApi.listarResumido,
+    staleTime: Infinity,
   });
 
   const alterarStatus = useMutation({
@@ -92,6 +100,30 @@ export function ClientesPage() {
           placeholder="Buscar por nome, e-mail ou documento"
           aoMudar={(busca) => setFiltros((atual) => ({ ...atual, busca, pagina: 1 }))}
         />
+        <Campo label="Carteira">
+          <select
+            value={filtros.responsavelId ?? ''}
+            onChange={(evento) =>
+              setFiltros((atual) => ({
+                ...atual,
+                // '' limpa o filtro; '0' é o pedido explícito de "sem responsável".
+                responsavelId:
+                  evento.target.value === ''
+                    ? undefined
+                    : Number(evento.target.value),
+                pagina: 1,
+              }))
+            }
+          >
+            <option value="">Todas as carteiras</option>
+            <option value="0">Sem responsável</option>
+            {equipe?.map((integrante) => (
+              <option key={integrante.id} value={integrante.id}>
+                {integrante.nome}
+              </option>
+            ))}
+          </select>
+        </Campo>
       </div>
 
       <section className="vidro">
@@ -124,6 +156,7 @@ export function ClientesPage() {
                     <th role="columnheader">Documento</th>
                     <th role="columnheader">Telefone</th>
                     <th role="columnheader">UF</th>
+                    <th role="columnheader">Responsável</th>
                     <th role="columnheader">Último acesso da conta</th>
                     <th role="columnheader">Status</th>
                     <th role="columnheader" className="texto-direita">Ações</th>
@@ -149,6 +182,9 @@ export function ClientesPage() {
                       </td>
                       <td role="cell" data-rotulo="Telefone" className="texto-suave">{cliente.telefone ?? '—'}</td>
                       <td role="cell" data-rotulo="UF">{cliente.estado?.sigla ?? '—'}</td>
+                      <td role="cell" data-rotulo="Responsável" className="texto-suave">
+                        {cliente.responsavel?.nome ?? 'Sem responsável'}
+                      </td>
                       <td
                         role="cell"
                         data-rotulo="Último acesso da conta"
