@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -33,9 +34,11 @@ const SELECT_CLIENTE = {
   fotoUrl: true,
   status: true,
   ultimoAcessoEm: true,
+  responsavelId: true,
   criadoEm: true,
   atualizadoEm: true,
   estado: { select: { id: true, sigla: true, nome: true } },
+  responsavel: { select: { id: true, nome: true } },
 } satisfies Prisma.ClienteSelect;
 
 export type ClienteResposta = Prisma.ClienteGetPayload<{
@@ -54,6 +57,11 @@ export class ClientesService {
   ): Promise<RespostaPaginada<ClienteResposta>> {
     const where: Prisma.ClienteWhereInput = {
       status: filtros.status ?? StatusRegistro.ATIVO,
+      // `0` é o pedido explícito de "sem responsável"; um id real filtra a
+      // carteira daquele funcionário. `undefined` não filtra nada.
+      ...(filtros.responsavelId !== undefined && {
+        responsavelId: filtros.responsavelId === 0 ? null : filtros.responsavelId,
+      }),
       ...(filtros.busca && {
         OR: [
           { nome: { contains: filtros.busca, mode: 'insensitive' } },
@@ -102,6 +110,7 @@ export class ClientesService {
   async criar(dto: CriarClienteDto): Promise<ClienteResposta> {
     const email = dto.email.trim().toLowerCase();
     await this.garantirEmailDisponivel(email);
+    await this.garantirResponsavelValido(dto.responsavelId);
 
     const { senha, dataNascimento, ...dados } = dto;
 
@@ -128,6 +137,7 @@ export class ClientesService {
     if (emailNormalizado) {
       await this.garantirEmailDisponivel(emailNormalizado, id);
     }
+    await this.garantirResponsavelValido(dto.responsavelId);
 
     return this.prisma.cliente.update({
       where: { id },
@@ -214,6 +224,40 @@ export class ClientesService {
 
     if ((cliente && cliente.id !== ignorarId) || funcionario) {
       throw new ConflictException('Este e-mail já está em uso na plataforma.');
+    }
+  }
+
+  /**
+   * Confere o responsável antes de gravar.
+   *
+   * Sem esta checagem quem recusaria um id inexistente seria a FK, e o
+   * `AllExceptionsFilter` traduz `P2003` para 409 com mensagem genérica — a
+   * tela mostraria "conflito" para o que é, na verdade, um campo inválido.
+   * Funcionário INATIVO a FK aceitaria em silêncio, e a carteira nasceria
+   * apontando para quem não trabalha mais aqui.
+   *
+   * `null` é explicitamente permitido: é como se desatribui uma carteira.
+   */
+  private async garantirResponsavelValido(
+    responsavelId?: number | null,
+  ): Promise<void> {
+    if (responsavelId === undefined || responsavelId === null) return;
+
+    const responsavel = await this.prisma.funcionario.findUnique({
+      where: { id: responsavelId },
+      select: { id: true, status: true },
+    });
+
+    if (!responsavel) {
+      throw new BadRequestException(
+        `Funcionário ${responsavelId} não encontrado para ser o responsável.`,
+      );
+    }
+
+    if (responsavel.status !== StatusRegistro.ATIVO) {
+      throw new BadRequestException(
+        'O responsável precisa ser um funcionário ativo.',
+      );
     }
   }
 }

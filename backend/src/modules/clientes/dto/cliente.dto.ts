@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
 import { StatusRegistro } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 import { PaginacaoDto } from '../../../common/dto/paginacao.dto';
 import { PessoaBaseDto } from '../../../common/dto/pessoa-base.dto';
@@ -11,6 +12,17 @@ export class CriarClienteDto extends PessoaBaseDto {
   @IsString()
   @Matches(SENHA_REGEX, { message: SENHA_MENSAGEM })
   senha!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Funcionário responsável pela carteira. Informativo: não restringe acesso.',
+    example: 3,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  responsavelId?: number;
 }
 
 /**
@@ -32,6 +44,18 @@ export class ListarClientesDto extends PaginacaoDto {
   @IsOptional()
   @IsEnum(StatusRegistro)
   status?: StatusRegistro;
+
+  /** Filtra pela carteira de um funcionário. `0` lista os sem responsável. */
+  @ApiPropertyOptional({
+    description:
+      'Id do funcionário responsável. Use 0 para listar os clientes sem responsável.',
+    example: 3,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  responsavelId?: number;
 }
 
 export class AlterarStatusDto {

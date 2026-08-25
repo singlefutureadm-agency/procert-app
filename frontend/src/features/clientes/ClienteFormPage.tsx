@@ -23,6 +23,7 @@ import {
 } from '@/lib/mascaras';
 import { usePreencherPorCep } from '@/lib/useCep';
 import { chaves } from '@/lib/queryClient';
+import { funcionariosApi } from '@/features/funcionarios/api';
 import { clientesApi, estadosApi, type DadosCliente } from './api';
 
 const senhaValida = z
@@ -51,6 +52,9 @@ const esquema = z.object({
   bairro: z.string().optional(),
   cidade: z.string().optional(),
   estadoId: z.string().optional(),
+  /* String, como estadoId: o <select> devolve string e '' significa "sem
+     responsável". A conversão para número (ou null) é feita no submit. */
+  responsavelId: z.string().optional(),
 });
 
 type Formulario = z.infer<typeof esquema>;
@@ -82,6 +86,12 @@ export function ClienteFormPage() {
   const { data: estados } = useQuery({
     queryKey: chaves.estados,
     queryFn: estadosApi.listar,
+    staleTime: Infinity,
+  });
+
+  const { data: equipe } = useQuery({
+    queryKey: chaves.funcionariosResumo,
+    queryFn: funcionariosApi.listarResumido,
     staleTime: Infinity,
   });
 
@@ -141,6 +151,7 @@ export function ClienteFormPage() {
       bairro: cliente.bairro ?? '',
       cidade: cliente.cidade ?? '',
       estadoId: cliente.estadoId ? String(cliente.estadoId) : '',
+      responsavelId: cliente.responsavelId ? String(cliente.responsavelId) : '',
     });
   }, [cliente, reset]);
 
@@ -159,6 +170,12 @@ export function ClienteFormPage() {
         bairro: formulario.bairro || undefined,
         cidade: formulario.cidade || undefined,
         estadoId: formulario.estadoId ? Number(formulario.estadoId) : undefined,
+        /* `null`, e não `undefined`, quando vazio: `undefined` some do payload
+           e a carteira antiga continuaria gravada — não haveria como
+           desatribuir um responsável pela tela. */
+        responsavelId: formulario.responsavelId
+          ? Number(formulario.responsavelId)
+          : null,
         // A senha só é enviada quando preenchida (mesma regra do legado).
         ...(formulario.senha ? { senha: formulario.senha } : {}),
       };
@@ -310,6 +327,25 @@ export function ClienteFormPage() {
                 {estados?.map((estado) => (
                   <option key={estado.id} value={estado.id}>
                     {estado.sigla} — {estado.nome}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          </div>
+        </fieldset>
+
+        <fieldset className="secao-form">
+          <legend>Atendimento</legend>
+          <div className="grade-form">
+            <Campo
+              label="Responsável pela carteira"
+              dica="Quem responde por esta empresa. Não altera permissões: toda a equipe continua enxergando todos os clientes."
+            >
+              <select {...register('responsavelId')}>
+                <option value="">Sem responsável definido</option>
+                {equipe?.map((integrante) => (
+                  <option key={integrante.id} value={integrante.id}>
+                    {integrante.nome}
                   </option>
                 ))}
               </select>

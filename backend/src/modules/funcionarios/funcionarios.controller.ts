@@ -41,6 +41,14 @@ export class FuncionariosController {
     return this.funcionariosService.listar(filtros);
   }
 
+  // ANTES de `:id`, senão o Nest casa "resumo" como se fosse um id.
+  @Get('resumo')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({ summary: 'Lista enxuta da equipe ativa, para selects' })
+  listarResumido() {
+    return this.funcionariosService.listarResumido();
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({ summary: 'Detalha um colaborador' })

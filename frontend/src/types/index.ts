@@ -61,7 +61,25 @@ interface PessoaBase {
   atualizadoEm: string;
 }
 
-export type Cliente = PessoaBase;
+/** Referência enxuta a um colaborador (GET /funcionarios/resumo). */
+export interface FuncionarioResumo {
+  id: number;
+  nome: string;
+  email: string;
+  role: Exclude<Role, 'CLIENTE'>;
+}
+
+export interface Cliente extends PessoaBase {
+  /**
+   * Funcionário responsável pela carteira desta empresa.
+   *
+   * **Informativo: não restringe acesso.** Todo funcionário continua vendo
+   * todos os clientes; o campo diz quem responde pela empresa, não quem pode
+   * abri-la.
+   */
+  responsavelId: number | null;
+  responsavel: { id: number; nome: string } | null;
+}
 
 export interface Funcionario extends PessoaBase {
   role: Exclude<Role, 'CLIENTE'>;

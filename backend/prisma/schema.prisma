@@ -119,6 +119,20 @@ model Cliente {
   bairro         String?        @db.VarChar(120)
   cidade         String?        @db.VarChar(120)
   estadoId       Int?           @map("estado_id")
+  /// Funcionário responsável pela carteira desta empresa.
+  ///
+  /// Vínculo 1:N (um responsável por cliente), e não tabela pivô: a operação
+  /// concentra cada empresa num ponto de contato. Se aparecer o caso real de
+  /// substituição (férias, técnico + comercial), promova para N:N COM um campo
+  /// `principal` — pivô sem ele deixa "quem responde por esta empresa" sem
+  /// resposta única, que é justamente a pergunta que motivou o campo.
+  ///
+  /// **Hoje é informativo: não restringe acesso.** Nenhum service filtra por
+  /// ele. Ao fechar o acesso por carteira, o `SetNull` abaixo vira decisão
+  /// explícita — desativar um funcionário faria a carteira inteira dele sumir
+  /// do painel de todo mundo, sem erro e sem aviso. Antes disso, exija
+  /// transferência ou bloqueie a desativação.
+  responsavelId  Int?           @map("responsavel_id")
   fotoUrl        String?        @map("foto_url") @db.VarChar(255)
   status         StatusRegistro @default(ATIVO)
   /// Último login BEM-SUCEDIDO desta conta.
@@ -136,11 +150,13 @@ model Cliente {
   criadoEm       DateTime       @default(now()) @map("criado_em")
   atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
 
-  estado   Estado?   @relation(fields: [estadoId], references: [id], onDelete: SetNull)
-  produtos Produto[]
+  estado      Estado?      @relation(fields: [estadoId], references: [id], onDelete: SetNull)
+  responsavel Funcionario? @relation("CarteiraCliente", fields: [responsavelId], references: [id], onDelete: SetNull)
+  produtos    Produto[]
 
   @@index([status])
   @@index([nome])
+  @@index([responsavelId])
   @@map("clientes")
 }
 
@@ -170,6 +186,8 @@ model Funcionario {
   atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
 
   estado             Estado?                 @relation(fields: [estadoId], references: [id], onDelete: SetNull)
+  /// Clientes sob responsabilidade deste funcionário. Ver `Cliente.responsavelId`.
+  carteira           Cliente[]               @relation("CarteiraCliente")
   historicoAlteracao CertificacaoHistorico[]
   naoConformidades   NaoConformidade[]
   certificadosEmitidos Certificado[]

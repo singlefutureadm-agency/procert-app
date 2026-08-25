@@ -86,6 +86,20 @@ export class FuncionariosService {
     return paginar(dados, total, filtros);
   }
 
+  /**
+   * Lista enxuta para popular selects (ex.: responsável pela carteira).
+   *
+   * Espelha `ClientesService.listarResumido`. Só ATIVOS: atribuir uma carteira
+   * a quem foi desativado é o mesmo que deixá-la sem dono, mas sem parecer.
+   */
+  async listarResumido() {
+    return this.prisma.funcionario.findMany({
+      where: { status: StatusRegistro.ATIVO },
+      select: { id: true, nome: true, email: true, role: true },
+      orderBy: { nome: 'asc' },
+    });
+  }
+
   async buscarPorId(id: number): Promise<FuncionarioResposta> {
     const funcionario = await this.prisma.funcionario.findUnique({
       where: { id },

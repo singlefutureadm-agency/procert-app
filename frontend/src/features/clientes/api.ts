@@ -11,6 +11,8 @@ export interface FiltrosClientes {
   limite?: number;
   busca?: string;
   status?: StatusRegistro;
+  /** Carteira de um funcionário. `0` traz os clientes sem responsável. */
+  responsavelId?: number;
 }
 
 export interface DadosCliente {
@@ -27,6 +29,8 @@ export interface DadosCliente {
   bairro?: string;
   cidade?: string;
   estadoId?: number;
+  /** `null` desatribui a carteira. */
+  responsavelId?: number | null;
 }
 
 export const clientesApi = {
