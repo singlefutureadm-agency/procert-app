@@ -49,8 +49,8 @@ const IDENTIFICACAO: SecaoLegal = {
 
 export const POLITICA_PRIVACIDADE: DocumentoLegal = {
   titulo: 'Política de Privacidade',
-  subtitulo: 'Notificações via WhatsApp',
-  atualizadoEm: '20 de agosto de 2026',
+  subtitulo: 'Notificações via WhatsApp e acesso à plataforma',
+  atualizadoEm: '24 de agosto de 2026',
   abertura: [
     `A **${EMPRESA_LEGAL.razaoSocial}**, inscrita no CNPJ nº **${EMPRESA_LEGAL.cnpj}**, respeita a privacidade de seus clientes e utiliza seus dados pessoais apenas para as finalidades necessárias à prestação de seus serviços.`,
   ],
@@ -85,25 +85,33 @@ export const POLITICA_PRIVACIDADE: DocumentoLegal = {
       ],
     },
     {
-      titulo: '4. Proteção dos dados',
+      titulo: '4. Acesso à plataforma',
+      paragrafos: [
+        'Ao acessar o painel da PROCERT, o sistema registra a **data e a hora do último acesso bem-sucedido** de cada conta cadastrada.',
+        'O registro tem a finalidade exclusiva de permitir que a PROCERT identifique contas sem uso e ofereça suporte a clientes que não estejam acompanhando seus processos. **Não são registrados o histórico de navegação, as páginas visitadas nem qualquer outro evento de uso.**',
+        'Apenas o último acesso é mantido: cada novo acesso substitui o registro anterior, de modo que não existe histórico acumulado.',
+      ],
+    },
+    {
+      titulo: '5. Proteção dos dados',
       paragrafos: [
         'A PROCERT adota medidas de segurança para proteger os dados pessoais contra acesso, alteração ou utilização não autorizada.',
         'Os dados não serão utilizados para finalidades diferentes das informadas nesta Política, salvo quando houver obrigação legal ou outra base legal prevista na legislação.',
       ],
     },
     {
-      titulo: '5. Direitos do usuário',
+      titulo: '6. Direitos do usuário',
       paragrafos: [
         'O usuário possui os direitos previstos na **Lei Geral de Proteção de Dados (LGPD)**, incluindo solicitar informações sobre o tratamento de seus dados, correção de dados incorretos e, quando aplicável, exclusão ou interrupção do tratamento.',
       ],
     },
     {
-      titulo: '6. Contato',
+      titulo: '7. Contato',
       paragrafos: [
         'Para assuntos relacionados a este serviço, o usuário poderá utilizar os canais oficiais de atendimento da PROCERT.',
       ],
     },
-    { ...IDENTIFICACAO, titulo: '7. Identificação' },
+    { ...IDENTIFICACAO, titulo: '8. Identificação' },
   ],
   fecho: 'Esta Política poderá ser atualizada sempre que necessário.',
 };

@@ -24,6 +24,16 @@ export function formatarData(valor?: string | null): string {
   return valor ? dataBR.format(new Date(valor)) : '—';
 }
 
+/**
+ * Último acesso da conta, com texto próprio para o caso nulo.
+ *
+ * Não usa o travessão de `formatarDataHora`: aqui o vazio não é "sem dado", é
+ * "nunca entrou" — que é justamente a informação que se foi buscar na coluna.
+ */
+export function formatarUltimoAcesso(valor?: string | null): string {
+  return valor ? dataHoraBR.format(new Date(valor)) : 'Nunca acessou';
+}
+
 /** 'YYYY-MM-DD' para preencher <input type="date"> */
 export function paraInputDate(valor?: string | null): string {
   return valor ? new Date(valor).toISOString().slice(0, 10) : '';
