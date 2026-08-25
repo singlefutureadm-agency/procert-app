@@ -60,7 +60,20 @@ const MENU: GrupoMenu[] = [
         icone: 'predio',
         papeis: ['ADMIN', 'FUNCIONARIO'],
       },
-      { para: '/equipe', rotulo: 'Equipe interna', icone: 'pessoas', papeis: ['ADMIN'] },
+      {
+        para: '/equipe',
+        rotulo: 'Equipe interna',
+        icone: 'pessoas',
+        papeis: ['ADMIN'],
+        filhos: [
+          {
+            para: '/relatorios/equipe',
+            rotulo: 'Desempenho',
+            icone: 'grafico',
+            papeis: ['ADMIN'],
+          },
+        ],
+      },
     ],
   },
   {
