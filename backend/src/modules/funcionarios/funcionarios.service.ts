@@ -34,6 +34,7 @@ const SELECT_FUNCIONARIO = {
   estadoId: true,
   fotoUrl: true,
   status: true,
+  ultimoAcessoEm: true,
   criadoEm: true,
   atualizadoEm: true,
   estado: { select: { id: true, sigla: true, nome: true } },

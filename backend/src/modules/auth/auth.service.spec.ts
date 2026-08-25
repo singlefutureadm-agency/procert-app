@@ -197,6 +197,103 @@ describe('AuthService', () => {
     });
   });
 
+  describe('registro do último acesso', () => {
+    it('carimba o funcionário no login bem-sucedido', async () => {
+      banco.prisma.funcionario.findUnique.mockResolvedValue(
+        FUNCIONARIO_ATIVO as never,
+      );
+      conferirSenha.mockResolvedValue(true);
+
+      await servico.login({
+        email: 'bruno@procertocp.com.br',
+        senha: 'Procert@2026',
+      });
+
+      expect(banco.prisma.funcionario.update).toHaveBeenCalledTimes(1);
+      const [argumentos] = banco.prisma.funcionario.update.mock.calls[0];
+      expect(argumentos.where).toEqual({ id: 2 });
+      expect(argumentos.data.ultimoAcessoEm).toBeInstanceOf(Date);
+      expect(banco.prisma.cliente.update).not.toHaveBeenCalled();
+    });
+
+    it('carimba o cliente no login bem-sucedido', async () => {
+      banco.prisma.cliente.findUnique.mockResolvedValue(CLIENTE_ATIVO as never);
+      conferirSenha.mockResolvedValue(true);
+
+      await servico.login({
+        email: 'contato@cliente.com.br',
+        senha: 'Procert@2026',
+      });
+
+      expect(banco.prisma.cliente.update).toHaveBeenCalledTimes(1);
+      const [argumentos] = banco.prisma.cliente.update.mock.calls[0];
+      expect(argumentos.where).toEqual({ id: 100 });
+      expect(argumentos.data.ultimoAcessoEm).toBeInstanceOf(Date);
+      expect(banco.prisma.funcionario.update).not.toHaveBeenCalled();
+    });
+
+    it('NÃO carimba quando a senha está errada', async () => {
+      banco.prisma.funcionario.findUnique.mockResolvedValue(
+        FUNCIONARIO_ATIVO as never,
+      );
+      conferirSenha.mockResolvedValue(false);
+
+      await expect(
+        servico.login({ email: 'bruno@procertocp.com.br', senha: 'errada' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(banco.prisma.funcionario.update).not.toHaveBeenCalled();
+    });
+
+    it('NÃO carimba quando o cadastro está inativo', async () => {
+      banco.prisma.funcionario.findUnique.mockResolvedValue({
+        ...FUNCIONARIO_ATIVO,
+        status: StatusRegistro.INATIVO,
+      } as never);
+
+      await expect(
+        servico.login({
+          email: 'bruno@procertocp.com.br',
+          senha: 'Procert@2026',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(banco.prisma.funcionario.update).not.toHaveBeenCalled();
+    });
+
+    it('NÃO escreve nada no caminho de e-mail inexistente', async () => {
+      conferirSenha.mockResolvedValue(false);
+
+      await expect(
+        servico.login({ email: 'ninguem@exemplo.com', senha: 'qualquer' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Um write aqui daria ao atacante um sinal de tempo distinguindo e-mail
+      // cadastrado de não cadastrado — exatamente o que a comparação contra
+      // hash inválido existe para evitar.
+      expect(banco.prisma.funcionario.update).not.toHaveBeenCalled();
+      expect(banco.prisma.cliente.update).not.toHaveBeenCalled();
+    });
+
+    it('falha ao gravar o acesso NÃO derruba o login', async () => {
+      banco.prisma.funcionario.findUnique.mockResolvedValue(
+        FUNCIONARIO_ATIVO as never,
+      );
+      conferirSenha.mockResolvedValue(true);
+      banco.prisma.funcionario.update.mockRejectedValue(
+        new Error('banco indisponível') as never,
+      );
+
+      // Telemetria não é pré-requisito para entrar no sistema.
+      const resposta = await servico.login({
+        email: 'bruno@procertocp.com.br',
+        senha: 'Procert@2026',
+      });
+
+      expect(resposta.accessToken).toBe('token.jwt.assinado');
+    });
+  });
+
   describe('esqueciSenha', () => {
     const MENSAGEM_NEUTRA =
       'Se este e-mail estiver cadastrado, você receberá as instruções em instantes.';

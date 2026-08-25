@@ -121,6 +121,18 @@ model Cliente {
   estadoId       Int?           @map("estado_id")
   fotoUrl        String?        @map("foto_url") @db.VarChar(255)
   status         StatusRegistro @default(ATIVO)
+  /// Último login BEM-SUCEDIDO desta conta.
+  ///
+  /// `Cliente` é a própria conta de acesso (tem `email` e `senhaHash` na
+  /// linha), então a relação é 1:1 e este campo é o último login dela — não
+  /// "do cliente". Credencial compartilhada entre várias pessoas da empresa
+  /// não é distinguível aqui, e nenhum modelo distinguiria sem contas
+  /// individuais por empresa.
+  ///
+  /// Responde "quem sumiu da plataforma". NÃO responde frequência de uso: para
+  /// isso seria preciso uma tabela de eventos, deliberadamente não criada
+  /// (custo de guarda e exposição de LGPD sem pergunta de negócio definida).
+  ultimoAcessoEm DateTime?      @map("ultimo_acesso_em")
   criadoEm       DateTime       @default(now()) @map("criado_em")
   atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
 
@@ -151,6 +163,9 @@ model Funcionario {
   estadoId       Int?           @map("estado_id")
   fotoUrl        String?        @map("foto_url") @db.VarChar(255)
   status         StatusRegistro @default(ATIVO)
+  /// Último login bem-sucedido. Mesma semântica do campo homônimo em `Cliente`.
+  /// Aqui alimenta a coluna "última atividade" do relatório de equipe.
+  ultimoAcessoEm DateTime?      @map("ultimo_acesso_em")
   criadoEm       DateTime       @default(now()) @map("criado_em")
   atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
 

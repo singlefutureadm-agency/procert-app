@@ -52,6 +52,7 @@ export class AuthService {
     if (funcionario) {
       await this.garantirAtivo(funcionario.status);
       await this.garantirSenha(senha, funcionario.senhaHash);
+      await this.registrarAcesso('funcionario', funcionario.id);
       return this.emitirToken({
         id: funcionario.id,
         nome: funcionario.nome,
@@ -68,6 +69,7 @@ export class AuthService {
     if (cliente) {
       await this.garantirAtivo(cliente.status);
       await this.garantirSenha(senha, cliente.senhaHash);
+      await this.registrarAcesso('cliente', cliente.id);
       return this.emitirToken({
         id: cliente.id,
         nome: cliente.nome,
@@ -232,6 +234,41 @@ export class AuthService {
   private async garantirSenha(senha: string, hash: string): Promise<void> {
     if (!(await conferirSenha(senha, hash))) {
       throw new UnauthorizedException('E-mail ou senha incorretos.');
+    }
+  }
+
+  /**
+   * Carimba o último login bem-sucedido.
+   *
+   * Chamado só depois de `garantirAtivo` + `garantirSenha`, e nunca no ramo de
+   * e-mail inexistente: um write ali daria ao atacante um sinal de tempo
+   * distinguindo e-mail cadastrado de não cadastrado, que é exatamente o que a
+   * comparação contra hash inválido no fim do `login` existe para evitar.
+   *
+   * **`await` com `try/catch`, e não promessa solta.** O padrão do projeto para
+   * efeito colateral não-crítico é rodar depois do commit sem `await`, mas em
+   * serverless a função pode congelar assim que a resposta sai e o UPDATE se
+   * perderia. Ele é desprezível perto do bcrypt que acabou de rodar, então vale
+   * esperar. Falhar aqui não pode derrubar a autenticação: telemetria não é
+   * pré-requisito para entrar.
+   */
+  private async registrarAcesso(
+    tipo: 'cliente' | 'funcionario',
+    id: number,
+  ): Promise<void> {
+    try {
+      const data = { ultimoAcessoEm: new Date() };
+      if (tipo === 'cliente') {
+        await this.prisma.cliente.update({ where: { id }, data });
+      } else {
+        await this.prisma.funcionario.update({ where: { id }, data });
+      }
+    } catch (erro) {
+      this.logger.warn(
+        `Não foi possível registrar o último acesso do ${tipo} ${id}: ${
+          erro instanceof Error ? erro.message : erro
+        }`,
+      );
     }
   }
 

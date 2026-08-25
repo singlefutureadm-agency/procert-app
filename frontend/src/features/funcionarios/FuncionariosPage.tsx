@@ -13,6 +13,7 @@ import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
 import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
+import { formatarUltimoAcesso } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import type { Funcionario, StatusRegistro } from '@/types';
 import { funcionariosApi, type FiltrosFuncionarios, type RoleEquipe } from './api';
@@ -142,6 +143,7 @@ export function FuncionariosPage() {
                     <th role="columnheader">E-mail</th>
                     <th role="columnheader">Papel</th>
                     <th role="columnheader">Telefone</th>
+                    <th role="columnheader">Último acesso da conta</th>
                     <th role="columnheader">Status</th>
                     <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
@@ -167,6 +169,13 @@ export function FuncionariosPage() {
                         </span>
                       </td>
                       <td role="cell" data-rotulo="Telefone" className="texto-suave">{integrante.telefone ?? '—'}</td>
+                      <td
+                        role="cell"
+                        data-rotulo="Último acesso da conta"
+                        className="texto-suave"
+                      >
+                        {formatarUltimoAcesso(integrante.ultimoAcessoEm)}
+                      </td>
                       <td role="cell" data-rotulo="Status">
                         <BadgeStatus status={integrante.status} />
                       </td>

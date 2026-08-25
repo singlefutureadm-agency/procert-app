@@ -49,6 +49,14 @@ interface PessoaBase {
   estado: Estado | null;
   fotoUrl: string | null;
   status: StatusRegistro;
+  /**
+   * Último login bem-sucedido desta conta; `null` enquanto nunca houve um.
+   *
+   * É o acesso DA CONTA, não "do cliente": a linha é a própria credencial, e
+   * uma senha compartilhada entre várias pessoas da empresa aparece aqui como
+   * um acesso só. Responde "quem sumiu", não frequência de uso.
+   */
+  ultimoAcessoEm: string | null;
   criadoEm: string;
   atualizadoEm: string;
 }

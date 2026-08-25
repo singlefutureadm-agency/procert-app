@@ -13,7 +13,7 @@ import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
 import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
-import { mascararDocumento } from '@/lib/formatadores';
+import { formatarUltimoAcesso, mascararDocumento } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import type { Cliente, StatusRegistro } from '@/types';
 import { clientesApi, type FiltrosClientes } from './api';
@@ -124,6 +124,7 @@ export function ClientesPage() {
                     <th role="columnheader">Documento</th>
                     <th role="columnheader">Telefone</th>
                     <th role="columnheader">UF</th>
+                    <th role="columnheader">Último acesso da conta</th>
                     <th role="columnheader">Status</th>
                     <th role="columnheader" className="texto-direita">Ações</th>
                   </tr>
@@ -148,6 +149,13 @@ export function ClientesPage() {
                       </td>
                       <td role="cell" data-rotulo="Telefone" className="texto-suave">{cliente.telefone ?? '—'}</td>
                       <td role="cell" data-rotulo="UF">{cliente.estado?.sigla ?? '—'}</td>
+                      <td
+                        role="cell"
+                        data-rotulo="Último acesso da conta"
+                        className="texto-suave"
+                      >
+                        {formatarUltimoAcesso(cliente.ultimoAcessoEm)}
+                      </td>
                       <td role="cell" data-rotulo="Status">
                         <BadgeStatus status={cliente.status} />
                       </td>
