@@ -88,14 +88,26 @@ npm run dev                   # http://localhost:5173
 | Comando | Ação |
 |---|---|
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
-| `npm run build` | `tsc -b && vite build` |
+| `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
+| `npm test` | ✅ 86 testes, 8 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm run test:watch` | idem, em watch |
+| `npm run test:cov` | idem, com cobertura (v8) |
 
-> **O backend tem rede de segurança; o frontend não.** 274 unitários + 128 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 274 unitários + 128 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
-> modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
-> **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
-> `DOCUMENTACAO.md` §14 para o estado medido e o que falta.
+> modelos de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
+> de negócio, **rode `npm test` e `npm run test:e2e`**.
+>
+> No frontend são 86 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
+> fora do `MAPA_CSS` some da saída sem erro), `mensagemDeErro`, as chaves de cache (uma
+> chave torta não atualiza a lista e não avisa) e as invariantes de acessibilidade de
+> `Campo`, `CampoSenha` e `Modal` — associação rótulo↔controle, `type="button"` no
+> alternador de senha, foco preso e devolvido. Nada disso produz stack trace: são bugs que
+> passam em revisão de código e em teste manual de quem usa mouse.
+>
+> **Página inteira fica de fora por decisão** — o custo de montá-la com router, provider e
+> mocks de rede não paga o que ela protege. Ver `DOCUMENTACAO.md` §14.
 
 #### Rodando o e2e
 
@@ -484,6 +496,7 @@ src/
 │                   seo.ts (meta por rota), imagem.ts (reduz upload), cep.ts + useCep.ts
 ├── pages/          Telas fora do painel (login, reset, 404, sem-permissão)
 ├── styles/         global.css — tema "liquid glass" herdado do legado
+├── testing/        setup do Vitest e fixtures compartilhadas dos testes
 └── types/          Contratos espelhando os enums/selects do Prisma
 ```
 
@@ -737,6 +750,31 @@ Regra de nome acessível, nessa ordem:
   limites do schema (`VarChar(18)`, `(14)`, `(9)`) são o comprimento **com** pontuação.
 - **Skip link** (`.pular-para-conteudo`) é o primeiro focável do `LayoutPainel` e aponta
   para `#conteudo-principal`, que carrega `tabIndex={-1}` para poder receber o foco.
+
+### Teste no frontend — o que testar e o que não
+
+Vitest + Testing Library, `environment: jsdom`, configurado em `vitest.config.ts`
+(separado do `vite.config.ts` para que mudança de teste não arrisque o bundle). **O alias
+`@/` está declarado em TRÊS lugares** — `vite.config.ts`, `tsconfig.json` e
+`vitest.config.ts` — e os três precisam ficar em sincronia.
+
+O critério do que entra é **"quebra em silêncio?"**. Nada do que está coberto lança
+exceção: um token fora do `MAPA_CSS` some da saída, uma chave de cache torta não atualiza
+a lista, um `<label>` órfão só falha para quem usa leitor de tela. É o que passa em revisão
+de código e em teste manual.
+
+Ao escrever teste de componente, **asserte a relação, não o HTML**: `getByLabelText` só
+encontra o controle se a associação existir de verdade, enquanto `querySelector('label')`
+passaria com o rótulo órfão. Da mesma forma, `toHaveAccessibleDescription` prova o elo do
+`aria-describedby` que um `toHaveAttribute` não prova.
+
+`pool: 'forks'` com `singleFork` porque a máquina de desenvolvimento tem 4 GB: o pool
+padrão abre um jsdom por núcleo e a suíte morre por memória. O `afterEach` global chama
+`cleanup()` — sem ele um `getByRole` acha o componente do caso anterior e o resultado passa
+a depender da ordem.
+
+**Página inteira não é testada**, por decisão: exigiria router, `QueryClientProvider`,
+`AuthProvider` e mock de rede para provar pouco além do que o type-check já garante.
 
 ### Tabelas — cartões abaixo de 720px
 

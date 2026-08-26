@@ -93,6 +93,10 @@ jobs:
         run: npm run test:e2e
 
   frontend:
+    # ATENÇÃO: este nome é o `context` de um required status check na ruleset
+    # "Proteção Main" (`gh api repos/.../rulesets`). Renomear aqui faz o check
+    # exigido nunca aparecer, e todo PR fica travado esperando por ele.
+    # Para renomear, atualize a ruleset ANTES.
     name: Frontend (build, lint)
     runs-on: ubuntu-latest
 
@@ -115,8 +119,12 @@ jobs:
       - name: Lint
         run: npm run lint:ci
 
-      # `tsc -b && vite build` — o type-check entra junto, e é a única rede de
-      # segurança que o frontend tem hoje (não há teste algum). Ver
-      # DOCUMENTACAO.md §14.
+      # Antes do build de propósito: falha de teste é mais rápida e mais
+      # informativa que falha de bundle, e não faz sentido empacotar código que
+      # já sabemos estar quebrado.
+      - name: Testes
+        run: npm test
+
+      # `tsc -b && vite build` — o type-check entra junto.
       - name: Build
         run: npm run build
