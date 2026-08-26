@@ -172,3 +172,44 @@ export class ExportarComparativoClientesDto extends IntersectionType(
   OmitType(ListarComparativoClientesDto, ['pagina', 'limite'] as const),
   FormatoExportacaoDto,
 ) {}
+
+// ------------------------------------------------------------ tempo de ciclo
+
+export const AGRUPAMENTOS_CICLO = ['trilha', 'etapa'] as const;
+export type AgrupamentoCiclo = (typeof AGRUPAMENTOS_CICLO)[number];
+
+/**
+ * Filtros do relatório de tempo de ciclo.
+ *
+ * **Não estende `PaginacaoDto`**: o resultado é um punhado de grupos (trilhas
+ * ou nomes de etapa), não uma listagem. Paginar aqui só esconderia parte da
+ * comparação, que é justamente o que o relatório existe para mostrar.
+ */
+export class ListarTempoCicloDto {
+  @ApiPropertyOptional({
+    enum: AGRUPAMENTOS_CICLO,
+    default: 'trilha',
+    description:
+      '`trilha` agrupa por categoria + versão; `etapa` agrupa pelo nome da etapa.',
+  })
+  @IsOptional()
+  @IsIn(AGRUPAMENTOS_CICLO)
+  agrupamento: AgrupamentoCiclo = 'trilha';
+
+  @ApiPropertyOptional({ example: '2026-01-01' })
+  @IsOptional()
+  @IsISO8601()
+  de?: string;
+
+  @ApiPropertyOptional({ example: '2026-12-31' })
+  @IsOptional()
+  @IsISO8601()
+  ate?: string;
+}
+
+export class ExportarTempoCicloDto extends ListarTempoCicloDto {
+  @ApiPropertyOptional({ enum: ['xlsx', 'csv'], default: 'xlsx' })
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  formato?: 'xlsx' | 'csv';
+}

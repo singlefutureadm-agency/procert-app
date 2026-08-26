@@ -185,3 +185,58 @@ export const comparativosApi = {
       `comparativo-clientes.${formato}`,
     ),
 };
+
+// ----------------------------------------------------------- tempo de ciclo
+
+export type AgrupamentoCiclo = 'trilha' | 'etapa';
+
+/** Duração sempre acompanhada da base — mediana sem base não diz nada. */
+export interface Medida {
+  medianaDias: number | null;
+  base: number;
+}
+
+/**
+ * Um grupo do relatório de tempo de ciclo.
+ *
+ * As três medidas de duração são relógios diferentes e **não são comparáveis
+ * entre si**: nunca as coloque na mesma série de gráfico nem some nada aqui.
+ */
+export interface GrupoCiclo {
+  chave: string;
+  /** Medida do PRODUTO. `null` no agrupamento por etapa, onde não se aplica. */
+  leadTimeTrilha: Medida | null;
+  tempoTratamentoEtapa: Medida;
+  tempoEmFila: Medida;
+  /** Etapas aprovadas sem tratamento registrado. Ficam fora da mediana acima. */
+  aprovacaoDireta: { etapas: number };
+  etapasEmAberto: { etapas: number; medianaDias: number | null };
+}
+
+export interface RelatorioCiclo {
+  agrupamento: AgrupamentoCiclo;
+  periodo: { de: string | null; ate: string | null };
+  grupos: GrupoCiclo[];
+}
+
+export interface FiltrosTempoCiclo {
+  agrupamento?: AgrupamentoCiclo;
+  de?: string;
+  ate?: string;
+}
+
+export const cicloApi = {
+  relatorio: async (filtros: FiltrosTempoCiclo) => {
+    const { data } = await api.get<RelatorioCiclo>('/relatorios/tempo-ciclo', {
+      params: filtros,
+    });
+    return data;
+  },
+
+  exportar: (filtros: FiltrosTempoCiclo, formato: 'xlsx' | 'csv') =>
+    baixar(
+      '/relatorios/tempo-ciclo/exportacao',
+      { ...filtros, formato },
+      `tempo-de-ciclo.${formato}`,
+    ),
+};

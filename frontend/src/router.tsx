@@ -222,6 +222,11 @@ const ComparativoClientesPage = lazy(() =>
     import('@/features/relatorios/ComparativoClientesPage').then((m) => ({ default: m.ComparativoClientesPage })),
   ),
 );
+const TempoCicloPage = lazy(() =>
+  pagina(
+    import('@/features/relatorios/TempoCicloPage').then((m) => ({ default: m.TempoCicloPage })),
+  ),
+);
 const AparenciaPage = lazy(() =>
   pagina(
     import('@/features/aparencia/AparenciaPage').then((m) => ({ default: m.AparenciaPage })),
@@ -352,6 +357,14 @@ export const router = createBrowserRouter([
         element: (
           <RotaProtegida papeis={['ADMIN', 'FUNCIONARIO']}>
             <ComparativoProdutosPage />
+          </RotaProtegida>
+        ),
+      },
+      {
+        path: 'relatorios/tempo-ciclo',
+        element: (
+          <RotaProtegida papeis={['ADMIN', 'FUNCIONARIO']}>
+            <TempoCicloPage />
           </RotaProtegida>
         ),
       },

@@ -355,8 +355,8 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
 | Modelo | Tabela | Papel no domínio |
 |---|---|---|
 | `Estado` | `estados` | 27 UFs; referência de endereço |
-| `Cliente` | `clientes` | Quem contrata a certificação; **também é usuário** (login com `role` CLIENTE implícita) |
-| `Funcionario` | `funcionarios` | Equipe interna; guarda `role` = `ADMIN` \| `FUNCIONARIO` |
+| `Cliente` | `clientes` | Quem contrata a certificação; **também é usuário** (login com `role` CLIENTE implícita). Guarda `ultimoAcessoEm` e `responsavelId` (carteira) |
+| `Funcionario` | `funcionarios` | Equipe interna; guarda `role` = `ADMIN` \| `FUNCIONARIO` e `ultimoAcessoEm` |
 | `CategoriaProduto` | `categorias_produto` | Família de produtos com processo próprio; guarda a norma e a `validadeMeses` do certificado |
 | `ModeloTrilha` | `modelos_trilha` | **Versão** da trilha de uma categoria (`versao`, `ativo`, `vigenteDe/Ate`) |
 | `ModeloEtapa` | `modelos_etapa` | Etapa prevista por uma versão (`ordem`, `tipo`, `obrigatoria`, `prazoSlaDias`, `exigeDocumento`) |
@@ -370,6 +370,79 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
 | `EtapaCertificacao` | `etapas_certificacao` | **Obsoleto** — catálogo global do legado, mantido só até a conferência do cutover |
 | `TokenRedefinicaoSenha` | `tokens_redefinicao_senha` | Reset de senha; guarda **hash** do token |
 | `MensagemContato` | `mensagens_contato` | Formulário público do site |
+
+### Campos que carregam decisão
+
+**`Cliente.ultimoAcessoEm` / `Funcionario.ultimoAcessoEm`** — último login bem-sucedido,
+carimbado em `AuthService.login()` **só no caminho de sucesso**: um write no ramo de
+e-mail inexistente daria um sinal de tempo distinguindo conta cadastrada de não cadastrada,
+que é o que a comparação contra hash inválido existe para evitar. O `UPDATE` roda com
+`await` e `try/catch` — em serverless a função pode congelar assim que a resposta sai, e
+uma promessa solta se perderia; falhar ali não derruba o login.
+
+Responde **"quem sumiu da plataforma"**. **Não** responde frequência de uso: para isso
+seria preciso uma tabela de eventos, deliberadamente não criada (custo de guarda e
+exposição de LGPD sem pergunta de negócio definida). Como `Cliente` **é** a conta, a
+relação é 1:1 — senha compartilhada na empresa aparece como um acesso só, e por isso o
+rótulo na UI é "Último acesso da conta".
+
+**`Cliente.responsavelId`** — carteira de clientes. FK 1:N, e **não** tabela pivô: a
+operação concentra cada empresa num ponto de contato, e pivô sem campo `principal`
+deixaria "quem responde por esta empresa" sem resposta única. **É informativo: não
+restringe acesso** — nenhum service filtra por ele, e toda a equipe continua vendo todos os
+clientes. O `onDelete: SetNull` é seguro enquanto for assim; ao fechar o acesso por
+carteira, desativar um funcionário faria a carteira dele sumir do painel de todos, em
+silêncio.
+
+A validação vive no service, não na FK: a chave aceitaria um funcionário **INATIVO** sem
+reclamar, e para id inexistente o `P2003` viraria 409 genérico ("conflito") no que é campo
+inválido. Hoje são 400 com mensagem específica nos dois casos.
+
+### As três medidas de tempo — e por que não existe "tempo da etapa"
+
+O relatório de tempo de ciclo mede **três relógios diferentes**, cada um com nome próprio
+na tela, na chave da API e no cabeçalho da planilha:
+
+| Rótulo | De | Até |
+|---|---|---|
+| **Lead time da trilha** | `Produto.criadoEm` | aprovação da última etapa **obrigatória** |
+| **Tempo de tratamento da etapa** | 1ª saída de `PENDENTE` | aprovação |
+| **Tempo em fila** | `CertificacaoProduto.criadoEm` | 1ª saída de `PENDENTE` |
+
+Mais duas contagens: **Aprovação direta** (etapas que foram de `PENDENTE` a `APROVADO` sem
+tratamento registrado) e **Etapas em aberto** (não aprovadas, medidas até hoje).
+
+**Um rótulo genérico como "tempo da etapa" é recusado**: os três cabem embaixo dele, e a
+pergunta "por que essa etapa demorou 14 dias?" ficaria sem resposta a partir do próprio
+relatório.
+
+Dois fatos do schema que determinam esses marcos:
+
+1. **`CertificacaoProduto.criadoEm` é a entrada na FILA, não o início do trabalho.** A
+   coluna é `DEFAULT CURRENT_TIMESTAMP` e a trilha nasce num único `createMany` dentro da
+   transação que cria o produto — em Postgres `CURRENT_TIMESTAMP` é o início da transação,
+   então **todas as etapas de um produto nascem com o mesmo timestamp**, igual a
+   `Produto.criadoEm`. Usá-lo como início do tratamento mediria o produto, não a etapa.
+2. **A trilha não é sequencial.** `CertificacoesService.salvar()` recebe um lote e não impõe
+   ordem: qualquer etapa pode ser aprovada a qualquer momento, várias no mesmo instante.
+   Logo "início da etapa = aprovação da anterior" é inválido, e `PENDENTE → APROVADO` direto
+   é possível.
+
+Recortes que evitam número mentiroso:
+
+- **Só etapas hoje `APROVADO`** entram nas medianas; as em aberto vão para bloco próprio.
+  Misturá-las reintroduz o viés de sobrevivência, que faz a trilha mais lenta parecer a mais
+  rápida.
+- **Aprovação direta sai da mediana de tratamento** (zero por construção). Incluída, um time
+  que aprova em lote exibiria ciclo de 0 dia.
+- **O fim é o último `alteradoEm` com `statusNovo = APROVADO` e `statusAnterior <>
+  statusNovo`.** O `<>` descarta as linhas de anexo — sem ele, um documento enviado depois
+  da aprovação empurra o fim para frente e quase dobra o tempo medido.
+- **Mediana, nunca média**: um produto abandonado há dois anos destrói qualquer média.
+- **Agrupamento por trilha usa categoria + versão.** Juntar v1 e v3 compara réguas
+  diferentes.
+- **Base vazia devolve `null`, nunca `0`.** Zero afirmaria "levou zero dia"; `null` diz "não
+  medimos". Toda medida vai acompanhada da sua base.
 
 ### Enums
 
@@ -647,6 +720,39 @@ A classificação é calculada em memória sobre um único `findMany` enxuto
 (`select: {id, certificacao: {status}}`) — mais previsível que quatro `count` com filtros
 correlacionados. Se a base crescer muito, este é o primeiro ponto a virar agregação SQL.
 
+### `relatorios`
+Relatórios de gestão, todos com exportação XLSX/CSV. **Toda agregação é SQL
+(`$queryRaw`)**, não `findMany` + JS como o `dashboard`: aqui seria varrer o histórico
+inteiro para contar, e o `groupBy` do Prisma não compara duas colunas — algo necessário
+para excluir as linhas de anexo de documento, que gravam histórico com
+`statusAnterior = statusNovo` e não são avaliação de etapa.
+
+O padrão em todas as consultas é **`LEFT JOIN LATERAL` por fonte**, nunca `JOIN` direto:
+com joins as linhas se multiplicam entre si (5 etapas × 3 NCs = 15) e todo `COUNT` sai
+inflado; `LEFT` mantém no relatório quem não tem nada, que costuma ser o caso que a gestão
+quer ver.
+
+Quatro serviços:
+
+- **`equipe.service.ts`** — desempenho por autoria. **Carteira e atividade são métricas
+  independentes**: a atividade é recortada pelo período; a carteira é retrato de agora e o
+  ignora. Vêm de origens diferentes e a resposta traz dois grupos nomeados, sem nenhum
+  campo que combine os dois. Único endpoint do módulo restrito a **ADMIN** (sobrescreve o
+  `@Roles` da classe): é informação sobre a produtividade de colegas, não dado operacional.
+- **`comparativos.service.ts`** — avanço por produto e volume por cliente. Distingue
+  **"obrigatórias pendentes"** de **"pendentes"**: só a etapa obrigatória trava a emissão do
+  certificado. Traz `diasParado` porque progresso sozinho engana — 60% parado há 90 dias é
+  pior que 30% mexido ontem.
+- **`ciclo.service.ts`** — tempo de ciclo. Ver §5 para os três relógios.
+- **`exportacao-*.service.ts`** — planilhas, sobre `common/planilha`.
+
+**Ordenação sempre por allowlist fechada**, traduzida para um `Prisma.sql` fixo: `ORDER BY`
+não aceita placeholder, então nome de coluna vindo da query string seria injeção que os
+parâmetros preparados não protegem.
+
+`ComparativosService` aplica o escopo do CLIENTE mesmo com o `@Roles` da classe barrando
+CLIENTE — defesa em profundidade, como o middleware de `/uploads`.
+
 ### `estados`
 Controller inline no módulo, `@Public()`: a lista de UFs alimenta formulários antes do login.
 
@@ -786,6 +892,30 @@ autoriza.
 | GET | `/:id/pdf` | Autenticado (CLIENTE só os seus) | PDF; gerado sob demanda se faltar |
 | PATCH | `/:id/status` | ADMIN | Suspende, cancela ou reativa; motivo obrigatório ao encerrar |
 | POST | `/expirar-vencidos` | ADMIN | Rotina de expiração (agendador externo) |
+
+### Relatórios — `/relatorios`
+
+Módulo interno. `@Roles(ADMIN, FUNCIONARIO)` na classe; o desempenho da equipe sobrescreve
+para ADMIN.
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
+| GET | `/relatorios/equipe` | **ADMIN** | Desempenho por autoria. O período recorta a ATIVIDADE; a carteira é retrato de agora |
+| GET | `/relatorios/equipe/exportacao` | **ADMIN** | XLSX/CSV. Período obrigatório, janela ≤ 12 meses, teto de linhas |
+| GET | `/relatorios/produtos` | ADMIN, FUNCIONARIO | Comparativo de avanço, paginado e ordenável |
+| GET | `/relatorios/produtos/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV com o mesmo recorte da tela |
+| GET | `/relatorios/clientes` | ADMIN, FUNCIONARIO | Produtos, concluídos, certificados vigentes, NCs, último acesso |
+| GET | `/relatorios/clientes/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV |
+| GET | `/relatorios/tempo-ciclo` | ADMIN, FUNCIONARIO | `agrupamento=trilha\|etapa`. Três medidas distintas — ver §5 |
+| GET | `/relatorios/tempo-ciclo/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV |
+
+> **As exportações recusam `pagina`** em vez de ignorá-la (o `forbidNonWhitelisted` global
+> faz isso). Ignorado, alguém baixaria a página 2 achando que baixou o relatório inteiro.
+> Estourando o teto de linhas a resposta é **400 pedindo recorte** — nunca um arquivo
+> truncado em silêncio, que vai para a reunião parecendo completo.
+>
+> `tempo-ciclo` é a exceção sem teto nem período obrigatório: o resultado é um punhado de
+> grupos, não uma listagem que cresce com a base.
 
 ### Dashboard, Estados e Contato
 
@@ -2070,9 +2200,9 @@ encerrada" antes de a versão 1 existir.
 | Autenticação | JWT assinado, expiração obrigatória, `JWT_SECRET` obrigatório no boot |
 | Revogação | Revalidação do usuário no banco a cada request (cadastro inativo cai na hora) |
 | Autorização | Guards globais; acesso é opt-out via `@Public()`, nunca opt-in |
-| Multi-tenant | Escopo do CLIENTE derivado do token; verificação de posse em detalhes e uploads |
+| Multi-tenant | Escopo do CLIENTE derivado do token; verificação de posse em detalhes e uploads. Nos comparativos o filtro existe mesmo com o `@Roles` barrando CLIENTE — defesa em profundidade, para relaxar o papel um dia não virar vazamento |
 | Mass assignment | `whitelist` + `forbidNonWhitelisted` → `{"role":"ADMIN"}` recebe `400` |
-| SQL injection | Prisma parametriza tudo; não há SQL concatenado |
+| SQL injection | Prisma parametriza tudo. Onde há `$queryRaw` (módulo `relatorios`), valores vão por placeholder e **`ORDER BY`/`GROUP BY` saem de allowlist fechada** — a cláusula não aceita placeholder, e nome de coluna vindo da query string seria injeção que os parâmetros não protegem. Coberto por e2e que envia `nome; DROP TABLE produtos` e espera 400 |
 | Upload | Allowlists de MIME por finalidade (imagem × documento), extensão derivada do MIME, nome `randomUUID()`, limite de tamanho, guarda de path traversal |
 | Estático de `/uploads` | Allowlist de pastas (`PASTAS_PUBLICAS`), um mount por pasta + middleware que nega o resto com 404; `certificados/` e `certificacoes/` nunca são servidos como estático |
 | Download de evidência e de PDF | Rota autenticada com verificação de posse; `Content-Disposition: attachment` na evidência para não executar SVG/HTML no domínio da API |
@@ -2132,6 +2262,12 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~Pedaço obsoleto após deploy~~ | `7f03cc4`, `fe7166e` |
 | ~~Primeira trilha de uma categoria~~ | `97b16c1` |
 | ~~**Branch protection em `main`**~~ | ativa desde 24/08/2026 |
+| ~~Registro de último acesso~~ | `#16` |
+| ~~Carteira de clientes por responsável~~ | `#17` |
+| ~~Relatório de desempenho da equipe~~ | `#18` |
+| ~~`baseUrl` obsoleto no tsconfig~~ | `#19` |
+| ~~Comparativos de produtos e de clientes~~ | `#20` |
+| ~~Tempo de ciclo~~ | este PR |
 
 ### Prioridade 1 — o que sustenta tudo que foi construído
 
@@ -2145,7 +2281,7 @@ Consequências práticas para quem trabalha aqui: todo trabalho vai por branch +
 `gh pr merge --auto` **não** está disponível neste plano (o repositório recusa
 `enablePullRequestAutoMerge`) — aguarde os dois checks e faça o merge.
 
-**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 234 unitários + 75 e2e. O
+**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 274 unitários + 128 e2e. O
 CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o
 passo. Comece pelo que quebra silencioso — `lib/tema.ts` (`MAPA_CSS`, `checarContrastes`),
 `mensagemDeErro` e as chaves de `lib/queryClient.ts`.
@@ -2161,6 +2297,15 @@ mensagens — ou seja, na primeira mensagem que chegar em produção.*
 **4. Aviso de prazo de NC vencido**, no dashboard e por e-mail. Hoje o vencimento só
 aparece para quem abre a tela da NC. *Gatilho: a primeira NC que estourar o prazo sem
 ninguém notar.*
+
+**4b. Restrição de acesso por carteira.** `Cliente.responsavelId` existe desde `#17` mas é
+**informativo**: todo funcionário vê todos os clientes. Fechar isso toca produtos,
+certificações, NCs, certificados, dashboard, gráficos e exportações, e acrescenta uma
+dimensão à matriz de e2e (funcionário A × cliente de B). Antes é preciso decidir **quem
+cobre férias** e **o que acontece ao desativar um responsável** — hoje o `SetNull` soltaria
+a carteira dele em silêncio. Os services dos comparativos já aplicam o escopo, então parte
+do caminho está feita. *Gatilho: a equipe crescer, ou o cliente pedir que um funcionário
+não veja a carteira de outro.*
 
 ### Prioridade 3 — desempenho e evolução prevista
 
