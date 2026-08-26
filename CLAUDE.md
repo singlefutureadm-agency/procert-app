@@ -77,7 +77,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 234 unitários, 12 suítes, Prisma mockado |
+| `npm test` | ✅ 275 unitários, 15 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 75 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -90,7 +90,7 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **O backend tem rede de segurança; o frontend não.** 234 unitários + 75 e2e cobrem
+> **O backend tem rede de segurança; o frontend não.** 275 unitários + 75 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
 > **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
@@ -129,6 +129,17 @@ cd backend
 # edite prisma/schema.prisma
 npx prisma migrate dev --name descricao_curta   # cria migration + regenera o client
 ```
+
+**Em produção quem aplica é o build**, por `prisma/migrar-no-deploy.js`, chamado
+pelo `vercel-build`. Ele só age com `VERCEL_ENV=production`, **derruba o deploy
+se a migration não aplicar** e religa o RLS depois (o `migrate deploy` não o
+conhece, e no Supabase tabela sem RLS fica aberta ao PostgREST). Isso substituiu
+um passo manual em 26/08/2026, depois que três PRs seguidos com migration
+subiram sem que ninguém a rodasse e o login em produção passou a devolver 500 —
+`P2022`, coluna inexistente. **Não volte a tratar migration como passo manual**;
+se precisar de uma janela controlada, o lugar de decidir isso é o script.
+A variável que ele usa é `MIGRATE_DATABASE_URL` (session pooler :5432), porque a
+`DATABASE_URL` da função é o transaction pooler :6543 — ver `DEPLOY.md` §3 e §5.
 
 ---
 
@@ -753,6 +764,12 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
   4,5 MB e a plataforma responde 413 sem passar pelo middleware — o navegador então não
   acha `Access-Control-Allow-Origin` e culpa o que não é. Confira o status no log da função
   antes de mexer em CORS.
+- **Código novo em produção contra schema velho** foi o incidente de 26/08/2026:
+  login com 500 e `P2022 — funcionarios.ultimo_acesso_em não existe`. O CI não
+  pega, e não é falha dele: o e2e sobe um Postgres limpo, onde `migrate deploy`
+  aplica tudo e nunca há divergência. Só o banco de produção acumula defasagem.
+  Fechado no build (§2), mas o sintoma vale ser reconhecido: **`P2022` em
+  produção é migration pendente, não bug de código.**
 - **`vercel.json` não aceita campo fora do schema.** Um `comment` dentro de `rewrites[]`
   derruba o deploy na validação, antes de compilar. JSON não tem comentário; a explicação
   vai no código que depende da regra.

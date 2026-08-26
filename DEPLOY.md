@@ -30,10 +30,12 @@ Os dois projetos da Vercel apontam para **o mesmo repositório**, com
 ## 2. Como uma mudança vai ao ar
 
 **Push em `main` publica em produção.** Push em branch ou PR publica um
-*preview*. Não há passo manual — a integração com o GitHub faz o deploy sozinha.
+*preview*. Não há passo manual — a integração com o GitHub faz o deploy sozinha,
+**migration incluída**: desde 26/08/2026 o build de produção roda
+`prisma migrate deploy` antes de compilar (§5), e reprova se ela não aplicar.
 
 O fluxo é o do `README.md`: branch → PR → CI verde → merge. O CI (build, lint,
-234 unitários e 75 e2e) roda no PR e é a rede de segurança **antes** do deploy;
+275 unitários e 75 e2e) roda no PR e é a rede de segurança **antes** do deploy;
 a Vercel não roda os testes.
 
 > **Variável de ambiente alterada NÃO redeploya nada.** O valor entra no
@@ -56,6 +58,7 @@ ele.
 | Variável | Valor em produção | Por quê |
 |---|---|---|
 | `DATABASE_URL` | pooler **:6543** com `?pgbouncer=true&connection_limit=1` | é o *transaction pooler*, o modo para função stateless. A **:5432** é o *session pooler*, e é ela que o `prisma migrate` exige |
+| `MIGRATE_DATABASE_URL` | pooler **:5432**, sem `pgbouncer=true` | **obrigatória**, justamente porque a linha acima é :6543. É a URL que `migrar-no-deploy.js` usa no build; sem ela o script cai na `DATABASE_URL` e o `migrate deploy` falha por não conseguir o advisory lock. Só é lida no build — a função nunca conecta por ela |
 | `SUPABASE_SERVICE_ROLE_KEY` | chave secreta do projeto | ignora RLS; é o que autoriza a API a ler e gravar nos dois buckets |
 | `SUPABASE_URL` | `https://mnwkdtfuvbblmhtdpdsv.supabase.co` | base do REST do Storage |
 | `UPLOAD_DRIVER` | `supabase` | disco em serverless é efêmero: o arquivo some na próxima instância fria |
@@ -96,13 +99,37 @@ Sem `CRON_SECRET` configurado a rota fica **fechada**, nunca aberta.
 
 ## 5. Banco e arquivos
 
-Migrations e seed rodam **da sua máquina**, contra o *session pooler* (:5432):
+**As migrations são aplicadas pelo próprio build de produção**, por
+`prisma/migrar-no-deploy.js`, que o `vercel-build` chama entre o `prisma generate`
+e o `nest build`. Ele só age com `VERCEL_ENV=production` (preview de PR
+compartilha a `DATABASE_URL` do projeto, e sem essa guarda um PR aplicaria a
+migration em produção antes da revisão), **derruba o build se a migration não
+aplicar**, e religa o RLS depois — o `migrate deploy` não conhece RLS, e tabela
+nova nasceria aberta ao PostgREST, pelo que está descrito mais abaixo nesta seção.
+
+> **Isto substituiu um passo manual, e a troca tem data.** Até 26/08/2026 a
+> migration era um comando que se rodava da própria máquina. Em 26/08 o login em
+> produção começou a devolver **500** — `P2022, a coluna
+> `funcionarios.ultimo_acesso_em` não existe` — porque o código dos PRs #16, #17
+> e #20 tinha subido e o schema do banco não. Três PRs seguidos com migration, e
+> o passo manual não foi dado em nenhum: nem o CI nem o deploy tinham como
+> reprovar, já que o e2e roda contra um Postgres limpo onde `migrate deploy`
+> aplica tudo.
+
+Se a `DATABASE_URL` da função for o *transaction pooler* (:6543), o Prisma
+Migrate não a aceita — ele precisa de advisory lock, que o pgbouncer em modo
+transação não mantém entre statements. Nesse caso configure na Vercel uma
+`MIGRATE_DATABASE_URL` com o *session pooler* (:5432); o script prefere essa
+quando existe.
+
+O **seed** continua sendo manual — ele cria o admin inicial, não é parte de
+publicar código:
 
 ```powershell
 cd backend
 $env:DATABASE_URL="postgresql://postgres.mnwkdtfuvbblmhtdpdsv:<SENHA>@aws-0-sa-east-1.pooler.supabase.com:5432/postgres"
-npx prisma migrate deploy
-npm run seed        # idempotente
+npx prisma migrate deploy   # idempotente; só é preciso à mão fora de um deploy
+npm run seed                # idempotente
 ```
 
 A senha do banco **não é recuperável** depois de criada — só resetável em
@@ -468,5 +495,5 @@ Nenhum destes impede subir — mas é melhor saber antes:
 - **Sem logs estruturados nem métricas.** `/api/health` é o único sinal.
 - **Sessão sem revogação.** Token vazado vale até expirar (8h). A revalidação no
   banco cobre conta desativada, não token roubado.
-- **Sem testes no frontend.** O backend tem 234 unitários e 75 e2e; o frontend,
+- **Sem testes no frontend.** O backend tem 275 unitários e 75 e2e; o frontend,
   zero. Mudança de UI só é validada olhando.
