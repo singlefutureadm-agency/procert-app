@@ -42,7 +42,19 @@ const MENU: GrupoMenu[] = [
           { para: '/certificacoes/em-risco', rotulo: 'Em risco', icone: 'ampulheta' },
         ],
       },
-      { para: '/produtos', rotulo: 'Produtos', icone: 'caixa' },
+      {
+        para: '/produtos',
+        rotulo: 'Produtos',
+        icone: 'caixa',
+        filhos: [
+          {
+            para: '/relatorios/produtos',
+            rotulo: 'Comparativo',
+            icone: 'grafico',
+            papeis: ['ADMIN', 'FUNCIONARIO'],
+          },
+        ],
+      },
       {
         para: '/categorias',
         rotulo: 'Categorias e trilhas',
@@ -59,6 +71,14 @@ const MENU: GrupoMenu[] = [
         rotulo: 'Clientes',
         icone: 'predio',
         papeis: ['ADMIN', 'FUNCIONARIO'],
+        filhos: [
+          {
+            para: '/relatorios/clientes',
+            rotulo: 'Comparativo',
+            icone: 'grafico',
+            papeis: ['ADMIN', 'FUNCIONARIO'],
+          },
+        ],
       },
       {
         para: '/equipe',

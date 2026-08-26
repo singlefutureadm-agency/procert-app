@@ -72,3 +72,116 @@ export const relatoriosApi = {
     URL.revokeObjectURL(url);
   },
 };
+
+// ------------------------------------------------------------ comparativos
+
+export type OrdemProdutos = 'progresso' | 'progresso_asc' | 'paradas' | 'nome';
+export type OrdemClientes = 'produtos' | 'produtos_asc' | 'certificados' | 'nome';
+
+export interface FiltrosComparativoProdutos {
+  pagina?: number;
+  limite?: number;
+  busca?: string;
+  ordem?: OrdemProdutos;
+  clienteId?: number;
+  categoriaId?: number;
+}
+
+export interface FiltrosComparativoClientes {
+  pagina?: number;
+  limite?: number;
+  busca?: string;
+  ordem?: OrdemClientes;
+  responsavelId?: number;
+}
+
+export interface LinhaComparativoProduto {
+  id: number;
+  nome: string;
+  clienteId: number;
+  cliente: string;
+  categoria: string;
+  trilhaVersao: number;
+  totalEtapas: number;
+  aprovadas: number;
+  reprovadas: number;
+  pendentes: number;
+  /** O que realmente trava a emissão do certificado. */
+  obrigatoriasPendentes: number;
+  ncsAbertas: number;
+  progresso: number;
+  ultimaMovimentacao: string | null;
+  /** Dias desde a última movimentação; `null` quando nunca houve nenhuma. */
+  diasParado: number | null;
+  criadoEm: string;
+}
+
+export interface LinhaComparativoCliente {
+  id: number;
+  nome: string;
+  email: string;
+  responsavel: string | null;
+  ultimoAcessoEm: string | null;
+  produtos: number;
+  produtosConcluidos: number;
+  certificadosVigentes: number;
+  ncsAbertas: number;
+  ultimaMovimentacao: string | null;
+}
+
+/** Dispara o download de um blob autenticado, lendo o nome do cabeçalho. */
+async function baixar(
+  rota: string,
+  params: Record<string, unknown>,
+  padrao: string,
+) {
+  const resposta = await api.get<Blob>(rota, { params, responseType: 'blob' });
+
+  const cabecalho = String(resposta.headers['content-disposition'] ?? '');
+  const nome = /filename="?([^"]+)"?/.exec(cabecalho)?.[1] ?? padrao;
+
+  const url = URL.createObjectURL(resposta.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nome;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export const comparativosApi = {
+  produtos: async (filtros: FiltrosComparativoProdutos) => {
+    const { data } = await api.get<RespostaPaginada<LinhaComparativoProduto>>(
+      '/relatorios/produtos',
+      { params: filtros },
+    );
+    return data;
+  },
+
+  exportarProdutos: (
+    filtros: Omit<FiltrosComparativoProdutos, 'pagina' | 'limite'>,
+    formato: 'xlsx' | 'csv',
+  ) =>
+    baixar(
+      '/relatorios/produtos/exportacao',
+      { ...filtros, formato },
+      `comparativo-produtos.${formato}`,
+    ),
+
+  clientes: async (filtros: FiltrosComparativoClientes) => {
+    const { data } = await api.get<RespostaPaginada<LinhaComparativoCliente>>(
+      '/relatorios/clientes',
+      { params: filtros },
+    );
+    return data;
+  },
+
+  exportarClientes: (
+    filtros: Omit<FiltrosComparativoClientes, 'pagina' | 'limite'>,
+    formato: 'xlsx' | 'csv',
+  ) =>
+    baixar(
+      '/relatorios/clientes/exportacao',
+      { ...filtros, formato },
+      `comparativo-clientes.${formato}`,
+    ),
+};

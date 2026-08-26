@@ -34,6 +34,10 @@ export const chaves = {
   funcionariosResumo: ['funcionarios', 'resumo'] as const,
   relatorioEquipe: (filtros?: unknown) =>
     ['relatorios', 'equipe', filtros ?? {}] as const,
+  comparativoProdutos: (filtros?: unknown) =>
+    ['relatorios', 'produtos', filtros ?? {}] as const,
+  comparativoClientes: (filtros?: unknown) =>
+    ['relatorios', 'clientes', filtros ?? {}] as const,
   produtos: (filtros?: unknown) => ['produtos', filtros ?? {}] as const,
   produto: (id: number) => ['produtos', id] as const,
   categorias: (filtros?: unknown) => ['categorias', filtros ?? {}] as const,
