@@ -58,6 +58,7 @@ npm run dev                   # http://localhost:5173
 
 | Armadilha | Detalhe |
 |---|---|
+| **Máquina de 4 GB: `tsc` e `eslint` morrem por OOM** | `Zone Allocation failed - process out of memory` sem limite de heap. **Limitar resolve**: `node --max-old-space-size=384 ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json` e o equivalente para `./node_modules/eslint/bin/eslint.js`. Para o Jest o limite atrapalha (o exceljs passa de 384 MB) — ali o caminho é **parar o Docker** (`docker compose stop`) e rodar em lotes com `--runInBand`; o e2e precisa do banco de pé e só cabe sozinho. |
 | **Porta 5433, não 5432** | O container é mapeado `5433:5432` para conviver com um PostgreSQL nativo já instalado na máquina em 5432. O `README.md` sempre esteve certo; quem trazia `5432` era o `backend/.env.example` — corrigido em 19/08/2026. |
 | **Não rode `npm run build` com o `start:dev` ativo** | `nest-cli.json` tem `deleteOutDir: true` e apaga o `dist/` embaixo do processo em watch. |
 | **`Cannot find module '.../dist/main'` após "Found 0 errors"** | Sintoma do conflito `deleteOutDir` × build incremental. Corrigido com `"incremental": false` em `tsconfig.build.json`. Se voltar: apague `dist/` e `tsconfig.build.tsbuildinfo` e reinicie. |
@@ -77,9 +78,9 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 275 unitários, 15 suítes, Prisma mockado |
+| `npm test` | ✅ 274 unitários, 15 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 75 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 128 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -90,7 +91,7 @@ npm run dev                   # http://localhost:5173
 | `npm run build` | `tsc -b && vite build` |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
 
-> **O backend tem rede de segurança; o frontend não.** 275 unitários + 75 e2e cobrem
+> **O backend tem rede de segurança; o frontend não.** 274 unitários + 128 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, e-mail e a matriz de autorização. Ao mexer em regra de negócio,
 > **rode `npm test` e `npm run test:e2e`**. O frontend segue sem teste algum — ver
@@ -400,6 +401,53 @@ próprio — mudam junto com a paleta sem acrescentar campo na tela. A regra de 
 vive em `:root, .previa` pelo mesmo motivo dos outros derivados: `scrollbar-color` é
 herdada já resolvida, e declarada só na raiz a prévia mostraria a barra do tema em uso.
 
+### Último acesso e carteira de clientes
+
+`Cliente.ultimoAcessoEm` e `Funcionario.ultimoAcessoEm` guardam o **último login
+bem-sucedido**, carimbados em `AuthService.login()` **só no caminho de sucesso** — um write
+no ramo de e-mail inexistente daria sinal de tempo distinguindo conta cadastrada de não
+cadastrada, exatamente o que a comparação contra hash inválido evita. O `UPDATE` usa
+`await` + `try/catch`: em serverless a função congela quando a resposta sai, e promessa
+solta se perderia; falhar ali não derruba o login.
+
+Responde **"quem sumiu"**, não frequência de uso — não há tabela de eventos, por decisão.
+Como `Cliente` **é** a conta, a relação é 1:1, e o rótulo na UI é "Último acesso da conta".
+
+`Cliente.responsavelId` é a **carteira**: FK 1:N, não pivô. **É informativo e NÃO restringe
+acesso** — nenhum service filtra por ele. O `SetNull` só é seguro enquanto for assim; ao
+fechar o acesso por carteira, desativar um funcionário faria a carteira dele sumir do
+painel de todos, em silêncio. A validação (funcionário existe **e** está ATIVO) vive no
+service, não na FK.
+
+### As três medidas de tempo — nunca "tempo da etapa"
+
+| Rótulo (o mesmo na tela, na API e na planilha) | De | Até |
+|---|---|---|
+| **Lead time da trilha** | `Produto.criadoEm` | aprovação da última etapa **obrigatória** |
+| **Tempo de tratamento da etapa** | 1ª saída de `PENDENTE` | aprovação |
+| **Tempo em fila** | `CertificacaoProduto.criadoEm` | 1ª saída de `PENDENTE` |
+
+Mais **Aprovação direta** (`PENDENTE` → `APROVADO` sem tratamento) e **Etapas em aberto**.
+
+**Não use "tempo da etapa" genérico em lugar nenhum** — os três relógios cabem embaixo
+desse nome, e a pergunta "por que essa etapa demorou 14 dias?" fica sem resposta.
+
+Dois fatos do schema determinam os marcos:
+
+- **`CertificacaoProduto.criadoEm` é a entrada na FILA.** A coluna é `DEFAULT
+  CURRENT_TIMESTAMP` e a trilha nasce num `createMany` dentro da transação do produto — em
+  Postgres isso é o início da transação, então **todas as etapas nascem com o mesmo
+  timestamp**, igual ao do produto. Usá-lo como início do tratamento mediria o produto.
+- **A trilha não é sequencial.** `salvar()` recebe lote e não impõe ordem, então "início =
+  aprovação da anterior" é inválido, e `PENDENTE → APROVADO` direto acontece.
+
+Recortes que impedem número mentiroso: só etapas `APROVADO` entram nas medianas (as abertas
+vão a bloco próprio, senão volta o viés de sobrevivência); aprovação direta sai da mediana
+de tratamento (zero por construção); o fim exige `statusAnterior <> statusNovo`, senão um
+anexo posterior à aprovação empurra o fim; **mediana, nunca média**; agrupamento por
+categoria **+ versão**; e **base vazia devolve `null`, nunca `0`** — zero afirmaria "levou
+zero dia".
+
 ### `Pagamento`
 
 Tabela existe e `produtos` expõe `ultimoPagamento`, mas **não há controller/service de
@@ -430,7 +478,8 @@ src/
 ├── auth/           AuthContext (sessão), RotaProtegida, useAuth
 ├── components/     Genéricos e o layout do painel (LayoutPainel, Sidebar)
 ├── features/       Um diretório por domínio: api.ts + páginas + componentes locais
-│                   Inclui `home` (site institucional público) e `aparencia`
+│                   Inclui `home` (site institucional público), `aparencia` e
+│                   `relatorios` (equipe, comparativos e tempo de ciclo)
 ├── lib/            api.ts (axios), queryClient.ts (chaves de cache), tema.ts, formatadores
 │                   seo.ts (meta por rota), imagem.ts (reduz upload), cep.ts + useCep.ts
 ├── pages/          Telas fora do painel (login, reset, 404, sem-permissão)
@@ -564,7 +613,18 @@ previews da tela de Aparência aplicam num container isolado (é o que permite m
 e escuro lado a lado). `checarContrastes` calcula razão WCAG achatando cores translúcidas
 sobre o fundo — **avisa, não bloqueia** o salvamento.
 
-### Exportação para planilha — `modules/certificacoes/exportacao.service.ts`
+### Exportação para planilha — `common/planilha` + um serviço por relatório
+
+> As regras que fazem o arquivo **abrir de fato no Excel** vivem em
+> `src/common/planilha/planilha.util.ts` e são compartilhadas por todas as exportações:
+> saneamento de nome de aba, data como `Date` com `numFmt`, BOM de UTF-8, separador `;`,
+> escape de CSV e base de nome de arquivo. **Não as reescreva** num serviço novo — cada uma
+> nasceu de um arquivo que o Excel recusava ou abria errado.
+>
+> **Cuidado com crase em comentário SQL**: o `Prisma.sql` é template literal, e uma crase
+> dentro dele fecha o template. Já derrubou um build.
+
+#### O caso original — `modules/certificacoes/exportacao.service.ts`
 
 `GET /certificacoes/produto/:id/exportacao?formato=xlsx|csv`, gerada no servidor com
 `exceljs`. Reaproveita `detalharPorProduto` em vez de consultar de novo: é lá que o escopo
@@ -863,6 +923,26 @@ fim de mês. Verde que nunca ficou vermelho não prova nada.
     fallback de SPA. Regressão do item 17, encontrada em produção.
 20. `97b16c1` primeira trilha de uma categoria — sem isso, categoria criada pelo painel
     nunca aceitava produto.
+
+**Relatórios de gestão** (25–26/08/2026) — leva de cinco PRs, pedida pelo sócio para o
+painel deixar de ser só operacional e responder perguntas de reunião:
+
+21. `#16` `ultimoAcessoEm` em `Cliente` e `Funcionario`, carimbado no login. Responde "quem
+    sumiu", **não** frequência de uso — a tabela de eventos foi deliberadamente descartada.
+    Seção 4 da Política de Privacidade declara o registro.
+22. `#17` carteira de clientes (`Cliente.responsavelId`). **Informativa: não restringe
+    acesso.** Fechar isso é item de backlog com custo próprio (`DOCUMENTACAO.md` §17).
+23. `#18` relatório de desempenho da equipe **por autoria**, zero migration. Extrai
+    `common/planilha` de `exportacao.service.ts` sem tocar no spec existente — os 21 casos
+    seguem intactos, o que é a prova de que o refactor não regrediu.
+24. `#19` `baseUrl` removido dos dois `tsconfig` (obsoleto, some no TypeScript 7).
+25. `#20` comparativos de produtos e de clientes.
+26. Tempo de ciclo, com as três medidas nomeadas.
+
+Todo o módulo `relatorios` agrega em **SQL (`$queryRaw`)**, não em memória como o
+`dashboard`, e usa `LEFT JOIN LATERAL` por fonte — `JOIN` direto multiplica as linhas entre
+si e infla todo `COUNT`. **Ordenação e agrupamento saem de allowlist fechada**: `ORDER BY`
+não aceita placeholder.
 
 **A branch protection em `main` está ATIVA** (verificado em 24/08/2026 — um push direto
 foi recusado com `GH013: Changes must be made through a pull request` e `2 of 2 required

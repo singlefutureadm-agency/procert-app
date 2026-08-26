@@ -5,6 +5,8 @@ import { RelatorioEquipeService } from './equipe.service';
 import { ExportacaoEquipeService } from './exportacao-equipe.service';
 import { ComparativosService } from './comparativos.service';
 import { ExportacaoComparativosService } from './exportacao-comparativos.service';
+import { CicloService } from './ciclo.service';
+import { ExportacaoCicloService } from './exportacao-ciclo.service';
 
 @Module({
   controllers: [RelatoriosController],
@@ -13,6 +15,8 @@ import { ExportacaoComparativosService } from './exportacao-comparativos.service
     ExportacaoEquipeService,
     ComparativosService,
     ExportacaoComparativosService,
+    CicloService,
+    ExportacaoCicloService,
   ],
 })
 export class RelatoriosModule {}

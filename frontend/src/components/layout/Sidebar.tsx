@@ -60,6 +60,14 @@ const MENU: GrupoMenu[] = [
         rotulo: 'Categorias e trilhas',
         icone: 'pastas',
         papeis: ['ADMIN', 'FUNCIONARIO'],
+        filhos: [
+          {
+            para: '/relatorios/tempo-ciclo',
+            rotulo: 'Tempo de ciclo',
+            icone: 'relogio',
+            papeis: ['ADMIN', 'FUNCIONARIO'],
+          },
+        ],
       },
     ],
   },

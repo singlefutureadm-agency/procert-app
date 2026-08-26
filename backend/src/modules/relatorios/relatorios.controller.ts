@@ -12,6 +12,8 @@ import { RelatorioEquipeService } from './equipe.service';
 import { ExportacaoEquipeService } from './exportacao-equipe.service';
 import { ComparativosService } from './comparativos.service';
 import { ExportacaoComparativosService } from './exportacao-comparativos.service';
+import { CicloService } from './ciclo.service';
+import { ExportacaoCicloService } from './exportacao-ciclo.service';
 import {
   ExportarComparativoClientesDto,
   ExportarComparativoProdutosDto,
@@ -19,6 +21,8 @@ import {
   ListarComparativoClientesDto,
   ListarComparativoProdutosDto,
   ListarRelatorioEquipeDto,
+  ExportarTempoCicloDto,
+  ListarTempoCicloDto,
 } from './dto/relatorios.dto';
 
 const TIPO_XLSX =
@@ -47,6 +51,8 @@ export class RelatoriosController {
     private readonly exportacao: ExportacaoEquipeService,
     private readonly comparativos: ComparativosService,
     private readonly exportacaoComparativos: ExportacaoComparativosService,
+    private readonly ciclo: CicloService,
+    private readonly exportacaoCiclo: ExportacaoCicloService,
   ) {}
 
   /** Cabeçalhos de download comuns às exportações dos comparativos. */
@@ -187,6 +193,49 @@ export class RelatoriosController {
       formato === 'csv'
         ? this.exportacaoComparativos.clientesCsv(linhas, usuario.nome)
         : await this.exportacaoComparativos.clientesXlsx(linhas, usuario.nome),
+    );
+  }
+
+  // ----------------------------------------------------- tempo de ciclo
+  //
+  // ADMIN e FUNCIONARIO, da classe: entender onde o processo trava é operação,
+  // não avaliação de pessoas — nenhuma métrica aqui é atribuída a alguém.
+
+  @Get('tempo-ciclo')
+  @ApiOperation({
+    summary:
+      'Lead time da trilha, tempo de tratamento e tempo em fila — três medidas distintas',
+  })
+  tempoCiclo(@Query() filtros: ListarTempoCicloDto) {
+    return this.ciclo.relatorio(filtros);
+  }
+
+  @Get('tempo-ciclo/exportacao')
+  @ApiOperation({ summary: 'Exporta o tempo de ciclo em XLSX ou CSV' })
+  async exportarTempoCiclo(
+    @Query() filtros: ExportarTempoCicloDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+    @Res() resposta: Response,
+  ): Promise<void> {
+    const relatorio = await this.ciclo.relatorio(filtros);
+    const formato = filtros.formato ?? 'xlsx';
+
+    /*
+     * Sem teto de linhas nem período obrigatório, ao contrário das demais
+     * exportações: o resultado é um punhado de grupos (trilhas ou nomes de
+     * etapa), não uma listagem que cresce com a base. O custo está na
+     * agregação, que roda igual com ou sem recorte.
+     */
+    this.prepararDownload(
+      resposta,
+      this.exportacaoCiclo.nomeArquivo(relatorio.agrupamento, formato),
+      formato,
+    );
+
+    resposta.send(
+      formato === 'csv'
+        ? this.exportacaoCiclo.csv(relatorio, usuario.nome)
+        : await this.exportacaoCiclo.xlsx(relatorio, usuario.nome),
     );
   }
 
