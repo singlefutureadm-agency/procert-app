@@ -16,6 +16,7 @@ import { CertificadosModule } from './modules/certificados/certificados.module';
 import { ClientesModule } from './modules/clientes/clientes.module';
 import { ContatoModule } from './modules/contato/contato.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 import { EstadosModule } from './modules/estados/estados.module';
 import { FuncionariosModule } from './modules/funcionarios/funcionarios.module';
 import { HealthModule } from './modules/health/health.module';
@@ -47,6 +48,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     CertificadosModule,
     EstadosModule,
     DashboardModule,
+    RelatoriosModule,
     ContatoModule,
     AparenciaModule,
   ],

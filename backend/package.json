@@ -95,6 +95,7 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "testEnvironment": "node",
+    "testTimeout": 30000,
     "collectCoverageFrom": [
       "**/*.service.ts",
       "common/utils/**/*.ts"

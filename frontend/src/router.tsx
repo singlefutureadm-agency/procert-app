@@ -207,6 +207,11 @@ const FuncionarioFormPage = lazy(() =>
     import('@/features/funcionarios/FuncionarioFormPage').then((m) => ({ default: m.FuncionarioFormPage })),
   ),
 );
+const EquipeRelatorioPage = lazy(() =>
+  pagina(
+    import('@/features/relatorios/EquipeRelatorioPage').then((m) => ({ default: m.EquipeRelatorioPage })),
+  ),
+);
 const AparenciaPage = lazy(() =>
   pagina(
     import('@/features/aparencia/AparenciaPage').then((m) => ({ default: m.AparenciaPage })),
@@ -327,6 +332,16 @@ export const router = createBrowserRouter([
         element: (
           <RotaProtegida papeis={['ADMIN']}>
             <FuncionariosPage />
+          </RotaProtegida>
+        ),
+      },
+      // Desempenho da equipe: ADMIN, como o backend. É informação de gestão
+      // sobre a produtividade de colegas, não dado operacional.
+      {
+        path: 'relatorios/equipe',
+        element: (
+          <RotaProtegida papeis={['ADMIN']}>
+            <EquipeRelatorioPage />
           </RotaProtegida>
         ),
       },
