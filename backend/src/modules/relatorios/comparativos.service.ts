@@ -204,10 +204,13 @@ export class ComparativosService {
         COALESCE(et.pendentes, 0)   AS pendentes,
         COALESCE(et.obrigatorias_pendentes, 0) AS obrigatorias_pendentes,
         COALESCE(nc.total, 0)       AS ncs_abertas,
-        -- Calculado AQUI, e não em JS, porque `ORDER BY progresso` precisa do
-        -- alias existir no SELECT. Era o bug que derrubou a primeira versão
-        -- deste relatório: a ordenação apontava para uma coluna inexistente e
-        -- o Postgres devolvia 42703, virando 500 na rota.
+        -- Calculado AQUI, e não em JS, porque o ORDER BY precisa do alias
+        -- existir no SELECT. Era o bug que derrubou a primeira versão deste
+        -- relatório: a ordenação apontava para uma coluna inexistente e o
+        -- Postgres devolvia 42703, virando 500 na rota.
+        --
+        -- Nada de crase neste comentário: ele vive dentro de um template
+        -- literal, e uma crase o fecharia no meio da consulta.
         CASE WHEN COALESCE(et.total, 0) = 0 THEN 0
              ELSE ROUND((et.aprovadas::numeric / et.total) * 100)::int
         END AS progresso,
