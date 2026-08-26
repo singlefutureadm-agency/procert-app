@@ -1,6 +1,11 @@
-import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  IntersectionType,
+  OmitType,
+} from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsISO8601, IsOptional } from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsOptional, Min } from 'class-validator';
 
 import { PaginacaoDto } from '../../../common/dto/paginacao.dto';
 
@@ -84,3 +89,86 @@ export class ExportarRelatorioDto {
   @IsIn(['xlsx', 'csv'])
   formato?: 'xlsx' | 'csv';
 }
+
+// ------------------------------------------------------------ comparativos
+
+/**
+ * Ordenações aceitas no comparativo de produtos.
+ *
+ * Allowlist fechada, e o service a traduz para um `Prisma.sql` fixo. O nome da
+ * coluna **nunca** vem da query string: interpolar isso em `$queryRaw` seria
+ * injeção de SQL na cláusula `ORDER BY`, que os placeholders não protegem.
+ */
+export const ORDENS_PRODUTO = [
+  'progresso',
+  'progresso_asc',
+  'paradas',
+  'nome',
+] as const;
+export type OrdemComparativoProduto = (typeof ORDENS_PRODUTO)[number];
+
+export const ORDENS_CLIENTE = [
+  'produtos',
+  'produtos_asc',
+  'certificados',
+  'nome',
+] as const;
+export type OrdemComparativoCliente = (typeof ORDENS_CLIENTE)[number];
+
+export class ListarComparativoProdutosDto extends PaginacaoDto {
+  @ApiPropertyOptional({
+    enum: ORDENS_PRODUTO,
+    default: 'progresso',
+    description:
+      '`paradas` ordena pelo maior tempo sem movimentação — o processo travado.',
+  })
+  @IsOptional()
+  @IsIn(ORDENS_PRODUTO)
+  ordem: OrdemComparativoProduto = 'progresso';
+
+  @ApiPropertyOptional({ description: 'Ignorado quando o papel é CLIENTE.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  clienteId?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  categoriaId?: number;
+}
+
+export class ListarComparativoClientesDto extends PaginacaoDto {
+  @ApiPropertyOptional({ enum: ORDENS_CLIENTE, default: 'produtos' })
+  @IsOptional()
+  @IsIn(ORDENS_CLIENTE)
+  ordem: OrdemComparativoCliente = 'produtos';
+
+  @ApiPropertyOptional({ description: 'Filtra pela carteira de um funcionário.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  responsavelId?: number;
+}
+
+/** Formato do arquivo. Os comparativos não exigem período: o recorte é por filtro. */
+export class FormatoExportacaoDto {
+  @ApiPropertyOptional({ enum: ['xlsx', 'csv'], default: 'xlsx' })
+  @IsOptional()
+  @IsIn(['xlsx', 'csv'])
+  formato?: 'xlsx' | 'csv';
+}
+
+export class ExportarComparativoProdutosDto extends IntersectionType(
+  OmitType(ListarComparativoProdutosDto, ['pagina', 'limite'] as const),
+  FormatoExportacaoDto,
+) {}
+
+export class ExportarComparativoClientesDto extends IntersectionType(
+  OmitType(ListarComparativoClientesDto, ['pagina', 'limite'] as const),
+  FormatoExportacaoDto,
+) {}

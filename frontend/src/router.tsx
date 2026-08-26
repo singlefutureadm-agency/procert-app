@@ -212,6 +212,16 @@ const EquipeRelatorioPage = lazy(() =>
     import('@/features/relatorios/EquipeRelatorioPage').then((m) => ({ default: m.EquipeRelatorioPage })),
   ),
 );
+const ComparativoProdutosPage = lazy(() =>
+  pagina(
+    import('@/features/relatorios/ComparativoProdutosPage').then((m) => ({ default: m.ComparativoProdutosPage })),
+  ),
+);
+const ComparativoClientesPage = lazy(() =>
+  pagina(
+    import('@/features/relatorios/ComparativoClientesPage').then((m) => ({ default: m.ComparativoClientesPage })),
+  ),
+);
 const AparenciaPage = lazy(() =>
   pagina(
     import('@/features/aparencia/AparenciaPage').then((m) => ({ default: m.AparenciaPage })),
@@ -335,6 +345,25 @@ export const router = createBrowserRouter([
           </RotaProtegida>
         ),
       },
+      // Comparativos: ADMIN e FUNCIONARIO, como o backend. São dados
+      // operacionais, diferente do desempenho da equipe logo abaixo.
+      {
+        path: 'relatorios/produtos',
+        element: (
+          <RotaProtegida papeis={['ADMIN', 'FUNCIONARIO']}>
+            <ComparativoProdutosPage />
+          </RotaProtegida>
+        ),
+      },
+      {
+        path: 'relatorios/clientes',
+        element: (
+          <RotaProtegida papeis={['ADMIN', 'FUNCIONARIO']}>
+            <ComparativoClientesPage />
+          </RotaProtegida>
+        ),
+      },
+
       // Desempenho da equipe: ADMIN, como o backend. É informação de gestão
       // sobre a produtividade de colegas, não dado operacional.
       {
