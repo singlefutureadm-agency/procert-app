@@ -60,6 +60,18 @@ const prismaCli = require.resolve('prisma/' + require('prisma/package.json').bin
 const ambienteDoComando = { ...process.env, DATABASE_URL: url };
 
 /**
+ * Cinco minutos, e o número não é chute: `migrate deploy` sadio termina em
+ * segundos, e o que passa disso não está lento — está pendurado.
+ *
+ * Foi medido no primeiro deploy com este script, em 26/08/2026. Apontado para o
+ * *transaction pooler* (:6543) por falta da `MIGRATE_DATABASE_URL`, o comando
+ * **não falhou**: ficou esperando o advisory lock que o pgbouncer em modo
+ * transação nunca concede, e o build seguiu de pé até ser cancelado à mão. Sem
+ * teto, a URL errada não reprova o deploy — ela ocupa o pipeline.
+ */
+const TEMPO_LIMITE_MS = 5 * 60 * 1000;
+
+/**
  * O `catch` não engole a falha — ele troca o stack de `execFileSync` por uma
  * linha legível e mantém o código de saída. No log do build da Vercel o rastro
  * do `child_process` empurra para cima a mensagem do Prisma, que é a única
@@ -71,8 +83,33 @@ const prisma = (rotulo, argumentos, entrada) => {
       stdio: entrada === undefined ? 'inherit' : ['pipe', 'inherit', 'inherit'],
       input: entrada,
       env: ambienteDoComando,
+      timeout: TEMPO_LIMITE_MS,
     });
-  } catch {
+  } catch (erro) {
+    // `SIGTERM` aqui é o timeout acima, não uma falha do Prisma — e o Prisma não
+    // terá impresso erro nenhum, porque do ponto de vista dele nada deu errado.
+    // Sem esta linha o log mostraria só "falhou", e a suspeita cairia sobre a
+    // migration em vez de sobre a URL.
+    if (erro && erro.signal === 'SIGTERM') {
+      // Por `URL`, não por regex: a senha entra na string entre `:` e `@`, e uma
+      // que contenha dígitos seguidos de barra faria um padrão ingênuo apontar a
+      // porta errada — bem no log de que alguém depende para achar o problema.
+      let porta;
+      try {
+        porta = new URL(url).port;
+      } catch {
+        porta = undefined;
+      }
+      console.error(
+        `[migrations] ${rotulo} passou de ${TEMPO_LIMITE_MS / 60000} min sem responder — deploy interrompido.`,
+      );
+      console.error(
+        porta === '6543'
+          ? '[migrations] A URL usada é a do transaction pooler (:6543), que não concede o advisory lock do Prisma Migrate. Configure MIGRATE_DATABASE_URL com o session pooler (:5432).'
+          : '[migrations] Confira se MIGRATE_DATABASE_URL aponta para o session pooler (:5432).',
+      );
+      process.exit(1);
+    }
     console.error(`[migrations] ${rotulo} falhou — deploy interrompido.`);
     process.exit(1);
   }
