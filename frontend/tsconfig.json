@@ -20,7 +20,11 @@
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
 
-    "baseUrl": ".",
+    // Sem `baseUrl`: ele é obsoleto e para de funcionar no TypeScript 7. Desde
+    // o TS 4.1 `paths` não depende dele — os valores abaixo são relativos e
+    // resolvem a partir da pasta deste arquivo, dando o mesmo resultado.
+    // O Vite não é afetado: ele declara o alias por conta própria em
+    // `vite.config.ts`, e as duas declarações precisam continuar em sincronia.
     "paths": {
       "@/*": ["./src/*"]
     }
