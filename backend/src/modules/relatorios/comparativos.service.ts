@@ -60,6 +60,7 @@ interface LinhaProdutoBruta {
   pendentes: bigint;
   obrigatorias_pendentes: bigint;
   ncs_abertas: bigint;
+  progresso: number;
   ultima_movimentacao: Date | null;
   dias_parado: number | null;
   criado_em: Date;
@@ -203,6 +204,13 @@ export class ComparativosService {
         COALESCE(et.pendentes, 0)   AS pendentes,
         COALESCE(et.obrigatorias_pendentes, 0) AS obrigatorias_pendentes,
         COALESCE(nc.total, 0)       AS ncs_abertas,
+        -- Calculado AQUI, e não em JS, porque `ORDER BY progresso` precisa do
+        -- alias existir no SELECT. Era o bug que derrubou a primeira versão
+        -- deste relatório: a ordenação apontava para uma coluna inexistente e
+        -- o Postgres devolvia 42703, virando 500 na rota.
+        CASE WHEN COALESCE(et.total, 0) = 0 THEN 0
+             ELSE ROUND((et.aprovadas::numeric / et.total) * 100)::int
+        END AS progresso,
         mov.ultima                  AS ultima_movimentacao,
         -- Dias desde a última movimentação. É o número que revela o processo
         -- travado, que o progresso sozinho não mostra: 60% parado há 90 dias
@@ -251,30 +259,26 @@ export class ComparativosService {
       LIMIT ${limite} OFFSET ${pular}
     `);
 
-    return brutas.map((b) => {
-      const total = Number(b.total_etapas);
-      const aprovadas = Number(b.aprovadas);
-
-      return {
-        id: b.id,
-        nome: b.nome,
-        clienteId: b.cliente_id,
-        cliente: b.cliente,
-        categoria: b.categoria,
-        trilhaVersao: b.trilha_versao,
-        totalEtapas: total,
-        aprovadas,
-        reprovadas: Number(b.reprovadas),
-        pendentes: Number(b.pendentes),
-        obrigatoriasPendentes: Number(b.obrigatorias_pendentes),
-        ncsAbertas: Number(b.ncs_abertas),
-        // Produto sem etapa nenhuma daria divisão por zero; 0% é o correto.
-        progresso: total === 0 ? 0 : Math.round((aprovadas / total) * 100),
-        ultimaMovimentacao: b.ultima_movimentacao,
-        diasParado: b.dias_parado,
-        criadoEm: b.criado_em,
-      };
-    });
+    return brutas.map((b) => ({
+      id: b.id,
+      nome: b.nome,
+      clienteId: b.cliente_id,
+      cliente: b.cliente,
+      categoria: b.categoria,
+      trilhaVersao: b.trilha_versao,
+      totalEtapas: Number(b.total_etapas),
+      aprovadas: Number(b.aprovadas),
+      reprovadas: Number(b.reprovadas),
+      pendentes: Number(b.pendentes),
+      obrigatoriasPendentes: Number(b.obrigatorias_pendentes),
+      ncsAbertas: Number(b.ncs_abertas),
+      // Vem pronto do banco; o CASE lá cobre o produto sem etapa nenhuma, que
+      // daria divisão por zero.
+      progresso: Number(b.progresso),
+      ultimaMovimentacao: b.ultima_movimentacao,
+      diasParado: b.dias_parado,
+      criadoEm: b.criado_em,
+    }));
   }
 
   // ------------------------------------------------------------- clientes
