@@ -1693,12 +1693,37 @@ pior que nenhum gate: dá confiança sem dar proteção.
   (§15). Derrubar 7 casos confirma que os testes de travessia não são tautologia — é o
   `requisicaoCrua()` fazendo o trabalho que o supertest não faria.
 
+### Testes do frontend
+
+**86 testes, 8 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
+`npm test` no job do frontend, antes do build.
+
+O critério de escolha foi **"quebra em silêncio?"**. Nada do que está coberto lança
+exceção — são bugs que passam em revisão de código e em teste manual de quem usa mouse:
+
+| Alvo | O que protege |
+|---|---|
+| `lib/tema.ts` | Token fora do `MAPA_CSS` **some da saída sem erro**; a asserção é sobre a CONTAGEM de propriedades, não sobre alguns nomes, senão token novo passaria batido. Cobre também o fallback cruzado de logo, o achatamento de cor translúcida no contraste e `resolverModo` ignorando lixo no `localStorage` |
+| `lib/api.ts` | `mensagemDeErro` — o array do `ValidationPipe` virando `[object Object]` esconde exatamente a lista de campos inválidos |
+| `lib/queryClient.ts` | Chave de cache torta **não gera erro**: a mutação responde, o toast de sucesso aparece e a lista não atualiza. O usuário conclui que a gravação falhou |
+| `lib/mascaras.ts` | Comprimento COM pontuação é o limite do schema; estourar vira 400. Cobre o estado progressivo, que é o que o usuário vê 100% do tempo |
+| `lib/formatadores.ts` | `formatarUltimoAcesso` distinguindo "nunca acessou" de "sem dado", e `diasAteOPrazo` comparando por dia |
+| `Campo` | Associação rótulo↔controle. `getByLabelText` só encontra se o elo existir — `querySelector('label')` passaria com o rótulo órfão |
+| `CampoSenha` | **`type="button"` no alternador**: sem ele, revelar a senha submete o formulário |
+| `Modal` | Foco inicial, foco preso no Tab, devolução ao fechar, botão desabilitado fora do ciclo |
+
+> **Cuidado ao escrever teste de data.** `diasAteOPrazo` compara dias **locais**
+> (`getFullYear/getMonth/getDate`), e `formatarData` também. Um teste escrito com meia-noite
+> **UTC** erra por um dia em qualquer fuso negativo: no Brasil `2026-03-15T00:00:00Z` é
+> 14/03 às 21h. A suíte usa um helper que constrói a data no fuso local.
+
 ### O que ainda falta
 
-1. **CI** — GitHub Actions com build + lint + test nos dois pacotes e PostgreSQL de
-   serviço. É o que impede a regressão de tudo isto. Primeiro da fila (§17).
-2. **Testes no frontend** — zero. As telas de trilha (drag-and-drop, renumeração) e o
-   cálculo de contraste de `lib/tema.ts` são os candidatos com mais regra por linha.
+1. ~~**CI**~~ — feito (§17).
+2. ~~**Testes no frontend**~~ — feito. **Página inteira segue fora por decisão**: exigiria
+   router, `QueryClientProvider`, `AuthProvider` e mock de rede para provar pouco além do
+   que o `tsc -b` já garante. As telas de trilha (drag-and-drop, renumeração) são o
+   candidato mais forte caso isso mude — é onde há mais regra por linha.
 3. Services ainda sem unitário: `ProdutosService.criar` (abertura da trilha),
    `FuncionariosService` (proteção do último ADMIN), `DashboardService` (classificação e
    escopo), `AparenciaService` (allowlist de tokens), `UploadsService`,
@@ -2267,7 +2292,8 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~Relatório de desempenho da equipe~~ | `#18` |
 | ~~`baseUrl` obsoleto no tsconfig~~ | `#19` |
 | ~~Comparativos de produtos e de clientes~~ | `#20` |
-| ~~Tempo de ciclo~~ | este PR |
+| ~~Tempo de ciclo~~ | `#23` |
+| ~~**Teste no frontend**~~ | este PR |
 
 ### Prioridade 1 — o que sustenta tudo que foi construído
 
@@ -2281,12 +2307,13 @@ Consequências práticas para quem trabalha aqui: todo trabalho vai por branch +
 `gh pr merge --auto` **não** está disponível neste plano (o repositório recusa
 `enablePullRequestAutoMerge`) — aguarde os dois checks e faça o merge.
 
-**2. Teste no frontend.** Zero hoje (§14), enquanto o backend tem 274 unitários + 128 e2e. O
-CI já reserva o lugar: o job do frontend roda `lint:ci` e `build`, e é só acrescentar o
-passo. Comece pelo que quebra silencioso — `lib/tema.ts` (`MAPA_CSS`, `checarContrastes`),
-`mensagemDeErro` e as chaves de `lib/queryClient.ts`.
+**2. ~~Teste no frontend~~ — FEITO.** 86 testes cobrindo o que quebra em silêncio, e
+`npm test` no job do frontend do CI. Ver §14 para o critério de escolha e a lista.
 
-*Gatilho: nenhum — é a lacuna nº 1 depois da proteção de branch.*
+O que sobrou de propósito: **teste de página inteira**. Exigiria router, provider de query,
+provider de sessão e mock de rede — custo alto para provar pouco além do que o `tsc -b` já
+garante. *Gatilho para reconsiderar: um bug de integração entre tela e API chegar a
+produção, ou as telas de trilha (drag-and-drop, renumeração) ganharem mais regra.*
 
 ### Prioridade 2 — funcionalidade que os usuários já sentem falta
 
