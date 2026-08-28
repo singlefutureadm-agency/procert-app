@@ -196,18 +196,24 @@ uma segunda `DATABASE_URL` que sairia de sincronia com a do repositório sem nin
 
 - `typecheck:scripts` falha hoje porque o ETL do legado está desatualizado. Incluí-lo
   deixaria o CI vermelho desde o primeiro run e ensinaria todo mundo a ignorar o resultado.
-- `npm audit` tem 3 high sem correção publicada, mais 1 moderate cujo caminho vulnerável
-  não é alcançável. Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
+- `npm audit` tem 1 advisory high sem correção publicada, mais 1 moderate cujo caminho
+  vulnerável não é alcançável. Como o `npm` conta pacotes da cadeia e não advisories, o
+  total exibido é **5** (3 high + 2 moderate) — é esse o número que um gate de CI compara.
+  Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
 
 ### Antes de abrir um PR
 
 ```bash
 cd backend  && npm run lint:ci && npm run build && npm test && npm run test:e2e
-cd frontend && npm run lint:ci && npm run build
+cd frontend && npm run lint:ci && npm test && npm run build
 ```
 
-É exatamente o que o CI roda. Descobrir a falha aqui custa segundos; descobrir no CI
-custa um ciclo de push.
+É exatamente o que o CI roda — o `npm test` do frontend entrou no job junto com os
+testes do #24, e ficar de fora daqui era deixar passar localmente o que o CI reprova.
+Descobrir a falha aqui custa segundos; descobrir no CI custa um ciclo de push.
+
+Medido em 28/08/2026, num clone limpo: backend **287 unitários em 16 suítes** (~112 s) e
+**128 e2e em 5 suítes** (~18 s); frontend **86 testes em 8 arquivos** (~37 s).
 
 ### Fluxo de contribuição
 

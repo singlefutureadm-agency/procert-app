@@ -1600,7 +1600,7 @@ sobre o que foi protegido.
 | `modules/certificados/certificados.service.ts` | 81,05% | 77,77% |
 | `modules/certificacoes/exportacao.service.ts` | 94,36% | 56,84% |
 
-Somados aos 75 casos de e2e, cobrem as regras que a evolução do sistema acumulou:
+Somados aos 128 casos de e2e, cobrem as regras que a evolução do sistema acumulou:
 imutabilidade de versão de trilha, renumeração 1..N na migração, máquina de estados da NC,
 ciclo do certificado, exigência de evidência e o escopo do CLIENTE.
 
