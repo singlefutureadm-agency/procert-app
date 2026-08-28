@@ -58,7 +58,7 @@ ele.
 | Variável | Valor em produção | Por quê |
 |---|---|---|
 | `DATABASE_URL` | pooler **:6543** com `?pgbouncer=true&connection_limit=1` | é o *transaction pooler*, o modo para função stateless. A **:5432** é o *session pooler*, e é ela que o `prisma migrate` exige |
-| `MIGRATE_DATABASE_URL` | pooler **:5432**, sem `pgbouncer=true` | **obrigatória**, justamente porque a linha acima é :6543. É a URL que `migrar-no-deploy.js` usa no build; sem ela o script cai na `DATABASE_URL` e o `migrate deploy` falha por não conseguir o advisory lock. Só é lida no build — a função nunca conecta por ela |
+| `MIGRATE_DATABASE_URL` | pooler **:5432**, sem `pgbouncer=true` | **opcional**, e hoje não está definida. `migrar-no-deploy.js` deriva a URL de migração da `DATABASE_URL`, trocando :6543 por :5432. Defina-a só se o banco de migração não for derivável do banco da função. Só é lida no build — a função nunca conecta por ela |
 | `SUPABASE_SERVICE_ROLE_KEY` | chave secreta do projeto | ignora RLS; é o que autoriza a API a ler e gravar nos dois buckets |
 | `SUPABASE_URL` | `https://mnwkdtfuvbblmhtdpdsv.supabase.co` | base do REST do Storage |
 | `UPLOAD_DRIVER` | `supabase` | disco em serverless é efêmero: o arquivo some na próxima instância fria |
@@ -116,11 +116,23 @@ nova nasceria aberta ao PostgREST, pelo que está descrito mais abaixo nesta se�
 > reprovar, já que o e2e roda contra um Postgres limpo onde `migrate deploy`
 > aplica tudo.
 
-Se a `DATABASE_URL` da função for o *transaction pooler* (:6543), o Prisma
-Migrate não a aceita — ele precisa de advisory lock, que o pgbouncer em modo
-transação não mantém entre statements. Nesse caso configure na Vercel uma
-`MIGRATE_DATABASE_URL` com o *session pooler* (:5432); o script prefere essa
-quando existe.
+A `DATABASE_URL` da função é o *transaction pooler* (:6543), e o Prisma Migrate
+não a aceita — ele precisa de advisory lock, que o pgbouncer em modo transação
+não mantém entre statements. O script resolve isso sozinho: `urlDeMigracao()`
+troca a porta por :5432, o *session pooler*, e descarta `pgbouncer=true` e
+`connection_limit`.
+
+Essa conversão substituiu uma `MIGRATE_DATABASE_URL` obrigatória, que **nunca
+chegou a ser criada** — e a omissão reprovou os quatro deploys de produção
+entre 26/08/2026 e 28/08/2026, com a API servindo código de dois dias antes
+enquanto o painel já trazia telas que dependiam dele. O que tornou a exigência
+inviável na prática: na Vercel a `DATABASE_URL` é do tipo **Secret**, portanto
+write-only — não sai no dashboard, no `vercel env pull` nem na API. Montar a
+segunda URL à mão exigia ter a senha guardada fora do sistema, e quem não a
+tivesse não tinha como cumprir o passo.
+
+`MIGRATE_DATABASE_URL` continua sendo lida e **tem precedência**, para o caso de
+o banco de migração não ser derivável do banco da função.
 
 O **seed** continua sendo manual — ele cria o admin inicial, não é parte de
 publicar código:
