@@ -78,7 +78,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 274 unitários, 15 suítes, Prisma mockado |
+| `npm test` | ✅ 287 unitários, 16 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 128 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -94,7 +94,7 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 274 unitários + 128 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 287 unitários + 128 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > modelos de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -858,11 +858,16 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
   `peerDependency` opcional, então ele entra na árvore de produção resolvida. O estado
   auditável de produção é 3, não zero — um gate de CI em `npm audit` precisa tolerá-las.
   Ver `DOCUMENTACAO.md` §15 antes de tentar "resolver".
-  Desde a exportação para planilha há **1 moderate a mais**: `uuid` via `exceljs`. A
+  Desde a exportação para planilha há **1 advisory moderate a mais**: `uuid` via `exceljs`. A
   advisory é "missing buffer bounds check em v3/v5/v6 quando `buf` é fornecido", e o
   `exceljs` importa **só `uuid.v4`** (`lib/xlsx/xform/sheet/cf-ext/cf-rule-ext-xform.js`)
   — o caminho vulnerável não é alcançável. A "correção" que o `npm audit` propõe é
   descer o `exceljs` para 3.4.0, um major para trás; não é correção.
+  **São duas advisories, mas o `npm audit` conta cinco.** Ele conta *pacotes* na cadeia,
+  não advisories: `deepmerge-ts` + `@prisma/config` + `prisma` fecham os 3 high, e `uuid`
+  + `exceljs` os 2 moderate. Medido em 28/08/2026 num clone limpo:
+  `npm audit --omit=dev` → `{"moderate":2,"high":3,"total":5}`. Um gate de CI compara com
+  **5**, não com 4 — a diferença já custou uma investigação em falso.
 - **Erro de CORS num upload quase nunca é CORS.** O corpo de requisição na Vercel para em
   4,5 MB e a plataforma responde 413 sem passar pelo middleware — o navegador então não
   acha `Access-Control-Allow-Origin` e culpa o que não é. Confira o status no log da função
