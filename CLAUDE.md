@@ -151,8 +151,13 @@ um passo manual em 26/08/2026, depois que três PRs seguidos com migration
 subiram sem que ninguém a rodasse e o login em produção passou a devolver 500 —
 `P2022`, coluna inexistente. **Não volte a tratar migration como passo manual**;
 se precisar de uma janela controlada, o lugar de decidir isso é o script.
-A variável que ele usa é `MIGRATE_DATABASE_URL` (session pooler :5432), porque a
-`DATABASE_URL` da função é o transaction pooler :6543 — ver `DEPLOY.md` §3 e §5.
+A URL de migração é **derivada** da `DATABASE_URL` por `urlDeMigracao()`, que
+troca a porta :6543 (transaction pooler, o modo da função) por :5432 (session
+pooler, o único que concede o advisory lock do Prisma Migrate).
+`MIGRATE_DATABASE_URL` segue existindo como override e tem precedência, mas
+**não é obrigatória** — era, e a exigência reprovou quatro deploys seguidos,
+porque a `DATABASE_URL` na Vercel é do tipo Secret e ninguém consegue lê-la para
+montar a segunda URL. Ver `DEPLOY.md` §3 e §5.
 
 ---
 
