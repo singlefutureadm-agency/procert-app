@@ -189,7 +189,27 @@ const habilitarRls = `do $$ declare t record; begin
   end loop;
 end $$;`;
 
+/**
+ * `--schema` não é decoração: ao contrário de `migrate deploy`, o `db execute`
+ * **não** lê a `DATABASE_URL` do ambiente. Ele exige a datasource explícita, por
+ * `--url` ou `--schema`, e sem uma das duas aborta com "Either --url or --schema
+ * must be provided" antes de tocar no banco.
+ *
+ * Entre as duas, `--schema`: o schema declara `url = env("DATABASE_URL")`, e o
+ * `ambienteDoComando` acima já injeta ali a URL convertida. Por `--url` a mesma
+ * string iria para o `argv` do processo — visível em qualquer listagem de
+ * processos, com a senha dentro. Nada obriga o segredo a sair do ambiente.
+ *
+ * Este passo esteve quebrado desde que foi escrito, e ninguém tinha como saber:
+ * o `migrate deploy` logo acima pendurava por 5 min contra o transaction pooler
+ * e derrubava o build antes daqui. Consertada a porta, o segundo erro apareceu
+ * no primeiro build que chegou a este ponto.
+ */
 console.log('[migrations] garantindo RLS nas tabelas de public…');
-prisma('habilitar RLS', ['db', 'execute', '--stdin'], habilitarRls);
+prisma(
+  'habilitar RLS',
+  ['db', 'execute', '--stdin', '--schema', require('node:path').join(__dirname, 'schema.prisma')],
+  habilitarRls,
+);
 
 console.log('[migrations] ok.');
