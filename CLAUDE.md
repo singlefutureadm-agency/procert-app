@@ -142,6 +142,14 @@ Ao escrever teste novo, três pontos que custaram tempo e estão documentados no
 > (`P2022`) acusa o código, que está certo. É o defeito de 26/08/2026 em produção, na
 > máquina de desenvolvimento. `scripts/preparar-ambiente.js` é a guarda equivalente ao
 > `migrar-no-deploy.js`, e nunca sobrescreve `.env` nem chama `migrate dev`.
+>
+> **E se você esquecer, a API recusa subir.** `PrismaService.conferirMigrations()` compara
+> `prisma/migrations/` com `_prisma_migrations` no boot e derruba o start listando o que
+> falta, com o comando a rodar. Só com `NODE_ENV=development`: em produção o build já
+> garantiu, e em `test` o `globalSetup` do e2e aplica antes da suíte. `CHECAR_MIGRATIONS=false`
+> desliga — guarda sem contorno é guarda que alguém arranca no primeiro aperto. A direção
+> contrária (aplicada no banco, ausente do disco) é ignorada de propósito: acontece a todo
+> `git checkout` para trás e não quebra nada.
 
 ### Fluxo de mudança no schema
 
