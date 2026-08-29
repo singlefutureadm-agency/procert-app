@@ -58,6 +58,7 @@ npm run dev                   # http://localhost:5173
 | Armadilha | Detalhe |
 |---|---|
 | **Máquina de 4 GB: `tsc` e `eslint` morrem por OOM** | `Zone Allocation failed - process out of memory` sem limite de heap. **Limitar resolve**: `node --max-old-space-size=384 ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json` e o equivalente para `./node_modules/eslint/bin/eslint.js`. Para o Jest o limite atrapalha (o exceljs passa de 384 MB) — ali o caminho é **parar o Docker** (`docker compose stop`) e rodar em lotes com `--runInBand`; o e2e precisa do banco de pé e só cabe sozinho. |
+| **`npm ci` reprova fora do Node 24** | `engine-strict=true` nos `.npmrc` dos dois pacotes. `engines` sozinho só avisa, e o aviso some no meio do `npm ci`: a instalação termina "com sucesso" e a máquina quebra depois, longe da causa. A trava vale para a árvore inteira — medido em 28/08/2026, 910 pacotes no backend e 361 no frontend resolvem limpos. |
 | **Porta 5433, não 5432** | O container é mapeado `5433:5432` para conviver com um PostgreSQL nativo já instalado na máquina em 5432. O `README.md` sempre esteve certo; quem trazia `5432` era o `backend/.env.example` — corrigido em 19/08/2026. |
 | **Não rode `npm run build` com o `start:dev` ativo** | `nest-cli.json` tem `deleteOutDir: true` e apaga o `dist/` embaixo do processo em watch. |
 | **`Cannot find module '.../dist/main'` após "Found 0 errors"** | Sintoma do conflito `deleteOutDir` × build incremental. Corrigido com `"incremental": false` em `tsconfig.build.json`. Se voltar: apague `dist/` e `tsconfig.build.tsbuildinfo` e reinicie. |
@@ -74,6 +75,7 @@ npm run dev                   # http://localhost:5173
 | `npm run start:dev` | API em watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
 | `npm run seed` | 27 UFs, categoria "Geral" + trilha v1, admin inicial. Idempotente. |
+| `postinstall` | `prisma generate` a cada `npm ci`. O `@prisma/client` já faz isso no postinstall dele, mas o npm 11 passou a gatear script de dependência por allowlist — declarar aqui tira o client de refém de um detalhe de empacotamento de terceiro. É a mesma razão do passo explícito no CI. |
 | `npm run migrate:legacy` | ETL MySQL legado → PostgreSQL (exige as vars `LEGACY_MYSQL_*`) |
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
