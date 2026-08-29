@@ -80,6 +80,10 @@ procert-app/
 
 > **Node 24** (ver `.nvmrc`) e Docker. O CI valida em 24; rodar outra major
 > significa que ninguem testa o que voce roda. Com nvm: `nvm use` na raiz.
+>
+> Isso é **exigido**, não sugerido: os dois pacotes trazem `engine-strict=true` no
+> `.npmrc`, e o `npm ci` reprova numa major diferente em vez de instalar com um aviso
+> que ninguém lê.
 
 ### 1. Banco de dados
 

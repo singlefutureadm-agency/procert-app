@@ -8,6 +8,7 @@
   },
   "scripts": {
     "setup": "node scripts/preparar-ambiente.js",
+    "postinstall": "prisma generate",
     "build": "nest build",
     "vercel-build": "prisma generate && node prisma/migrar-no-deploy.js && nest build -p tsconfig.build.json",
     "start": "nest start",
