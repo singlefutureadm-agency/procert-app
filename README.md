@@ -97,16 +97,21 @@ e o Adminer em http://localhost:8080.
 
 ```bash
 cd backend
-cp .env.example .env
 npm ci
-npx prisma migrate deploy
-npm run seed
+npm run setup
 npm run start:dev
 ```
 
-> `migrate deploy` aplica as migrations que ja vem no repositorio, que e o que voce
-> quer num clone novo. Use `migrate dev --name <descricao>` apenas quando estiver
-> **criando** uma migration depois de editar o `schema.prisma`.
+> **`npm run setup` é idempotente e serve para sempre, não só para o clone.** Ele copia
+> `.env` e `.env.test` dos exemplos **se faltarem** (nunca sobrescreve), confere se o
+> banco está de pé, aplica as migrations pendentes, regenera o Prisma Client e roda o
+> seed. Rodá-lo sem necessidade custa segundos e não muda nada — veja
+> [Depois de um `git pull`](#depois-de-um-git-pull).
+>
+> Por dentro ele usa `migrate deploy`, que só aplica o que está pendente. Use
+> `migrate dev --name <descricao>` apenas quando estiver **criando** uma migration
+> depois de editar o `schema.prisma` — é o único que compara schema e banco, e o único
+> que oferece resetar o banco quando acha divergência.
 
 API em **http://localhost:3000/api** · Swagger em **http://localhost:3000/api/docs**
 
@@ -127,6 +132,23 @@ npm run dev
 
 Aplicação em **http://localhost:5173**
 
+### Depois de um `git pull`
+
+```bash
+cd backend && npm run setup
+```
+
+**É o passo que faltava, e é o que morde na prática.** Um pull traz migrations e um
+`schema.prisma` novos sem disparar nada: o `npm ci` não roda de novo, porque as
+dependências não mudaram, e com ele fica de fora o postinstall que regenera o Prisma
+Client. O banco local passa a estar uma versão atrás do código e o client uma versão
+atrás do schema — os dois em silêncio.
+
+O erro que aparece depois não diz isso. Ele diz `P2022, a coluna X não existe`,
+apontando para o código, que está certo. **Em produção esse mesmo defeito custou dois
+dias** em 26/08/2026, e lá foi fechado no build (`prisma/migrar-no-deploy.js`); aqui a
+guarda é rodar o comando acima. Se as dependências também mudaram, `npm ci` antes.
+
 ---
 
 ## Scripts
@@ -134,6 +156,7 @@ Aplicação em **http://localhost:5173**
 ### Backend
 | Comando | Ação |
 |---------|------|
+| `npm run setup` | Prepara o ambiente: copia os `.env` que faltarem, aplica migrations, regenera o Prisma Client e semeia. Idempotente — rode depois de todo `git pull` |
 | `npm run start:dev` | API em modo watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
 | `npm run seed` | Popula UFs, a categoria padrão com sua trilha v1 e o admin inicial |
@@ -185,8 +208,8 @@ Dois jobs independentes:
 
 | Job | O que roda |
 |---|---|
-| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 152 unitários → 59 e2e |
-| **Frontend** | `npm ci` → `lint:ci` → `build` (o `tsc -b` é o type-check) |
+| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 287 unitários → 128 e2e |
+| **Frontend** | `npm ci` → `lint:ci` → `npm test` (86) → `build` (o `tsc -b` é o type-check) |
 
 O e2e sobe um PostgreSQL 16 de serviço mapeado em **5433**, igual ao `docker-compose`.
 É de propósito: assim o job copia `.env.test.example` sem alterar nada, em vez de manter

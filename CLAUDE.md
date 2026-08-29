@@ -39,9 +39,8 @@ docker compose up -d          # PostgreSQL em localhost:5433 + Adminer em :8080
 
 # 2. Backend
 cd backend
-npx prisma migrate deploy     # ou `migrate dev` se estiver criando migration
-npx prisma generate
-npm run seed                  # idempotente
+npm ci
+npm run setup                 # idempotente: .env que faltarem, migrations, generate, seed
 npm run start:dev             # API em http://localhost:3000/api
 
 # 3. Frontend (outro terminal)
@@ -71,6 +70,7 @@ npm run dev                   # http://localhost:5173
 
 | Comando | Ação |
 |---|---|
+| `npm run setup` | **Rode depois de todo `git pull`.** Copia os `.env` que faltarem (nunca sobrescreve), confere o banco, aplica migrations, regenera o client e semeia. Idempotente |
 | `npm run start:dev` | API em watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
 | `npm run seed` | 27 UFs, categoria "Geral" + trilha v1, admin inicial. Idempotente. |
@@ -134,6 +134,14 @@ Ao escrever teste novo, três pontos que custaram tempo e estão documentados no
 - No e2e, **travessia de caminho exige `requisicaoCrua()`**, não supertest: todo cliente
   HTTP conforme a especificação resolve `..` (mesmo escrito `%2e%2e`) antes de conectar, e
   o teste passaria por engano.
+
+> **Depois de um `git pull`, rode `npm run setup`.** O pull traz migrations e um
+> `schema.prisma` novos sem disparar nada — o `npm ci` não roda de novo, e com ele fica
+> de fora o postinstall que regenera o Prisma Client. Banco uma versão atrás do código e
+> client uma versão atrás do schema, os dois em silêncio, e o erro que aparece depois
+> (`P2022`) acusa o código, que está certo. É o defeito de 26/08/2026 em produção, na
+> máquina de desenvolvimento. `scripts/preparar-ambiente.js` é a guarda equivalente ao
+> `migrar-no-deploy.js`, e nunca sobrescreve `.env` nem chama `migrate dev`.
 
 ### Fluxo de mudança no schema
 
