@@ -22,8 +22,15 @@ interface Props {
   focoInicial?: RefObject<HTMLElement | null>;
   /** Id do elemento que descreve o modal, para o `aria-describedby`. */
   descritoPor?: string;
-  /** Modais de leitura precisam de mais largura que uma confirmação. */
-  largura?: 'padrao' | 'ampla';
+  /**
+   * Modais de leitura precisam de mais largura que uma confirmação.
+   *
+   * `ampla` é para conteúdo em blocos (uma NC com descrição, resposta e
+   * parecer). `leitura` é para texto corrido: mais estreita de propósito,
+   * porque a largura que ajuda uma lista atrapalha um parágrafo — acima de
+   * ~75 caracteres por linha o olho erra a volta. Ambas rolam por dentro.
+   */
+  largura?: 'padrao' | 'ampla' | 'leitura';
   /** X no canto. Confirmações não têm — ali as saídas são os próprios botões. */
   comBotaoFechar?: boolean;
   aoFechar: () => void;
@@ -168,7 +175,7 @@ export function Modal({
       }}
     >
       <div
-        className={`modal vidro ${largura === 'ampla' ? 'modal--ampla' : ''}`}
+        className={`modal vidro ${largura === 'padrao' ? '' : `modal--${largura}`}`}
         ref={caixa}
         tabIndex={-1}
       >
