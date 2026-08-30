@@ -57,7 +57,8 @@ export type NomeIcone =
   | 'download'
   | 'cadeado'
   | 'arrastar'
-  | 'caixa-vazia';
+  | 'caixa-vazia'
+  | 'interrogacao';
 
 /*
  * Todos os desenhos vivem na mesma grade 24×24 e são só traço: nenhum usa
@@ -298,6 +299,16 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
     <>
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </>
+  ),
+  /* Ajuda. O ponto final usa o mesmo `h.01` de `alerta`: um traço de
+     comprimento zero com ponta redonda, que acompanha o `strokeWidth` em vez
+     de virar um `fill` de peso diferente do resto da família. */
+  interrogacao: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.1 9.5a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <path d="M12 17.5h.01" />
     </>
   ),
 };

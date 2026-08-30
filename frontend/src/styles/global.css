@@ -1743,6 +1743,22 @@ fieldset.secao-form legend {
   overflow-y: auto;
 }
 
+/*
+ * Modal de texto corrido (a ajuda de cada tela). Mais estreita que a `ampla`
+ * porque aqui a largura é a medida da LINHA: os ~552px úteis dão ~73 caracteres
+ * por linha, dentro da faixa em que o olho encontra o começo da linha seguinte
+ * sem se perder. Em 760px a mesma explicação passaria de 95 caracteres.
+ *
+ * A altura máxima com rolagem interna é obrigatória, não enfeite: os verbetes
+ * mais longos (tempo de ciclo, trilha do produto) têm cinco tópicos e passariam
+ * da altura da janela, deixando o botão de fechar fora de alcance.
+ */
+.modal--leitura {
+  width: min(600px, 100%);
+  max-height: min(80vh, 720px);
+  overflow-y: auto;
+}
+
 .modal__cabecalho {
   display: flex;
   align-items: flex-start;
@@ -1751,6 +1767,81 @@ fieldset.secao-form legend {
 }
 
 .modal__cabecalho h3 {
+  margin: 0;
+}
+
+/* ------------------------- Ajuda por tela (tutorial) ---------------------- */
+
+/*
+ * O botão de ajuda fica colado ao <h1>, não na barra de ações: ele explica a
+ * tela, não age sobre os dados. `align-items: center` e não `baseline` porque
+ * o alvo de 40×40 do `.btn--icone` é bem mais alto que a linha do título —
+ * alinhado pela base, ele desceria e abriria um degrau visível.
+ */
+.cabecalho-pagina__titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  flex-wrap: wrap;
+}
+
+/*
+ * Discreto em repouso e nítido ao foco/hover: em repouso ele divide espaço com
+ * o título e não deve competir com o botão primário da tela. `--texto-suave`
+ * (72% de opacidade sobre o fundo) mantém o contraste acima do piso de 4.5:1
+ * nos dois temas — o desbotamento é de intenção, não de legibilidade.
+ */
+.ajuda__gatilho {
+  color: var(--texto-suave);
+  border-color: transparent;
+  background: transparent;
+}
+
+.ajuda__gatilho:hover:not(:disabled),
+.ajuda__gatilho:focus-visible {
+  color: var(--cor-primaria);
+  border-color: var(--vidro-borda);
+  background: var(--vidro-fundo);
+}
+
+.ajuda {
+  display: grid;
+  gap: var(--espaco-5);
+}
+
+.ajuda__resumo {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--texto);
+}
+
+.ajuda__topicos {
+  display: grid;
+  gap: var(--espaco-4);
+  margin: 0;
+}
+
+.ajuda__topico dt {
+  font-weight: 600;
+  font-size: var(--fs-base);
+  color: var(--texto);
+}
+
+.ajuda__topico dd {
+  /* O <dd> nasce com margin-inline-start de 40px no user-agent; sem zerar,
+     cada tópico ficaria indentado em relação ao próprio título. */
+  margin: var(--espaco-1) 0 0;
+  color: var(--texto-suave);
+  font-size: var(--fs-base);
+  /* Sem `max-width` próprio de propósito: quem define a medida da linha é a
+     largura do modal (`.modal--leitura`). Um limite aqui e não no resumo fazia
+     os dois blocos quebrarem em pontos diferentes, e o texto parecia
+     desalinhado sem que nada estivesse errado. */
+}
+
+.ajuda__proximo {
+  display: flex;
+  justify-content: flex-end;
   margin: 0;
 }
 
