@@ -39,9 +39,8 @@ docker compose up -d          # PostgreSQL em localhost:5433 + Adminer em :8080
 
 # 2. Backend
 cd backend
-npx prisma migrate deploy     # ou `migrate dev` se estiver criando migration
-npx prisma generate
-npm run seed                  # idempotente
+npm ci
+npm run setup                 # idempotente: .env que faltarem, migrations, generate, seed
 npm run start:dev             # API em http://localhost:3000/api
 
 # 3. Frontend (outro terminal)
@@ -59,6 +58,7 @@ npm run dev                   # http://localhost:5173
 | Armadilha | Detalhe |
 |---|---|
 | **Máquina de 4 GB: `tsc` e `eslint` morrem por OOM** | `Zone Allocation failed - process out of memory` sem limite de heap. **Limitar resolve**: `node --max-old-space-size=384 ./node_modules/typescript/bin/tsc --noEmit -p tsconfig.json` e o equivalente para `./node_modules/eslint/bin/eslint.js`. Para o Jest o limite atrapalha (o exceljs passa de 384 MB) — ali o caminho é **parar o Docker** (`docker compose stop`) e rodar em lotes com `--runInBand`; o e2e precisa do banco de pé e só cabe sozinho. |
+| **`npm ci` reprova fora do Node 24** | `engine-strict=true` nos `.npmrc` dos dois pacotes. `engines` sozinho só avisa, e o aviso some no meio do `npm ci`: a instalação termina "com sucesso" e a máquina quebra depois, longe da causa. A trava vale para a árvore inteira — medido em 28/08/2026, 910 pacotes no backend e 361 no frontend resolvem limpos. |
 | **Porta 5433, não 5432** | O container é mapeado `5433:5432` para conviver com um PostgreSQL nativo já instalado na máquina em 5432. O `README.md` sempre esteve certo; quem trazia `5432` era o `backend/.env.example` — corrigido em 19/08/2026. |
 | **Não rode `npm run build` com o `start:dev` ativo** | `nest-cli.json` tem `deleteOutDir: true` e apaga o `dist/` embaixo do processo em watch. |
 | **`Cannot find module '.../dist/main'` após "Found 0 errors"** | Sintoma do conflito `deleteOutDir` × build incremental. Corrigido com `"incremental": false` em `tsconfig.build.json`. Se voltar: apague `dist/` e `tsconfig.build.tsbuildinfo` e reinicie. |
@@ -71,9 +71,11 @@ npm run dev                   # http://localhost:5173
 
 | Comando | Ação |
 |---|---|
+| `npm run setup` | **Rode depois de todo `git pull`.** Copia os `.env` que faltarem (nunca sobrescreve), confere o banco, aplica migrations, regenera o client e semeia. Idempotente |
 | `npm run start:dev` | API em watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
 | `npm run seed` | 27 UFs, categoria "Geral" + trilha v1, admin inicial. Idempotente. |
+| `postinstall` | `prisma generate` a cada `npm ci`. O `@prisma/client` já faz isso no postinstall dele, mas o npm 11 passou a gatear script de dependência por allowlist — declarar aqui tira o client de refém de um detalhe de empacotamento de terceiro. É a mesma razão do passo explícito no CI. |
 | `npm run migrate:legacy` | ETL MySQL legado → PostgreSQL (exige as vars `LEGACY_MYSQL_*`) |
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
@@ -134,6 +136,22 @@ Ao escrever teste novo, três pontos que custaram tempo e estão documentados no
 - No e2e, **travessia de caminho exige `requisicaoCrua()`**, não supertest: todo cliente
   HTTP conforme a especificação resolve `..` (mesmo escrito `%2e%2e`) antes de conectar, e
   o teste passaria por engano.
+
+> **Depois de um `git pull`, rode `npm run setup`.** O pull traz migrations e um
+> `schema.prisma` novos sem disparar nada — o `npm ci` não roda de novo, e com ele fica
+> de fora o postinstall que regenera o Prisma Client. Banco uma versão atrás do código e
+> client uma versão atrás do schema, os dois em silêncio, e o erro que aparece depois
+> (`P2022`) acusa o código, que está certo. É o defeito de 26/08/2026 em produção, na
+> máquina de desenvolvimento. `scripts/preparar-ambiente.js` é a guarda equivalente ao
+> `migrar-no-deploy.js`, e nunca sobrescreve `.env` nem chama `migrate dev`.
+>
+> **E se você esquecer, a API recusa subir.** `PrismaService.conferirMigrations()` compara
+> `prisma/migrations/` com `_prisma_migrations` no boot e derruba o start listando o que
+> falta, com o comando a rodar. Só com `NODE_ENV=development`: em produção o build já
+> garantiu, e em `test` o `globalSetup` do e2e aplica antes da suíte. `CHECAR_MIGRATIONS=false`
+> desliga — guarda sem contorno é guarda que alguém arranca no primeiro aperto. A direção
+> contrária (aplicada no banco, ausente do disco) é ignorada de propósito: acontece a todo
+> `git checkout` para trás e não quebra nada.
 
 ### Fluxo de mudança no schema
 

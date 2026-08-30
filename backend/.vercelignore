@@ -16,3 +16,7 @@ prisma/migrate-categorias.ts
 test
 src/testing
 **/*.spec.ts
+
+# Ferramenta de desenvolvimento: copia os .env, aplica migrations, semeia. A
+# função nunca a chama, e ela não é código da API.
+scripts
