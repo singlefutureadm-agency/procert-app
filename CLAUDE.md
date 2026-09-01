@@ -92,7 +92,7 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 86 testes, 8 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 117 testes, 11 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
@@ -101,7 +101,7 @@ npm run dev                   # http://localhost:5173
 > modelos de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
 >
-> No frontend são 86 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
+> No frontend são 117 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
 > fora do `MAPA_CSS` some da saída sem erro), `mensagemDeErro`, as chaves de cache (uma
 > chave torta não atualiza a lista e não avisa) e as invariantes de acessibilidade de
 > `Campo`, `CampoSenha` e `Modal` — associação rótulo↔controle, `type="button"` no
@@ -614,12 +614,14 @@ antes da função rodar: a resposta 413 sai sem passar pelo middleware de CORS, 
 relata `No 'Access-Control-Allow-Origin' header`. O sintoma esconde a causa. Se um upload
 falhar com CORS em produção, **olhe o status no log da função antes de mexer em CORS**.
 
-`lib/imagem.ts` redimensiona e recomprime em `<canvas>` antes de enviar, e está ligado no
-`CampoArquivo` — então funcionário, cliente e produto ganham juntos. Uma foto de 8,7 MB vira
-427 KB. Três regras que não são detalhe:
+`lib/imagem.ts` redimensiona e recomprime em `<canvas>` antes de enviar. Está ligado no
+`CampoArquivo` — então funcionário, cliente e produto ganham juntos — **e em
+`features/aparencia/CampoImagem`**, que usa um input próprio e por isso não vem de graça.
+Uma foto de 8,7 MB vira 427 KB. Três regras que não são detalhe:
 
-- PNG e WebP saem como **WebP, nunca JPEG** — converter achataria em preto o fundo
-  transparente de uma logo.
+- PNG, WebP e GIF saem como **WebP, nunca JPEG** — converter achataria em preto o fundo
+  transparente de uma logo. Coberto por `lib/imagem.test.ts`: é a decisão que falha calada,
+  porque o upload conclui e o defeito só aparece na marca exibida.
 - Arquivo que já cabe no limite e nas dimensões volta **intacto**: recomprimir o que já
   está bom só degrada.
 - O que ainda não couber depois de reduzido é **recusado com mensagem clara**, em vez de
@@ -627,6 +629,12 @@ falhar com CORS em produção, **olhe o status no log da função antes de mexer
 
 Passe `otimizar={false}` para arquivo que precisa subir intacto — um PDF de evidência, por
 exemplo, que este componente não deve tocar.
+
+> **Ao criar um seletor de arquivo, não use `<input type="file">` cru.** Foi assim que a
+> tela de Aparência ficou de fora por três semanas: `CampoArquivo` nasceu copiando o
+> `CampoImagem`, e o original nunca foi migrado de volta. Logo acima de 4,5 MB voltava
+> como erro de CORS em produção (01/09/2026). Use `CampoArquivo`, ou chame
+> `prepararImagem` explicitamente.
 
 ### Formulários — CEP e senha
 

@@ -27,6 +27,14 @@ export interface OpcoesImagem {
 /** Fotos de pessoa e miniaturas de produto: exibidas pequenas, nunca ampliadas. */
 export const PERFIL: OpcoesImagem = { ladoMaximo: 1024, qualidade: 0.85 };
 
+/**
+ * Papel de parede do painel: cobre a janela inteira, então os 1024px do PERFIL
+ * apareceriam esticados e borrados num monitor comum. 1920 cobre Full HD sem
+ * esticar, e acima disso o ganho some sob o gradiente e a opacidade que o tema
+ * aplica por cima.
+ */
+export const PAPEL_PAREDE: OpcoesImagem = { ladoMaximo: 1920, qualidade: 0.82 };
+
 /** Acima disto nem tentamos ler o arquivo: é foto de câmera profissional ou
  *  algo que não é foto de perfil, e decodificar custaria memória à toa. */
 const LIMITE_ENTRADA_BYTES = 25 * 1024 * 1024;
@@ -45,9 +53,20 @@ function ehImagem(arquivo: File): boolean {
  *
  * Converter PNG para JPEG achataria o fundo transparente em preto — e é
  * justamente o caso de uma logo enviada na tela de Aparência.
+ *
+ * GIF entra na mesma lista pelo mesmo motivo: a tela de Aparência o aceita, e
+ * uma logo em GIF com fundo transparente sairia com o fundo preto se virasse
+ * JPEG. A animação se perde de qualquer forma — o canvas lê só o primeiro
+ * quadro —, então a escolha é entre perder só a animação e perder o alfa junto.
  */
-function formatoDeSaida(tipoOriginal: string): 'image/jpeg' | 'image/png' | 'image/webp' {
-  if (tipoOriginal === 'image/png' || tipoOriginal === 'image/webp') return 'image/webp';
+export function formatoDeSaida(tipoOriginal: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+  if (
+    tipoOriginal === 'image/png' ||
+    tipoOriginal === 'image/webp' ||
+    tipoOriginal === 'image/gif'
+  ) {
+    return 'image/webp';
+  }
   return 'image/jpeg';
 }
 
