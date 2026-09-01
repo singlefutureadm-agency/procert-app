@@ -365,10 +365,15 @@ export class CertificacoesService {
       }
     });
 
-    // Notificação depois do commit e sem `await`: e-mail não pode atrasar nem
-    // derrubar a resposta. Falhas ficam no log do MailService.
+    // Notificação depois do commit, e COM `await`. A versão anterior usava
+    // `void` para não atrasar a resposta; em serverless isso significa não
+    // enviar: a função congela quando a resposta sai e a promessa pendente é
+    // descartada, sem erro em lugar nenhum. É a mesma razão do `await` no
+    // carimbo de `ultimoAcessoEm` do login. Esperar é seguro porque
+    // `notificarCliente` engole a própria falha — uma avaliação técnica já
+    // gravada não pode ser derrubada por um e-mail que não saiu.
     if (mudancas.length) {
-      void this.notificarCliente(produtoId, mudancas);
+      await this.notificarCliente(produtoId, mudancas);
     }
 
     return this.detalharPorProduto(produtoId, usuario);
