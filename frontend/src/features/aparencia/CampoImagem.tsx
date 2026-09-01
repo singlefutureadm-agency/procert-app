@@ -1,5 +1,13 @@
 import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
+import {
+  formatarBytes,
+  ImagemInvalidaError,
+  PERFIL,
+  prepararImagem,
+  type OpcoesImagem,
+} from '@/lib/imagem';
 import type { ModoTema } from '@/types';
 
 /**
@@ -11,6 +19,14 @@ import type { ModoTema } from '@/types';
  * sem ganho — a imagem não tem estado intermediário para revisar.
  *
  * Por isso o aviso: aqui não existe "descartar".
+ *
+ * **O arquivo passa por `prepararImagem` antes de sair.** Este componente é
+ * anterior a `lib/imagem.ts` e ficou de fora quando o resto do painel migrou
+ * para `CampoArquivo` — era o único ponto em que uma imagem subia intacta, e
+ * logo e papel de parede são justamente onde entram os PNG grandes. Uma logo
+ * acima de 4,5 MB era cortada pela plataforma ANTES da função rodar, então o
+ * 413 saía sem passar pelo middleware de CORS e o navegador acusava
+ * "blocked by CORS policy" — o sintoma escondia a causa. Ver `lib/imagem.ts`.
  */
 
 interface Props {
@@ -27,6 +43,11 @@ interface Props {
    * mostrar a imagem sobre o fundo em que ela vai aparecer de verdade.
    */
   fundoAmostra?: ModoTema;
+  /**
+   * Perfil de redimensionamento aplicado antes do envio. O padrão serve para
+   * logo; o papel de parede pede `PAPEL_PAREDE`, que cobre a janela inteira.
+   */
+  otimizar?: OpcoesImagem;
   enviando: boolean;
   aoEnviar: (arquivo: File) => void;
   aoRemover: () => void;
@@ -38,14 +59,16 @@ export function CampoImagem({
   url,
   amostraContida = true,
   fundoAmostra,
+  otimizar = PERFIL,
   enviando,
   aoEnviar,
   aoRemover,
 }: Props) {
   const entrada = useRef<HTMLInputElement>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [preparando, setPreparando] = useState(false);
 
-  const selecionar = (arquivo?: File) => {
+  async function selecionar(arquivo: File | null) {
     if (!arquivo) return;
 
     // O servidor valida de novo; isto só evita a viagem quando dá para saber antes.
@@ -54,8 +77,33 @@ export function CampoImagem({
       return;
     }
     setErro(null);
-    aoEnviar(arquivo);
-  };
+    setPreparando(true);
+
+    try {
+      const pronto = await prepararImagem(arquivo, otimizar);
+      aoEnviar(pronto);
+
+      // Só avisa quando houve ganho de verdade — um "reduzida de 900 KB para
+      // 880 KB" é ruído.
+      if (arquivo.size - pronto.size > 256 * 1024) {
+        toast.success(
+          `Imagem otimizada: ${formatarBytes(arquivo.size)} → ${formatarBytes(pronto.size)}.`,
+        );
+      }
+    } catch (falha) {
+      // Mensagem no próprio campo, e não em toast: o erro é sobre este arquivo,
+      // e a tela tem três campos de imagem iguais lado a lado.
+      setErro(
+        falha instanceof ImagemInvalidaError
+          ? falha.message
+          : 'Não foi possível preparar a imagem.',
+      );
+    } finally {
+      setPreparando(false);
+    }
+  }
+
+  const ocupado = enviando || preparando;
 
   return (
     <div className="campo">
@@ -82,9 +130,12 @@ export function CampoImagem({
             accept="image/png,image/jpeg,image/webp,image/gif"
             hidden
             onChange={(e) => {
-              selecionar(e.target.files?.[0]);
-              // Permite reenviar o mesmo arquivo depois de remover.
+              const arquivo = e.target.files?.[0] ?? null;
+              // Permite reenviar o mesmo arquivo depois de remover. Precisa
+              // acontecer antes do await: o input é reaproveitado pelo React e
+              // limpá-lo depois apagaria uma escolha já feita.
               e.target.value = '';
+              void selecionar(arquivo);
             }}
           />
 
@@ -92,9 +143,15 @@ export function CampoImagem({
             type="button"
             className="btn btn--pequeno"
             onClick={() => entrada.current?.click()}
-            disabled={enviando}
+            disabled={ocupado}
           >
-            {enviando ? 'Enviando...' : url ? 'Substituir' : 'Enviar imagem'}
+            {preparando
+              ? 'Preparando...'
+              : enviando
+                ? 'Enviando...'
+                : url
+                  ? 'Substituir'
+                  : 'Enviar imagem'}
           </button>
 
           {url && (
@@ -102,7 +159,7 @@ export function CampoImagem({
               type="button"
               className="btn btn--pequeno btn--perigo"
               onClick={aoRemover}
-              disabled={enviando}
+              disabled={ocupado}
             >
               Remover
             </button>

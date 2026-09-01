@@ -11,6 +11,7 @@ import { CabecalhoPagina } from '@/components/CabecalhoPagina';
 import { Carregando } from '@/components/Carregando';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { mensagemDeErro } from '@/lib/api';
+import { PAPEL_PAREDE } from '@/lib/imagem';
 import { chaves } from '@/lib/queryClient';
 import { checarContrastes } from '@/lib/tema';
 import type { Aparencia, ModoTema, TokensTema } from '@/types';
@@ -517,6 +518,7 @@ export function AparenciaPage() {
             descricao="Fundo do painel, atrás do gradiente. Vale para os dois modos — prefira uma imagem de baixo contraste."
             url={salva.papelParedeUrl}
             amostraContida={false}
+            otimizar={PAPEL_PAREDE}
             enviando={papelParede.isPending}
             aoEnviar={(arquivo) => papelParede.mutate(arquivo)}
             aoRemover={() => papelParede.mutate(null)}

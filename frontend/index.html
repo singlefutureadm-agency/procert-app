@@ -13,8 +13,26 @@
     <!-- Imagem do hero: numa SPA ela só entra no DOM depois que o bundle
          baixa e o React monta, então o navegador a descobre tarde. O preload
          antecipa o pedido para o começo do documento, em paralelo com o JS.
-         É o elemento de maior área na primeira tela — ou seja, o LCP. -->
-    <link rel="preload" as="image" href="/img/hero-bg.jpg" fetchpriority="high" />
+         É o elemento de maior área na primeira tela — ou seja, o LCP.
+
+         Condicional, e por isso um script em vez de um <link> fixo: este mesmo
+         index.html é servido em TODAS as rotas pelo rewrite de SPA do
+         vercel.json, e o hero só existe na home (secoes/Hero.tsx). Fixo, ele
+         baixava 218 KB com prioridade alta em toda tela do painel, disputando
+         banda com o bundle para nada — e o Chrome avisava no console
+         ("preloaded using link preload but not used"). O script é inline e roda
+         na análise do <head>, antes de qualquer recurso bloqueante, então o
+         pedido na home continua saindo tão cedo quanto saía com o <link>. -->
+    <script>
+      if (location.pathname === '/') {
+        var preloadHero = document.createElement('link');
+        preloadHero.rel = 'preload';
+        preloadHero.as = 'image';
+        preloadHero.href = '/img/hero-bg.jpg';
+        preloadHero.setAttribute('fetchpriority', 'high');
+        document.head.appendChild(preloadHero);
+      }
+    </script>
     <link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
 
     <!-- Tipografia do site institucional (Roboto/Raleway/Poppins, como no legado).
