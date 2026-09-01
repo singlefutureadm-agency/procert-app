@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import { conferirSenha, gerarHashSenha } from '../../common/utils/senha.util';
+import { urlDoPainel } from '../../common/utils/ambiente.util';
 import {
   AlterarSenhaDto,
   EsqueciSenhaDto,
@@ -143,7 +144,7 @@ export class AuthService {
       },
     });
 
-    const link = `${this.config.get<string>('FRONTEND_URL', 'http://localhost:5173')}/redefinir-senha?token=${token}`;
+    const link = `${urlDoPainel(this.config)}/redefinir-senha?token=${token}`;
     await this.mail.enviarRedefinicaoSenha(usuario.email, usuario.nome, link);
 
     return { mensagem };

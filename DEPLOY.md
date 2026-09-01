@@ -63,7 +63,9 @@ ele.
 | `SUPABASE_URL` | `https://mnwkdtfuvbblmhtdpdsv.supabase.co` | base do REST do Storage |
 | `UPLOAD_DRIVER` | `supabase` | disco em serverless é efêmero: o arquivo some na próxima instância fria |
 | `UPLOAD_MAX_SIZE_MB` | `4` | o corpo de requisição na Vercel para em **4,5 MB**. Com 5, o usuário veria erro de plataforma em vez da mensagem da API |
-| `CORS_ORIGINS` / `FRONTEND_URL` | `https://procert-app.vercel.app` | domínio do **site**, não o da API |
+| `CORS_ORIGINS` | `https://procert-app.vercel.app` | domínio do **site**, não o da API |
+| `FRONTEND_URL` | `https://procert-app.vercel.app` | o mesmo valor, e por isso `urlDoPainel()` a **deriva de `CORS_ORIGINS`** quando ela falta — sem a derivação, o link do e-mail de senha e o rodapé do PDF do certificado sairiam apontando para `localhost:5173`. Defina-a mesmo assim: depender da derivação é depender de as duas nunca divergirem |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASS`, `MAIL_FROM` | credenciais da caixa `nao-responda.com.br` | **estiveram ausentes da publicação até 01/09/2026**, e esta tabela não as pedia — por isso passaram batido. Sem elas nenhum e-mail sai: nem a redefinição de senha, nem o aviso de atualização da certificação. Não derrubam o boot (o sistema funciona sem e-mail), mas o boot passa a registrar em `error` |
 | `EXPIRACAO_CRON_ATIVA` | `false` | ver §4 |
 | `CRON_SECRET` | segredo dedicado | ver §4 |
 | `JWT_SECRET`, `JWT_EXPIRES_IN`, `BCRYPT_SALT_ROUNDS`, `API_PREFIX`, `SUPABASE_BUCKET_*` | ver `.env.example` | |
