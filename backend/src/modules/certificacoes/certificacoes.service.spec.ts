@@ -387,6 +387,118 @@ describe('CertificacoesService', () => {
     });
   });
 
+  describe('salvar — notificação do cliente', () => {
+    beforeEach(() => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+        {
+          id: 10,
+          status: StatusCertificacao.EM_ANDAMENTO,
+          observacao: null,
+          etapa: { nome: 'Ensaios laboratoriais' },
+        },
+        {
+          id: 11,
+          status: StatusCertificacao.PENDENTE,
+          observacao: null,
+          etapa: { nome: 'Auditoria de fábrica' },
+        },
+      ] as never);
+    });
+
+    /** Deixa correr tudo o que já está na fila de microtasks. */
+    const drenarMicrotasks = () =>
+      new Promise((resolve) => setImmediate(resolve));
+
+    /**
+     * O teste que dá razão a este bloco.
+     *
+     * Enquanto a chamada era `void this.notificarCliente(...)`, `salvar`
+     * respondia com o envio ainda pendente. Em servidor de processo longo isso
+     * é inofensivo; na função da Vercel a execução congela quando a resposta
+     * sai, a promessa nunca é retomada e o e-mail simplesmente não existe —
+     * sem exceção, sem log, sem sintoma. Um teste que só verificasse "o mock
+     * foi chamado" passaria nos dois mundos, porque o `detalharPorProduto`
+     * seguinte cede a vez para a microtask solta. Por isso o que se afirma
+     * aqui é a ORDEM: `salvar` não pode resolver antes do envio terminar.
+     */
+    it('só responde depois que o envio termina — promessa solta se perde em serverless', async () => {
+      let concluirEnvio!: () => void;
+      mail.enviarAtualizacaoCertificacao.mockReturnValue(
+        new Promise<void>((resolve) => {
+          concluirEnvio = () => resolve();
+        }),
+      );
+
+      let respondeu = false;
+      const emCurso = servico
+        .salvar(
+          1,
+          { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+          admin(),
+        )
+        .then((resultado) => {
+          respondeu = true;
+          return resultado;
+        });
+
+      await drenarMicrotasks();
+
+      expect(mail.enviarAtualizacaoCertificacao).toHaveBeenCalledTimes(1);
+      expect(respondeu).toBe(false);
+
+      concluirEnvio();
+      await emCurso;
+      expect(respondeu).toBe(true);
+    });
+
+    it('leva só as etapas que mudaram de status, com o rótulo em português', async () => {
+      await servico.salvar(
+        1,
+        {
+          etapas: [
+            { id: 10, status: StatusCertificacao.REPROVADO },
+            // Repetição do status atual: não é mudança e não entra no e-mail.
+            { id: 11, status: StatusCertificacao.PENDENTE },
+          ],
+        },
+        admin(),
+      );
+
+      const [para, nomeCliente, produto, produtoId, mudancas] =
+        mail.enviarAtualizacaoCertificacao.mock.calls[0];
+
+      expect(para).toBe('contato@cliente.com.br');
+      expect(nomeCliente).toBe('Indústria Cliente Ltda');
+      expect(produto).toBe('Disjuntor DIN 25A');
+      expect(produtoId).toBe(1);
+      expect(mudancas).toEqual([
+        { etapa: 'Ensaios laboratoriais', status: 'Reprovado' },
+      ]);
+    });
+
+    /**
+     * Agora que se espera pelo envio, uma falha de SMTP passaria a poder
+     * derrubar a resposta. `notificarCliente` engole a própria exceção
+     * justamente para isso: a avaliação técnica já está gravada, e o commit
+     * não se desfaz porque o servidor de e-mail caiu.
+     */
+    it('falha no envio não derruba o salvamento já commitado', async () => {
+      mail.enviarAtualizacaoCertificacao.mockRejectedValue(
+        new Error('SMTP fora do ar'),
+      );
+
+      await expect(
+        servico.salvar(
+          1,
+          { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+          admin(),
+        ),
+      ).resolves.toBeDefined();
+
+      expect(banco.tx.certificacaoHistorico.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ---------------------------------------------------- versão da trilha
 
   /**
