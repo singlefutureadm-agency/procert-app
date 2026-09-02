@@ -604,12 +604,12 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/categorias',
     titulo: 'Categorias de produto',
     resumo:
-      'As famílias de produto (EPIs, brinquedos, artigos escolares…). Cada uma define a própria trilha de certificação e a validade do certificado.',
+      'As famílias de produto (EPIs, brinquedos, artigos escolares…). Cada uma segue uma trilha do catálogo e define a validade do certificado.',
     topicos: [
       {
-        titulo: 'É a categoria que define o processo',
+        titulo: 'A categoria escolhe o processo, a trilha o descreve',
         texto:
-          'A trilha de etapas que um produto vai percorrer vem da categoria escolhida no cadastro dele. Categoria diferente, processo diferente.',
+          'As etapas que um produto percorre vêm da trilha vinculada à categoria escolhida no cadastro dele. A mesma trilha pode servir a várias categorias.',
       },
       {
         titulo: 'A validade em meses vale para o certificado',
@@ -619,7 +619,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Categoria nova precisa de trilha antes de receber produto',
         texto:
-          'Criar a categoria não basta: enquanto ela não tiver uma trilha com etapas, nenhum produto pode ser cadastrado nela.',
+          'Criar a categoria não basta: enquanto ela não tiver uma trilha vinculada, com versão vigente e etapas, nenhum produto pode ser cadastrado nela.',
       },
     ],
     /*
@@ -634,17 +634,74 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/categorias/:id',
     titulo: 'Trilha da categoria',
     resumo:
-      'As etapas que os produtos desta categoria percorrem, organizadas em versões.',
+      'Qual trilha do catálogo esta categoria segue — e, portanto, que etapas os produtos dela vão percorrer.',
     topicos: [
       {
-        titulo: 'Trilha em uso não se edita — versiona-se',
+        titulo: 'Aqui se escolhe a trilha; as etapas se editam nela',
+        texto:
+          'A trilha é um cadastro à parte e pode ser usada por várias categorias. Por isso mudar uma etapa afeta todas as categorias que a seguem, e esse ajuste se faz em Trilhas, não aqui.',
+      },
+      {
+        titulo: 'Trocar a trilha vale para produtos novos',
+        texto:
+          'Cada produto guarda a versão pela qual entrou. Passar a seguir outra trilha muda o processo dos próximos cadastros e não mexe em nenhuma avaliação em andamento.',
+      },
+      {
+        titulo: 'Sem trilha vinculada, a categoria não aceita produto',
+        texto:
+          'O cadastro de produto é recusado com a orientação de vincular. Só aparecem como opção as trilhas que já têm uma versão vigente com etapas.',
+      },
+    ],
+    proximoPasso: {
+      texto: 'Ver o catálogo de trilhas',
+      para: '/trilhas',
+    },
+  },
+
+  // ------------------------------------------------------------------ Trilhas
+  {
+    rota: '/trilhas',
+    titulo: 'Trilhas de certificação',
+    resumo:
+      'O catálogo de processos de avaliação. Uma trilha descreve as etapas uma vez e atende quantas categorias precisarem.',
+    topicos: [
+      {
+        titulo: 'A trilha é reaproveitável',
+        texto:
+          'Categorias diferentes que seguem o mesmo processo apontam para a mesma trilha. Revisar o processo uma vez vale para todas — antes era preciso redigitar as etapas em cada categoria, e elas divergiam na primeira revisão.',
+      },
+      {
+        titulo: 'Duplicar serve para "quase igual"',
+        texto:
+          'Quando o processo é parecido mas não o mesmo, duplique: as etapas da versão vigente viram a versão 1 de uma trilha nova e independente. Editar uma nunca mexe na outra.',
+      },
+      {
+        titulo: 'Desativar é diferente de excluir',
+        texto:
+          'Desativar tira a trilha do catálogo de opções e exige que nenhuma categoria a siga. Excluir é definitivo e só passa se, além disso, nenhum produto tiver sido avaliado por qualquer versão dela.',
+      },
+    ],
+  },
+  {
+    rota: '/trilhas/:id',
+    titulo: 'Versões e etapas da trilha',
+    resumo:
+      'As etapas do processo, organizadas em versões, e as categorias que seguem esta trilha.',
+    topicos: [
+      {
+        titulo: 'Versão em uso não se edita — versiona-se',
         texto:
           'Assim que um produto é vinculado a uma versão, ela fica imutável. Isso protege quem já está no meio do processo de ter a régua trocada. Só versão sem nenhum produto ainda pode ser alterada.',
       },
       {
         titulo: 'Criar uma versão nova não mexe nos produtos existentes',
         texto:
-          'Eles continuam na versão em que entraram. A versão nova passa a valer para os próximos cadastros, e a anterior é encerrada — a categoria nunca tem duas vigentes.',
+          'Eles continuam na versão em que entraram. A nova passa a valer para os próximos cadastros de todas as categorias vinculadas, e a anterior é encerrada — a trilha nunca tem duas vigentes.',
+      },
+      {
+        titulo: 'Dá para voltar atrás',
+        texto:
+          'Uma versão encerrada pode voltar a ser a vigente pelo botão de reativar, sem precisar criar uma cópia dela. E versão sem produto nenhum pode ser excluída; se for a vigente, a anterior assume no lugar.',
       },
       {
         titulo: 'Obrigatória e Exige documento mudam o comportamento',

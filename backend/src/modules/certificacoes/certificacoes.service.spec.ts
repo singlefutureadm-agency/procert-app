@@ -15,6 +15,8 @@ import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
 import { admin, cliente, funcionario } from '../../testing/usuarios.fixture';
 
 const CLIENTE_DONO = 100;
+/** Trilha do catálogo à qual a categoria do produto sob teste está vinculada. */
+const TRILHA = 55;
 const CLIENTE_ALHEIO = 200;
 
 /** Resposta mínima de `detalharPorProduto`, chamado ao fim de `salvar`. */
@@ -515,7 +517,7 @@ describe('CertificacoesService', () => {
     const vigente = {
       id: 90,
       versao: 2,
-      categoriaId: 3,
+      trilhaId: TRILHA,
       ativo: true,
       etapas: etapasVigentes.map((nome, indice) => ({
         id: 900 + indice,
@@ -533,6 +535,9 @@ describe('CertificacoesService', () => {
       modeloTrilhaId: 80,
       clienteId: CLIENTE_DONO,
       modeloTrilha: { id: 80, versao: 1 },
+      // A versão vigente é resolvida pela TRILHA da categoria, não mais pela
+      // categoria: sem este campo o service nem chega à consulta.
+      categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
       certificacao: etapasDoProduto.map((e) => ({ etapa: { nome: e.nome } })),
     } as never);
 
@@ -551,6 +556,7 @@ describe('CertificacoesService', () => {
         categoriaId: 3,
         modeloTrilhaId: 90,
         modeloTrilha: { id: 90, versao: 2 },
+        categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
         certificacao: [],
       } as never);
       banco.prisma.modeloTrilha.findFirst.mockResolvedValue({
@@ -735,6 +741,7 @@ describe('CertificacoesService', () => {
         categoriaId: 3,
         modeloTrilhaId: 90,
         modeloTrilha: { id: 90, versao: 2 },
+        categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
         certificacao: [],
       } as never);
       banco.prisma.modeloTrilha.findFirst.mockResolvedValue({

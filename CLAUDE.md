@@ -74,15 +74,15 @@ npm run dev                   # http://localhost:5173
 | `npm run setup` | **Rode depois de todo `git pull`.** Copia os `.env` que faltarem (nunca sobrescreve), confere o banco, aplica migrations, regenera o client e semeia. Idempotente |
 | `npm run start:dev` | API em watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
-| `npm run seed` | 27 UFs, categoria "Geral" + trilha v1, admin inicial. Idempotente. |
+| `npm run seed` | 27 UFs, trilha "Certificação padrão" v1, categoria "Geral" já vinculada a ela, admin inicial. Idempotente — e o vínculo só entra no `create`, para não desfazer uma troca de trilha feita no painel. |
 | `postinstall` | `prisma generate` a cada `npm ci`. O `@prisma/client` já faz isso no postinstall dele, mas o npm 11 passou a gatear script de dependência por allowlist — declarar aqui tira o client de refém de um detalhe de empacotamento de terceiro. É a mesma razão do passo explícito no CI. |
 | `npm run migrate:legacy` | ETL MySQL legado → PostgreSQL (exige as vars `LEGACY_MYSQL_*`) |
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 287 unitários, 16 suítes, Prisma mockado |
+| `npm test` | ✅ 324 unitários, 18 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 128 casos, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 128 casos + `trilhas.e2e-spec.ts` (13, **não medidos**: ver §7), Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -96,9 +96,9 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 287 unitários + 128 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 324 unitários + os e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
-> modelos de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
+> catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
 >
 > No frontend são 117 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
@@ -320,9 +320,11 @@ que existe caminho em disco.
 ## 4. Modelo de domínio e as regras que o sustentam
 
 ```
-CategoriaProduto ──1:N──► ModeloTrilha (versionada) ──1:N──► ModeloEtapa
-                                                                  │
-Cliente ──1:N──► Produto ──1:N──► CertificacaoProduto ──N:1───────┘
+Trilha (catálogo) ──1:N──► ModeloTrilha (versão) ──1:N──► ModeloEtapa
+   ▲                              ▲                            │
+   └──1:N── CategoriaProduto      └── retrato ── Produto        │
+                    │                              │            │
+Cliente ──1:N──► Produto ──1:N──► CertificacaoProduto ──N:1─────┘
                     │                      ├──1:N──► CertificacaoHistorico ──1:N──► DocumentoCertificacao
                     │                      └──1:N──► NaoConformidade
                     ├──1:N──► Certificado
@@ -332,19 +334,55 @@ Cliente ──1:N──► Produto ──1:N──► CertificacaoProduto ──
 O `schema.prisma` é **densamente comentado** e é a melhor fonte para o modelo. Os pontos
 que exigem entendimento além do schema:
 
+### Trilha é catálogo, não propriedade da categoria
+
+**Mudou em 02/09/2026** (migration `20260902120000_trilhas_como_catalogo`). Antes,
+`ModeloTrilha.categoriaId` fazia a trilha pertencer a uma categoria: o mesmo processo era
+redigitado a cada categoria nova, e duas categorias com processos iguais divergiam em
+silêncio na primeira revisão de uma delas.
+
+Hoje há **três níveis, e confundi-los é a fonte de erro mais provável aqui**:
+
+| Nível | Modelo | O que é | Quem aponta para ele |
+|---|---|---|---|
+| **Família** | `Trilha` | nome, descrição, status | `CategoriaProduto.trilhaId` |
+| **Versão** | `ModeloTrilha` | o processo, imutável em uso | `Produto.modeloTrilhaId` |
+| **Etapa** | `ModeloEtapa` | um passo da versão | `CertificacaoProduto.etapaId` |
+
+**A categoria aponta para a FAMÍLIA; o produto, para a VERSÃO.** É essa assimetria que faz
+tudo funcionar: trocar a trilha de uma categoria, ou publicar uma versão nova, muda a régua
+dos produtos **futuros** e não toca em nenhuma avaliação em andamento. Fazer a categoria
+apontar para a versão devolveria o problema que a versionamento existe para resolver.
+
 ### Trilhas versionadas — a regra central
 
-Cada categoria de produto define a própria trilha, **versionada e imutável**:
-
-- Ao cadastrar um produto, a API resolve a **versão vigente** (`ativo: true`, maior
-  `versao`) e grava `Produto.modeloTrilhaId` como **retrato**. Na mesma transação, abre uma
-  linha de `CertificacaoProduto` (status `PENDENTE`) para cada `ModeloEtapa`.
-- Publicar uma versão nova da categoria **não mexe** nos produtos já submetidos: eles
-  continuam sendo avaliados pelas regras vigentes na submissão.
+- Ao cadastrar um produto, a API resolve `categoria → trilha → versão vigente`
+  (`ativo: true`, maior `versao`) por `resolverVigentePorCategoria` e grava
+  `Produto.modeloTrilhaId` como **retrato**. Na mesma transação, abre uma linha de
+  `CertificacaoProduto` (status `PENDENTE`) para cada `ModeloEtapa`.
+- Publicar uma versão nova **não mexe** nos produtos já submetidos: eles continuam sendo
+  avaliados pelas regras vigentes na submissão.
 - Uma `ModeloTrilha` com produto vinculado **não pode ser editada** (`409` com orientação
   para versionar). Só versão com `totalProdutos === 0` é editável.
 - `criarVersao` sem `etapas` no payload **copia as da versão vigente** e encerra a anterior
-  (`ativo: false`, `vigenteAte`) na mesma transação — a categoria nunca tem duas vigentes.
+  (`ativo: false`, `vigenteAte`) na mesma transação — a trilha nunca tem duas vigentes.
+- `definirVigente` **volta** para uma versão encerrada, zerando o `vigenteAte` dela. Sem
+  isso, desfazer uma publicação errada exigia criar uma cópia idêntica da anterior. A data
+  de encerramento precisa mesmo sair: mantida, todo relatório de vigência mentiria.
+- `removerVersao` recusa a **única** versão da trilha (as categorias vinculadas ficariam
+  sem processo, em silêncio); excluindo a vigente havendo outras, a anterior assume **na
+  mesma transação**.
+
+### Duas guardas que impedem categoria muda
+
+Categoria sem processo não pode chegar ao cadastro de produto sem aviso. As duas
+mensagens são **distintas de propósito** — mandam para telas diferentes:
+
+- **sem trilha vinculada** → resolve-se em `/categorias/:id`;
+- **trilha sem versão vigente com etapas** → resolve-se em `/trilhas/:id`.
+
+Por isso `vincularTrilha` recusa (409) uma trilha sem versão vigente, e
+`alterarStatus(INATIVO)` recusa desativar trilha que alguma categoria ainda segue.
 
 ### `CertificacaoProduto.ordem` — não é a `ordem` do modelo
 
@@ -358,6 +396,9 @@ já que cada versão tem `ModeloEtapa` com ids distintos) e **renumera a trilha 
 1..N dentro da transação**, posicionando as novas conforme o modelo vigente. Etapas que a
 versão nova não prevê vão para o fim preservando a ordem relativa. Migração nunca é
 silenciosa: `verificarVersaoTrilha` é uma consulta pura, e a migração exige POST explícito.
+Ela resolve a vigente por `produto.categoria.trilhaId`; **categoria sem trilha cai no ramo
+de "já atualizado"**, porque não há régua nova para onde migrar e um aviso ali mandaria o
+usuário a uma ação que a tela não completa.
 
 ### Ciclo da não conformidade
 
@@ -513,8 +554,12 @@ src/
 ├── auth/           AuthContext (sessão), RotaProtegida, useAuth
 ├── components/     Genéricos e o layout do painel (LayoutPainel, Sidebar)
 ├── features/       Um diretório por domínio: api.ts + páginas + componentes locais
-│                   Inclui `home` (site institucional público), `aparencia` e
-│                   `relatorios` (equipe, comparativos e tempo de ciclo)
+│                   Inclui `home` (site institucional público), `aparencia`,
+│                   `relatorios` (equipe, comparativos e tempo de ciclo) e
+│                   `trilhas` (catálogo de processos: versões, etapas, dnd-kit).
+│                   As etapas se editam em `trilhas`, NÃO em `categorias-produto`
+│                   — lá se escolhe qual trilha a categoria segue, e a mesma
+│                   trilha serve a várias categorias.
 ├── lib/            api.ts (axios), queryClient.ts (chaves de cache), tema.ts, formatadores
 │                   seo.ts (meta por rota), imagem.ts (reduz upload), cep.ts + useCep.ts
 ├── pages/          Telas fora do painel (login, reset, 404, sem-permissão)
@@ -874,6 +919,10 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
 - **Produtos migrados do legado têm `exigeDocumento: false`** em todas as etapas (o
   catálogo global não tinha o conceito). Para exigir evidência neles é preciso criar uma
   versão nova da trilha e migrar cada produto — a versão em uso é imutável por construção.
+- **`npm run migrate:categorias` fala do modelo antigo.** Ele transpõe o catálogo global do
+  legado para trilhas **por categoria**, que é a forma anterior a 02/09/2026. Já não
+  compilava (`typecheck:scripts` reprova de propósito); agora também está errado no modelo.
+  Só é relevante para quem for retomar o ETL do legado.
 - **`DashboardService` agrega em memória** (`findMany` enxuto + JS). Correto na escala
   atual; com dezenas de milhares de produtos, migre para agregação SQL.
 - **`npm audit` do backend**: 3 high residuais, todas a mesma advisory de `deepmerge-ts`
@@ -907,9 +956,14 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
 - **`vercel.json` não aceita campo fora do schema.** Um `comment` dentro de `rewrites[]`
   derruba o deploy na validação, antes de compilar. JSON não tem comentário; a explicação
   vai no código que depende da regra.
-- **Categoria sem trilha não aceita produto**, e a primeira trilha precisa vir com etapas
-  (não há versão anterior para copiar). A tela cobre isso desde `97b16c1`; a regra do
-  servidor não mudou.
+- **Categoria sem trilha não aceita produto**, e a primeira versão de uma trilha precisa
+  vir com etapas (não há versão anterior para copiar). São **dois** modos de falha desde
+  que a trilha virou catálogo — sem trilha vinculada, e trilha sem versão vigente — e as
+  mensagens são diferentes porque as telas de conserto são diferentes.
+- **Ao ler `modeloVigente` de uma categoria, lembre que ele vem da trilha.** Uma categoria
+  pode ter `trilha` preenchida e `modeloVigente` nulo: vinculada a uma trilha que ainda não
+  publicou versão. Tratar os dois como o mesmo caso faz a tela dizer "sem trilha" para quem
+  acabou de vincular uma.
 - **Assets da home são pesados** e vieram do legado sem reprocessamento
   — mas o pior deles saiu do caminho: `depoimentos-bg.png`, de 2,4 MB, era dois terços do
   peso e virou gradiente CSS em `841a6b7`. **O arquivo continua em `public/img/`, agora sem
@@ -1018,6 +1072,27 @@ Todo o módulo `relatorios` agrega em **SQL (`$queryRaw`)**, não em memória co
 si e infla todo `COUNT`. **Ordenação e agrupamento saem de allowlist fechada**: `ORDER BY`
 não aceita placeholder.
 
+**Trilha vira catálogo** (02/09/2026):
+
+27. `ModeloTrilha.categoriaId` → `Trilha` (família) + `CategoriaProduto.trilhaId`. Trilha
+    passa a ser cadastro próprio, reutilizável por várias categorias, com CRUD completo em
+    `/trilhas` e entrada própria no submenu. Ganha DELETE de trilha e de versão, e
+    `definirVigente` para voltar a uma versão encerrada — nada disso existia. A tela da
+    categoria deixou de editar etapas e passou a **escolher** a trilha.
+
+    A migration `20260902120000_trilhas_como_catalogo` preserva tudo: cada categoria que
+    tinha trilha vira uma entrada do catálogo com o nome dela, as versões são repontadas e
+    a categoria passa a apontar de volta. **Nenhum `produtos.modelo_trilha_id` é tocado.**
+
+    > **O caminho de preservação de dados NÃO foi executado.** O Docker estava fora do ar
+    > nesta máquina, e o e2e do CI sobe um Postgres vazio — `migrate deploy` prova que o
+    > SQL roda, não que os `UPDATE ... FROM` acertam as linhas, porque não há linha. Antes
+    > de promover a produção, rode a migration contra uma cópia da base e confira:
+    > `SELECT count(*) FROM modelos_trilha WHERE trilha_id IS NULL` (deve ser 0) e
+    > `SELECT count(*) FROM categorias_produto c JOIN modelos_trilha mt ON mt.trilha_id =
+    > c.trilha_id WHERE c.trilha_id IS NOT NULL` (deve bater com o total anterior).
+    > `test/trilhas.e2e-spec.ts` (13 casos) também não rodou aqui, pelo mesmo motivo.
+
 **A branch protection em `main` está ATIVA** (verificado em 24/08/2026 — um push direto
 foi recusado com `GH013: Changes must be made through a pull request` e `2 of 2 required
 status checks are expected`). Foi configurada por *repository rules*, que funcionam em
@@ -1028,8 +1103,9 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
 `gh pr merge --auto` não está disponível neste plano (o repositório recusa
 `enablePullRequestAutoMerge`) — aguarde os checks e faça o merge.
 
-Com ela no ar, a lacuna nº 1 volta a ser **teste no frontend**, que segue em zero. Ver
-`DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada item.
+A lacuna do frontend foi fechada — são 117 testes hoje, mirando o que quebra em silêncio
+(ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
+item.
 
 **Riscos abertos e conscientemente não corrigidos** (todos em `DOCUMENTACAO.md` §15, com a
 correção proposta): CRLF em assunto de e-mail no `nodemailer` 9; `esqueciSenha` propagando

@@ -53,10 +53,18 @@ const CATEGORIA_PADRAO = {
   nome: 'Geral',
   descricao:
     'Categoria padrão para produtos sem uma família específica definida. ' +
-    'Crie categorias próprias (EPIs, brinquedos, eletrodomésticos…) com suas trilhas.',
+    'Crie categorias próprias (EPIs, brinquedos, eletrodomésticos…) e vincule ' +
+    'a cada uma a trilha do catálogo que descreve o processo dela.',
 };
 
-/** Etapas da versão 1 da trilha da categoria padrão. */
+const TRILHA_PADRAO = {
+  nome: 'Certificação padrão',
+  descricao:
+    'Processo genérico de certificação: análise documental, ensaios, auditoria ' +
+    'de fábrica e decisão. Duplique-a para montar variações por família de produto.',
+};
+
+/** Etapas da versão 1 da trilha padrão. */
 const ETAPAS: Array<{
   nome: string;
   descricao: string;
@@ -109,38 +117,43 @@ async function main(): Promise<void> {
   }
   console.log(`   ✔ ${ESTADOS.length} unidades federativas`);
 
-  // --- Categoria padrão e versão 1 da sua trilha ---------------------------
-  // A trilha pertence a uma categoria; a "Geral" existe para que uma base nova
-  // já consiga receber produtos sem configuração prévia.
-  const categoria = await prisma.categoriaProduto.upsert({
-    where: { nome: CATEGORIA_PADRAO.nome },
-    update: { descricao: CATEGORIA_PADRAO.descricao },
-    create: CATEGORIA_PADRAO,
+  // --- Trilha padrão, sua versão 1 e a categoria que a usa -----------------
+  // A trilha é do CATÁLOGO e a categoria aponta para ela. A "Geral" existe para
+  // que uma base nova já consiga receber produtos sem configuração prévia.
+  const trilha = await prisma.trilha.upsert({
+    where: { nome: TRILHA_PADRAO.nome },
+    update: { descricao: TRILHA_PADRAO.descricao },
+    create: TRILHA_PADRAO,
   });
 
   const modeloExistente = await prisma.modeloTrilha.findUnique({
-    where: { categoriaId_versao: { categoriaId: categoria.id, versao: 1 } },
+    where: { trilhaId_versao: { trilhaId: trilha.id, versao: 1 } },
     include: { _count: { select: { etapas: true } } },
   });
 
   if (!modeloExistente) {
     await prisma.modeloTrilha.create({
-      data: {
-        categoriaId: categoria.id,
-        versao: 1,
-        ativo: true,
-        etapas: { create: ETAPAS },
-      },
+      data: { trilhaId: trilha.id, versao: 1, ativo: true, etapas: { create: ETAPAS } },
     });
-    console.log(
-      `   ✔ Categoria "${categoria.nome}" com trilha v1 (${ETAPAS.length} etapas)`,
-    );
+    console.log(`   ✔ Trilha "${trilha.nome}" v1 (${ETAPAS.length} etapas)`);
   } else {
     // Versão já existente não é reescrita: ela pode ter produtos vinculados.
     console.log(
-      `   ✔ Categoria "${categoria.nome}" já possui trilha v1 (${modeloExistente._count.etapas} etapas)`,
+      `   ✔ Trilha "${trilha.nome}" já possui a v1 (${modeloExistente._count.etapas} etapas)`,
     );
   }
+
+  /*
+   * O vínculo entra só no `create`. Reapontar a categoria a cada `npm run seed`
+   * desfaria, em silêncio, uma troca de trilha feita de propósito no painel —
+   * e o seed é idempotente justamente para poder ser rodado sem medo.
+   */
+  const categoria = await prisma.categoriaProduto.upsert({
+    where: { nome: CATEGORIA_PADRAO.nome },
+    update: { descricao: CATEGORIA_PADRAO.descricao },
+    create: { ...CATEGORIA_PADRAO, trilhaId: trilha.id },
+  });
+  console.log(`   ✔ Categoria "${categoria.nome}"`);
 
   // --- Administrador inicial ----------------------------------------------
   const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@procertocp.com.br';

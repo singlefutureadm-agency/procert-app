@@ -185,11 +185,11 @@ model Funcionario {
   criadoEm       DateTime       @default(now()) @map("criado_em")
   atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
 
-  estado             Estado?                 @relation(fields: [estadoId], references: [id], onDelete: SetNull)
+  estado               Estado?                 @relation(fields: [estadoId], references: [id], onDelete: SetNull)
   /// Clientes sob responsabilidade deste funcionário. Ver `Cliente.responsavelId`.
-  carteira           Cliente[]               @relation("CarteiraCliente")
-  historicoAlteracao CertificacaoHistorico[]
-  naoConformidades   NaoConformidade[]
+  carteira             Cliente[]               @relation("CarteiraCliente")
+  historicoAlteracao   CertificacaoHistorico[]
+  naoConformidades     NaoConformidade[]
   certificadosEmitidos Certificado[]
   documentosEnviados   DocumentoCertificacao[]
   aparenciaAtualizada  ConfiguracaoAparencia[]
@@ -259,36 +259,73 @@ model CategoriaProduto {
   /// Varia por família (EPI, brinquedo, eletrodoméstico) e por norma.
   validadeMeses   Int            @default(24) @map("validade_meses")
   status          StatusRegistro @default(ATIVO)
+  /// Trilha do catálogo que esta categoria segue.
+  ///
+  /// Nulável: categoria recém-criada ainda não tem trilha, e sem trilha ela não
+  /// aceita produto — a regra vive em `ModelosTrilhaService.resolverVigente`.
+  /// Aponta para a FAMÍLIA, não para a versão: qual versão vale hoje é a que
+  /// estiver `ativo`, e trocar de versão não mexe nesta coluna.
+  trilhaId        Int?           @map("trilha_id")
   criadoEm        DateTime       @default(now()) @map("criado_em")
   atualizadoEm    DateTime       @updatedAt @map("atualizado_em")
 
-  modelosTrilha ModeloTrilha[]
-  produtos      Produto[]
+  trilha   Trilha?   @relation(fields: [trilhaId], references: [id], onDelete: Restrict)
+  produtos Produto[]
 
   @@index([status])
+  @@index([trilhaId])
   @@map("categorias_produto")
 }
 
-/// Versão imutável da trilha de uma categoria.
+/// Trilha de certificação do catálogo — a FAMÍLIA, não a versão.
+///
+/// Existe como cadastro próprio para poder ser reaproveitada: "Ensaio +
+/// auditoria" é desenhada uma vez e vinculada a quantas categorias precisarem.
+/// Antes a trilha pertencia a uma categoria (`ModeloTrilha.categoriaId`), o que
+/// obrigava a redigitar o mesmo processo a cada categoria nova e fazia duas
+/// categorias com o mesmo processo divergirem em silêncio na primeira revisão.
+///
+/// A família guarda identidade e nome; o processo em si vive nas VERSÕES
+/// (`ModeloTrilha`), que continuam imutáveis assim que têm produto vinculado.
+model Trilha {
+  id           Int            @id @default(autoincrement())
+  nome         String         @unique @db.VarChar(120)
+  descricao    String?        @db.Text
+  status       StatusRegistro @default(ATIVO)
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+
+  versoes    ModeloTrilha[]
+  categorias CategoriaProduto[]
+
+  @@index([status])
+  @@map("trilhas")
+}
+
+/// Versão imutável de uma trilha do catálogo.
 ///
 /// Trilhas mudam com o tempo (norma revisada, ensaio novo), mas um produto já
 /// submetido precisa ser avaliado pelas regras vigentes na submissão. Por isso
 /// versiona-se em vez de editar: só a versão sem produtos vinculados é editável.
+///
+/// `Produto.modeloTrilhaId` aponta para AQUI, não para `Trilha`: é o retrato da
+/// versão vigente no dia da submissão. Vincular a categoria a outra trilha, ou
+/// publicar uma versão nova, não mexe em produto nenhum já em andamento.
 model ModeloTrilha {
-  id          Int       @id @default(autoincrement())
-  categoriaId Int       @map("categoria_id")
-  versao      Int
-  ativo       Boolean   @default(true)
-  vigenteDe   DateTime  @default(now()) @map("vigente_de")
-  vigenteAte  DateTime? @map("vigente_ate")
-  criadoEm    DateTime  @default(now()) @map("criado_em")
+  id         Int       @id @default(autoincrement())
+  trilhaId   Int       @map("trilha_id")
+  versao     Int
+  ativo      Boolean   @default(true)
+  vigenteDe  DateTime  @default(now()) @map("vigente_de")
+  vigenteAte DateTime? @map("vigente_ate")
+  criadoEm   DateTime  @default(now()) @map("criado_em")
 
-  categoria CategoriaProduto @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
-  etapas    ModeloEtapa[]
-  produtos  Produto[]
+  trilha   Trilha        @relation(fields: [trilhaId], references: [id], onDelete: Cascade)
+  etapas   ModeloEtapa[]
+  produtos Produto[]
 
-  @@unique([categoriaId, versao])
-  @@index([categoriaId, ativo])
+  @@unique([trilhaId, versao])
+  @@index([trilhaId, ativo])
   @@map("modelos_trilha")
 }
 
@@ -315,9 +352,9 @@ model ModeloEtapa {
 /// `etapaId` aponta para `ModeloEtapa` — a etapa da versão de trilha que o
 /// produto carrega —, não mais para o catálogo global.
 model CertificacaoProduto {
-  id        Int @id @default(autoincrement())
-  produtoId Int @map("produto_id")
-  etapaId   Int @map("etapa_id")
+  id           Int                @id @default(autoincrement())
+  produtoId    Int                @map("produto_id")
+  etapaId      Int                @map("etapa_id")
   /// Posição desta etapa na trilha DO PRODUTO.
   ///
   /// Copiada de `ModeloEtapa.ordem` na abertura da trilha. É um campo próprio
@@ -347,24 +384,24 @@ model CertificacaoProduto {
 /// que gravidade, até quando o cliente tem para responder e o que ele
 /// respondeu. A resolução reabre a etapa para reavaliação.
 model NaoConformidade {
-  id             Int                        @id @default(autoincrement())
-  certificacaoId Int                        @map("certificacao_id")
+  id              Int                        @id @default(autoincrement())
+  certificacaoId  Int                        @map("certificacao_id")
   /// Sequencial por ano no formato NC-2026-000123.
-  codigo         String                     @unique @db.VarChar(20)
-  descricao      String                     @db.Text
-  criticidade    CriticidadeNaoConformidade
-  status         StatusNaoConformidade      @default(ABERTA)
-  prazoResposta  DateTime?                  @map("prazo_resposta")
-  respostaCliente String?                   @map("resposta_cliente") @db.Text
-  respondidoEm   DateTime?                  @map("respondido_em")
+  codigo          String                     @unique @db.VarChar(20)
+  descricao       String                     @db.Text
+  criticidade     CriticidadeNaoConformidade
+  status          StatusNaoConformidade      @default(ABERTA)
+  prazoResposta   DateTime?                  @map("prazo_resposta")
+  respostaCliente String?                    @map("resposta_cliente") @db.Text
+  respondidoEm    DateTime?                  @map("respondido_em")
   /// Parecer da equipe ao avaliar a resposta.
-  parecer        String?                    @db.Text
-  abertoPorId    Int?                       @map("aberto_por_id")
+  parecer         String?                    @db.Text
+  abertoPorId     Int?                       @map("aberto_por_id")
   /// Desnormalizado: a autoria sobrevive à exclusão do colaborador.
-  abertoPorNome  String                     @map("aberto_por_nome") @db.VarChar(150)
-  resolvidoEm    DateTime?                  @map("resolvido_em")
-  criadoEm       DateTime                   @default(now()) @map("criado_em")
-  atualizadoEm   DateTime                   @updatedAt @map("atualizado_em")
+  abertoPorNome   String                     @map("aberto_por_nome") @db.VarChar(150)
+  resolvidoEm     DateTime?                  @map("resolvido_em")
+  criadoEm        DateTime                   @default(now()) @map("criado_em")
+  atualizadoEm    DateTime                   @updatedAt @map("atualizado_em")
 
   certificacao CertificacaoProduto @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
   abertoPor    Funcionario?        @relation(fields: [abertoPorId], references: [id], onDelete: SetNull)
@@ -457,14 +494,14 @@ model Certificado {
 
 /// Pagamentos do processo (legado: tbl_pagamento — antes só era lido).
 model Pagamento {
-  id             Int             @id @default(autoincrement())
-  produtoId      Int             @map("produto_id")
-  valor          Decimal         @default(0) @db.Decimal(12, 2)
-  status         StatusPagamento @default(PENDENTE)
-  dataPagamento  DateTime?       @map("data_pagamento")
-  observacao     String?         @db.Text
-  criadoEm       DateTime        @default(now()) @map("criado_em")
-  atualizadoEm   DateTime        @updatedAt @map("atualizado_em")
+  id            Int             @id @default(autoincrement())
+  produtoId     Int             @map("produto_id")
+  valor         Decimal         @default(0) @db.Decimal(12, 2)
+  status        StatusPagamento @default(PENDENTE)
+  dataPagamento DateTime?       @map("data_pagamento")
+  observacao    String?         @db.Text
+  criadoEm      DateTime        @default(now()) @map("criado_em")
+  atualizadoEm  DateTime        @updatedAt @map("atualizado_em")
 
   produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
@@ -488,14 +525,14 @@ model TokenRedefinicaoSenha {
 
 /// Mensagens do formulário público (legado: tbl_contato).
 model MensagemContato {
-  id        Int      @id @default(autoincrement())
-  nome      String   @db.VarChar(150)
-  email     String   @db.VarChar(150)
-  telefone  String?  @db.VarChar(20)
-  assunto   String   @db.VarChar(200)
-  mensagem  String   @db.Text
-  lida      Boolean  @default(false)
-  criadoEm  DateTime @default(now()) @map("criado_em")
+  id       Int      @id @default(autoincrement())
+  nome     String   @db.VarChar(150)
+  email    String   @db.VarChar(150)
+  telefone String?  @db.VarChar(20)
+  assunto  String   @db.VarChar(200)
+  mensagem String   @db.Text
+  lida     Boolean  @default(false)
+  criadoEm DateTime @default(now()) @map("criado_em")
 
   @@map("mensagens_contato")
 }
@@ -530,20 +567,20 @@ model ConfiguracaoAparencia {
 
   /// Logo da sidebar quando o painel está no tema CLARO — fundo claro, então
   /// prefira traço escuro. Vazia, cai para `logoTemaEscuroUrl`.
-  logoTemaClaroUrl     String? @map("logo_tema_claro_url") @db.VarChar(255)
+  logoTemaClaroUrl     String?  @map("logo_tema_claro_url") @db.VarChar(255)
   /// Logo da sidebar no tema ESCURO (prefira traço claro) e SEMPRE a do
   /// cabeçalho do site público, cujo hero é escuro nos dois modos. Vazia, cai
   /// para `logoTemaClaroUrl`: o fallback é cruzado nos dois sentidos, para que
   /// quem envie uma logo só continue com marca nos dois temas.
-  logoTemaEscuroUrl    String? @map("logo_tema_escuro_url") @db.VarChar(255)
+  logoTemaEscuroUrl    String?  @map("logo_tema_escuro_url") @db.VarChar(255)
   /// Imagem de fundo do painel. Global aos dois modos.
-  papelParedeUrl       String? @map("papel_parede_url") @db.VarChar(255)
+  papelParedeUrl       String?  @map("papel_parede_url") @db.VarChar(255)
   /// 0–100. Em 0 o papel de parede some sem perder o arquivo enviado.
-  papelParedeOpacidade Int     @default(35) @map("papel_parede_opacidade")
+  papelParedeOpacidade Int      @default(35) @map("papel_parede_opacidade")
   /// COBRIR | CONTER | REPETIR
-  papelParedeAjuste    String  @default("COBRIR") @map("papel_parede_ajuste") @db.VarChar(20)
-  atualizadoPorId     Int?       @map("atualizado_por_id")
-  atualizadoEm        DateTime   @updatedAt @map("atualizado_em")
+  papelParedeAjuste    String   @default("COBRIR") @map("papel_parede_ajuste") @db.VarChar(20)
+  atualizadoPorId      Int?     @map("atualizado_por_id")
+  atualizadoEm         DateTime @updatedAt @map("atualizado_em")
 
   atualizadoPor Funcionario? @relation(fields: [atualizadoPorId], references: [id], onDelete: SetNull)
 

@@ -118,7 +118,7 @@ export interface EtapaModeloEntrada {
 
 export interface ModeloTrilha {
   id: number;
-  categoriaId: number;
+  trilhaId: number;
   versao: number;
   ativo: boolean;
   vigenteDe: string;
@@ -138,6 +138,13 @@ export interface ResumoModeloVigente {
   totalProdutos?: number;
 }
 
+/** Trilha do catálogo vista de dentro de uma categoria. */
+export interface TrilhaVinculada {
+  id: number;
+  nome: string;
+  status: StatusRegistro;
+}
+
 export interface CategoriaProduto {
   id: number;
   nome: string;
@@ -147,7 +154,11 @@ export interface CategoriaProduto {
   status: StatusRegistro;
   criadoEm: string;
   atualizadoEm: string;
+  trilhaId: number | null;
   totalProdutos: number;
+  /** Trilha do catálogo que esta categoria segue. */
+  trilha: TrilhaVinculada | null;
+  /** Versões da TRILHA vinculada — 0 quando não há trilha. */
   totalVersoes: number;
   modeloVigente: ResumoModeloVigente | null;
 }
@@ -157,6 +168,53 @@ export interface CategoriaResumo {
   id: number;
   nome: string;
   normaReferencia: string | null;
+  trilha: { id: number; nome: string } | null;
+  modeloVigente: { id: number; versao: number; totalEtapas: number } | null;
+}
+
+/** Uma versão dentro do payload da trilha — sem as etapas, que vêm no detalhe. */
+export interface ResumoVersaoTrilha {
+  id: number;
+  versao: number;
+  ativo: boolean;
+  vigenteDe: string;
+  vigenteAte: string | null;
+  totalEtapas: number;
+  totalProdutos: number;
+  editavel: boolean;
+}
+
+/** Categoria vista de dentro de uma trilha do catálogo. */
+export interface CategoriaVinculada {
+  id: number;
+  nome: string;
+  status: StatusRegistro;
+}
+
+/**
+ * Trilha do catálogo — a FAMÍLIA, reutilizável por várias categorias.
+ * O processo em si vive nas `versoes` (`ModeloTrilha`).
+ */
+export interface Trilha {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  status: StatusRegistro;
+  criadoEm: string;
+  atualizadoEm: string;
+  categorias: CategoriaVinculada[];
+  totalCategorias: number;
+  totalVersoes: number;
+  /** Soma de TODAS as versões, não só da vigente. */
+  totalProdutos: number;
+  modeloVigente: ResumoModeloVigente | null;
+  versoes: ResumoVersaoTrilha[];
+}
+
+/** Item do select de vínculo de trilha na categoria. */
+export interface TrilhaResumo {
+  id: number;
+  nome: string;
   modeloVigente: { id: number; versao: number; totalEtapas: number } | null;
 }
 

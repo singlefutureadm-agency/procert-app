@@ -45,8 +45,17 @@ export const chaves = {
   categorias: (filtros?: unknown) => ['categorias', filtros ?? {}] as const,
   categoria: (id: number) => ['categorias', id] as const,
   categoriasResumo: ['categorias', 'resumo'] as const,
-  modelosTrilha: (categoriaId: number) =>
-    ['categorias', categoriaId, 'modelos-trilha'] as const,
+  trilhas: (filtros?: unknown) => ['trilhas', filtros ?? {}] as const,
+  trilha: (id: number) => ['trilhas', id] as const,
+  trilhasResumo: ['trilhas', 'resumo'] as const,
+  /*
+   * As versões pendem da TRILHA, não mais da categoria. A chave precisou mudar
+   * junto: sob o prefixo antigo (`['categorias', id, ...]`) o invalidate de
+   * categoria continuaria limpando a lista certa por acidente, e o de trilha
+   * nunca a alcançaria — a lista ficaria velha na tela sem erro nenhum.
+   */
+  modelosTrilha: (trilhaId: number) =>
+    ['trilhas', trilhaId, 'modelos-trilha'] as const,
   certificados: (filtros?: unknown) => ['certificados', filtros ?? {}] as const,
   certificadosEmRisco: (dias: number, pagina: number) =>
     ['certificados', 'em-risco', dias, pagina] as const,

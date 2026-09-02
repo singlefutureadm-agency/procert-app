@@ -431,11 +431,18 @@ export class CertificacoesService {
   async verificarVersaoTrilha(produtoId: number) {
     const produto = await this.carregarProdutoComTrilha(produtoId);
 
-    const vigente = await this.prisma.modeloTrilha.findFirst({
-      where: { categoriaId: produto.categoriaId, ativo: true },
-      include: { etapas: { orderBy: { ordem: 'asc' } } },
-      orderBy: { versao: 'desc' },
-    });
+    /*
+     * Categoria sem trilha vinculada cai no mesmo ramo de "já está na vigente":
+     * não há régua nova para onde migrar, e inventar um aviso aqui mandaria o
+     * usuário a uma ação que a tela não consegue completar.
+     */
+    const vigente = produto.categoria.trilhaId
+      ? await this.prisma.modeloTrilha.findFirst({
+          where: { trilhaId: produto.categoria.trilhaId, ativo: true },
+          include: { etapas: { orderBy: { ordem: 'asc' } } },
+          orderBy: { versao: 'desc' },
+        })
+      : null;
 
     if (!vigente || vigente.id === produto.modeloTrilhaId) {
       return {
@@ -490,8 +497,10 @@ export class CertificacoesService {
     }
 
     const produto = await this.carregarProdutoComTrilha(produtoId);
+    // `situacao.atualizado` false garante que existe trilha e versão vigente:
+    // sem elas `verificarVersaoTrilha` teria retornado no ramo acima.
     const vigente = await this.prisma.modeloTrilha.findFirstOrThrow({
-      where: { categoriaId: produto.categoriaId, ativo: true },
+      where: { trilhaId: produto.categoria.trilhaId ?? -1, ativo: true },
       include: { etapas: { orderBy: { ordem: 'asc' } } },
       orderBy: { versao: 'desc' },
     });
@@ -623,6 +632,9 @@ export class CertificacoesService {
       where: { id: produtoId },
       include: {
         modeloTrilha: true,
+        // `trilhaId` da categoria é o que resolve a versão vigente hoje: a
+        // trilha virou catálogo e deixou de pertencer à categoria.
+        categoria: { select: { id: true, nome: true, trilhaId: true } },
         certificacao: { select: { etapa: { select: { nome: true } } } },
       },
     });

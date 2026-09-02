@@ -57,7 +57,7 @@ export function CategoriasPage() {
     <>
       <CabecalhoPagina
         titulo={vendoInativas ? 'Categorias inativas' : 'Categorias de produto'}
-        descricao="Cada categoria define a própria trilha de certificação, versionada."
+        descricao="Cada categoria segue uma trilha do catálogo, e a mesma trilha pode servir a várias."
         acoes={
           <>
             <button
@@ -115,7 +115,7 @@ export function CategoriasPage() {
             descricao={
               filtros.busca
                 ? 'Tente ajustar os termos da busca.'
-                : 'Crie a primeira categoria para definir uma trilha de certificação.'
+                : 'Crie a primeira categoria e vincule a ela uma trilha do catálogo.'
             }
             acao={
               <button
@@ -134,7 +134,7 @@ export function CategoriasPage() {
                 <tr role="row">
                   <th role="columnheader">Categoria</th>
                   <th role="columnheader">Norma</th>
-                  <th role="columnheader">Trilha vigente</th>
+                  <th role="columnheader">Trilha</th>
                   <th role="columnheader">Produtos</th>
                   <th role="columnheader">Situação</th>
                   <th role="columnheader" className="texto-direita">Ações</th>
@@ -157,23 +157,33 @@ export function CategoriasPage() {
                       )}
                     </td>
                     <td role="cell" data-rotulo="Norma" className="texto-suave">{categoria.normaReferencia ?? '—'}</td>
-                    <td role="cell" data-rotulo="Trilha vigente">
-                      {categoria.modeloVigente ? (
-                        <span className="badge badge--aprovado sem-quebra">
-                          v{categoria.modeloVigente.versao} ·{' '}
-                          {categoria.modeloVigente.totalEtapas} etapa(s)
-                        </span>
+                    <td role="cell" data-rotulo="Trilha">
+                      {categoria.trilha ? (
+                        <>
+                          <Link
+                            to={`/trilhas/${categoria.trilha.id}`}
+                            className="sem-quebra"
+                          >
+                            {categoria.trilha.nome}
+                          </Link>
+                          <div className="texto-pequeno texto-fraco">
+                            {categoria.modeloVigente ? (
+                              `v${categoria.modeloVigente.versao} · ${categoria.modeloVigente.totalEtapas} etapa(s)`
+                            ) : (
+                              /* Vinculada e sem versão vigente: a categoria
+                                 parece pronta e recusa todo produto novo. */
+                              <span className="badge badge--reprovado sem-quebra">
+                                sem versão vigente
+                              </span>
+                            )}
+                          </div>
+                        </>
                       ) : (
                         // Sem trilha a categoria não aceita produto — o alerta
                         // precisa aparecer na listagem, não só no cadastro.
                         <span className="badge badge--reprovado sem-quebra">
                           sem trilha
                         </span>
-                      )}
-                      {categoria.totalVersoes > 1 && (
-                        <div className="texto-pequeno texto-fraco">
-                          {categoria.totalVersoes} versões
-                        </div>
                       )}
                     </td>
                     <td role="cell" data-rotulo="Produtos" className="texto-suave">{categoria.totalProdutos}</td>
@@ -185,10 +195,10 @@ export function CategoriasPage() {
                         <Link
                           to={`/categorias/${categoria.id}`}
                           className="btn btn--icone"
-                          title="Ver trilha"
-                          aria-label="Ver trilha"
+                          title="Vincular trilha"
+                          aria-label={`Vincular trilha à categoria ${categoria.nome}`}
                         >
-                          <Icone nome="bussola" />
+                          <Icone nome="elo" />
                         </Link>
                         <button
                           type="button"
