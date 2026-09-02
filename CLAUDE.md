@@ -80,9 +80,9 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 324 unitários, 18 suítes, Prisma mockado |
+| `npm test` | ✅ 326 unitários, 18 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 128 casos + `trilhas.e2e-spec.ts` (13, **não medidos**: ver §7), Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 144 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -96,7 +96,7 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 324 unitários + os e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 326 unitários + 144 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -1084,14 +1084,25 @@ não aceita placeholder.
     tinha trilha vira uma entrada do catálogo com o nome dela, as versões são repontadas e
     a categoria passa a apontar de volta. **Nenhum `produtos.modelo_trilha_id` é tocado.**
 
-    > **O caminho de preservação de dados NÃO foi executado.** O Docker estava fora do ar
-    > nesta máquina, e o e2e do CI sobe um Postgres vazio — `migrate deploy` prova que o
-    > SQL roda, não que os `UPDATE ... FROM` acertam as linhas, porque não há linha. Antes
-    > de promover a produção, rode a migration contra uma cópia da base e confira:
-    > `SELECT count(*) FROM modelos_trilha WHERE trilha_id IS NULL` (deve ser 0) e
-    > `SELECT count(*) FROM categorias_produto c JOIN modelos_trilha mt ON mt.trilha_id =
-    > c.trilha_id WHERE c.trilha_id IS NOT NULL` (deve bater com o total anterior).
-    > `test/trilhas.e2e-spec.ts` (13 casos) também não rodou aqui, pelo mesmo motivo.
+    **A preservação foi verificada contra a base de desenvolvimento real** (2 categorias,
+    6 versões, 25 etapas, 4 produtos, 18 certificações): todas as contagens idênticas,
+    zero versão órfã, e `produtos.modelo_trilha_id` **byte a byte igual** antes e depois.
+    Dois produtos estavam em versões já ENCERRADAS — o caso que mais facilmente se
+    perderia — e continuaram nelas.
+
+    > **Ao rodar em produção, refaça a conferência.** A base de produção tem outra forma,
+    > e o CI não cobre isto: o e2e sobe um Postgres vazio, onde `migrate deploy` prova que
+    > o SQL roda, não que os `UPDATE ... FROM` acertam linhas — porque não há linha.
+    > `SELECT count(*) FROM modelos_trilha WHERE trilha_id IS NULL` deve dar 0, e o total
+    > de `categorias_produto WHERE trilha_id IS NOT NULL` deve bater com o de categorias
+    > que tinham trilha antes.
+
+28. Achado só no navegador, depois de tudo verde: com a categoria trocando de trilha, o
+    botão de migração dizia **"Atualizar trilha (v1 → v1)"**. Verdadeiro e inútil — cada
+    trilha numera as versões por conta própria, então duas v1 são processos diferentes.
+    `verificarVersaoTrilha` passou a devolver `trilhaProduto`/`trilhaVigente`, e a
+    mensagem nomeia as duas **só quando diferem**. Coberto por dois casos novos. Nenhum
+    teste pegaria isso: a string estava certa, faltava sentido para quem lê.
 
 **A branch protection em `main` está ATIVA** (verificado em 24/08/2026 — um push direto
 foi recusado com `GH013: Changes must be made through a pull request` e `2 of 2 required

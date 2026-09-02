@@ -208,21 +208,30 @@ export function CategoriaDetalhePage() {
         <h3 className="titulo-bloco" style={{ marginTop: 0 }}>
           Resumo
         </h3>
-        <dl className="lista-dados">
-          <div>
-            <dt className="texto-pequeno texto-fraco">Produtos nesta categoria</dt>
-            <dd style={{ margin: 0, fontWeight: 600 }}>{dados.totalProdutos}</dd>
-          </div>
-          <div>
-            <dt className="texto-pequeno texto-fraco">Validade do certificado</dt>
-            <dd style={{ margin: 0, fontWeight: 600 }}>
-              {dados.validadeMeses} meses
-            </dd>
-          </div>
-          <div>
-            <dt className="texto-pequeno texto-fraco">Versões da trilha</dt>
-            <dd style={{ margin: 0, fontWeight: 600 }}>{dados.totalVersoes}</dd>
-          </div>
+        {/*
+          Sem classe própria: são três pares rótulo/valor numa tela só. O
+          espaçamento sai da escala (`--espaco-*`), não de número solto — é a
+          regra do CLAUDE.md, e é o que mantém este bloco respirando igual aos
+          irmãos sem que ninguém tenha de decidir isso de novo aqui.
+        */}
+        <dl
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--espaco-6)',
+            margin: 'var(--espaco-3) 0 0',
+          }}
+        >
+          {[
+            ['Produtos nesta categoria', dados.totalProdutos],
+            ['Validade do certificado', `${dados.validadeMeses} meses`],
+            ['Versões da trilha', dados.totalVersoes],
+          ].map(([rotulo, valor]) => (
+            <div key={String(rotulo)}>
+              <dt className="texto-pequeno texto-fraco">{rotulo}</dt>
+              <dd style={{ margin: 0, fontWeight: 600 }}>{valor}</dd>
+            </div>
+          ))}
         </dl>
       </section>
 

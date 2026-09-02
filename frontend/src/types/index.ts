@@ -220,6 +220,16 @@ export interface TrilhaResumo {
 
 export interface SituacaoVersaoTrilha {
   atualizado: boolean;
+  /**
+   * Nome da trilha de cada lado.
+   *
+   * Trilhas diferentes numeram versões de forma independente, então
+   * `versaoProduto` e `versaoVigente` podem ser ambas 1 e ainda assim descrever
+   * processos distintos — acontece quando a categoria troca de trilha. Só o
+   * nome desambigua.
+   */
+  trilhaProduto: string;
+  trilhaVigente: string;
   versaoProduto: number;
   versaoVigente: number;
   etapasAAdicionar: Array<{

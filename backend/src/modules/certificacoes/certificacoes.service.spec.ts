@@ -519,6 +519,7 @@ describe('CertificacoesService', () => {
       versao: 2,
       trilhaId: TRILHA,
       ativo: true,
+      trilha: { nome: 'Trilha de material elétrico' },
       etapas: etapasVigentes.map((nome, indice) => ({
         id: 900 + indice,
         nome,
@@ -534,7 +535,11 @@ describe('CertificacoesService', () => {
       categoriaId: 3,
       modeloTrilhaId: 80,
       clienteId: CLIENTE_DONO,
-      modeloTrilha: { id: 80, versao: 1 },
+      modeloTrilha: {
+        id: 80,
+        versao: 1,
+        trilha: { nome: 'Trilha de material elétrico' },
+      },
       // A versão vigente é resolvida pela TRILHA da categoria, não mais pela
       // categoria: sem este campo o service nem chega à consulta.
       categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
@@ -555,7 +560,11 @@ describe('CertificacoesService', () => {
         id: 1,
         categoriaId: 3,
         modeloTrilhaId: 90,
-        modeloTrilha: { id: 90, versao: 2 },
+        modeloTrilha: {
+          id: 90,
+          versao: 2,
+          trilha: { nome: 'Trilha de material elétrico' },
+        },
         categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
         certificacao: [],
       } as never);
@@ -589,6 +598,66 @@ describe('CertificacoesService', () => {
       // Nada foi gravado: a migração exige POST explícito.
       expect(banco.transacoesAbertas).toBe(0);
       expect(banco.prisma.certificacaoProduto.create).not.toHaveBeenCalled();
+    });
+
+    it('categoria que TROCOU de trilha: a mensagem nomeia as duas', async () => {
+      /*
+       * Encontrado no navegador, não em teste: depois que a trilha virou
+       * catálogo, a categoria pode passar a seguir OUTRA trilha, e cada trilha
+       * numera as versões por conta própria. O botão dizia "Atualizar trilha
+       * (v1 → v1)" — verdadeiro e inútil, porque as duas v1 são processos
+       * diferentes. Só o nome desambigua.
+       */
+      prepararTrilha([{ id: 10, nome: 'Análise documental', ordem: 1 }], [
+        'Análise documental',
+        'Ensaios laboratoriais',
+      ]);
+      banco.prisma.modeloTrilha.findFirst.mockResolvedValue({
+        id: 90,
+        versao: 1,
+        ativo: true,
+        trilha: { nome: 'Certificação padrão' },
+        etapas: [
+          {
+            id: 900,
+            nome: 'Análise documental',
+            ordem: 1,
+            tipo: TipoEtapa.DOCUMENTAL,
+            obrigatoria: true,
+            modeloTrilhaId: 90,
+          },
+          {
+            id: 901,
+            nome: 'Ensaios laboratoriais',
+            ordem: 2,
+            tipo: TipoEtapa.ENSAIO,
+            obrigatoria: true,
+            modeloTrilhaId: 90,
+          },
+        ],
+      } as never);
+
+      const situacao = await servico.verificarVersaoTrilha(1);
+
+      expect(situacao.trilhaProduto).toBe('Trilha de material elétrico');
+      expect(situacao.trilhaVigente).toBe('Certificação padrão');
+      expect(situacao.mensagem).toContain('"Trilha de material elétrico"');
+      expect(situacao.mensagem).toContain('"Certificação padrão"');
+      expect(situacao.mensagem).toContain('que a categoria passou a seguir');
+    });
+
+    it('MESMA trilha: a mensagem não repete o nome dos dois lados', async () => {
+      prepararTrilha([{ id: 10, nome: 'Análise documental', ordem: 1 }], [
+        'Análise documental',
+        'Ensaios laboratoriais',
+      ]);
+
+      const situacao = await servico.verificarVersaoTrilha(1);
+
+      // Repetir o nome quando ele é o mesmo dos dois lados só faz ruído.
+      expect(situacao.mensagem).not.toContain('"Trilha de material elétrico"');
+      expect(situacao.mensagem).toContain('a versão 1 da trilha');
+      expect(situacao.mensagem).toContain('a vigente é a versão 2');
     });
   });
 
@@ -740,7 +809,11 @@ describe('CertificacoesService', () => {
         id: 1,
         categoriaId: 3,
         modeloTrilhaId: 90,
-        modeloTrilha: { id: 90, versao: 2 },
+        modeloTrilha: {
+          id: 90,
+          versao: 2,
+          trilha: { nome: 'Trilha de material elétrico' },
+        },
         categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
         certificacao: [],
       } as never);

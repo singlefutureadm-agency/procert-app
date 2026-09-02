@@ -439,7 +439,10 @@ export class CertificacoesService {
     const vigente = produto.categoria.trilhaId
       ? await this.prisma.modeloTrilha.findFirst({
           where: { trilhaId: produto.categoria.trilhaId, ativo: true },
-          include: { etapas: { orderBy: { ordem: 'asc' } } },
+          include: {
+            etapas: { orderBy: { ordem: 'asc' } },
+            trilha: { select: { nome: true } },
+          },
           orderBy: { versao: 'desc' },
         })
       : null;
@@ -447,6 +450,8 @@ export class CertificacoesService {
     if (!vigente || vigente.id === produto.modeloTrilhaId) {
       return {
         atualizado: true,
+        trilhaProduto: produto.modeloTrilha.trilha.nome,
+        trilhaVigente: produto.modeloTrilha.trilha.nome,
         versaoProduto: produto.modeloTrilha.versao,
         versaoVigente: vigente?.versao ?? produto.modeloTrilha.versao,
         etapasAAdicionar: [],
@@ -463,8 +468,28 @@ export class CertificacoesService {
       (etapa) => !nomesAtuais.has(etapa.nome),
     );
 
+    /*
+     * A categoria pode ter trocado de trilha desde a submissão, e duas trilhas
+     * distintas têm numeração própria: "v1 → v1" é uma frase possível, e
+     * verdadeira. Sem o NOME a mensagem fica sem sentido para quem lê — por
+     * isso ele entra sempre que as trilhas diferem, e some quando são a mesma,
+     * onde repetir o nome dos dois lados só faria ruído.
+     */
+    const trilhaProduto = produto.modeloTrilha.trilha.nome;
+    const trilhaVigente = vigente.trilha.nome;
+    const mudouDeTrilha = trilhaProduto !== trilhaVigente;
+
+    const origem = mudouDeTrilha
+      ? `a versão ${produto.modeloTrilha.versao} da trilha "${trilhaProduto}"`
+      : `a versão ${produto.modeloTrilha.versao} da trilha`;
+    const destino = mudouDeTrilha
+      ? `a versão ${vigente.versao} da trilha "${trilhaVigente}", que a categoria passou a seguir`
+      : `a versão ${vigente.versao}`;
+
     return {
       atualizado: false,
+      trilhaProduto,
+      trilhaVigente,
       versaoProduto: produto.modeloTrilha.versao,
       versaoVigente: vigente.versao,
       etapasAAdicionar: etapasAAdicionar.map((etapa) => ({
@@ -474,8 +499,7 @@ export class CertificacoesService {
         obrigatoria: etapa.obrigatoria,
       })),
       mensagem:
-        `Este produto segue a versão ${produto.modeloTrilha.versao} da trilha; ` +
-        `a versão vigente é a ${vigente.versao}. ` +
+        `Este produto segue ${origem}; a vigente é ${destino}. ` +
         (etapasAAdicionar.length
           ? `Migrar adiciona ${etapasAAdicionar.length} etapa(s) pendente(s).`
           : 'Migrar não adiciona etapas novas — as diferenças são de configuração.'),
@@ -631,7 +655,7 @@ export class CertificacoesService {
     const produto = await this.prisma.produto.findUnique({
       where: { id: produtoId },
       include: {
-        modeloTrilha: true,
+        modeloTrilha: { include: { trilha: { select: { nome: true } } } },
         // `trilhaId` da categoria é o que resolve a versão vigente hoje: a
         // trilha virou catálogo e deixou de pertencer à categoria.
         categoria: { select: { id: true, nome: true, trilhaId: true } },
