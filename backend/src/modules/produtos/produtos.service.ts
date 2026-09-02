@@ -19,8 +19,22 @@ import {
 
 const INCLUDE_PRODUTO = {
   cliente: { select: { id: true, nome: true, fotoUrl: true } },
-  categoria: { select: { id: true, nome: true, normaReferencia: true } },
-  modeloTrilha: { select: { id: true, versao: true, ativo: true } },
+  categoria: {
+    select: {
+      id: true,
+      nome: true,
+      normaReferencia: true,
+      trilha: { select: { id: true, nome: true } },
+    },
+  },
+  modeloTrilha: {
+    select: {
+      id: true,
+      versao: true,
+      ativo: true,
+      trilha: { select: { id: true, nome: true } },
+    },
+  },
   certificacao: {
     select: {
       id: true,
@@ -95,10 +109,11 @@ export class ProdutosService {
   /**
    * Cadastra o produto e abre a trilha de certificação.
    *
-   * A trilha vem da versão vigente do modelo da categoria escolhida, e o
-   * produto guarda essa versão (`modeloTrilhaId`) como retrato: se a categoria
-   * publicar uma versão nova amanhã, este produto continua sendo avaliado pelo
-   * processo que valia na submissão.
+   * A trilha vem da versão vigente da trilha VINCULADA à categoria escolhida, e
+   * o produto guarda essa versão (`modeloTrilhaId`) como retrato: se a trilha
+   * publicar uma versão nova amanhã — ou se a categoria passar a apontar para
+   * outra trilha —, este produto continua sendo avaliado pelo processo que
+   * valia na submissão.
    *
    * Diferença em relação ao legado: produto e etapas nascem na MESMA
    * transação — lá, se o INSERT das etapas falhasse, o produto ficava órfão
@@ -124,8 +139,11 @@ export class ProdutosService {
       );
     }
 
-    // Lança 400 orientando cadastrar o modelo quando não há versão vigente.
-    const modelo = await this.modelosTrilha.resolverVigente(dto.categoriaId);
+    // Lança 400 orientando vincular a trilha, ou publicar uma versão dela,
+    // conforme o que estiver faltando.
+    const modelo = await this.modelosTrilha.resolverVigentePorCategoria(
+      dto.categoriaId,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       const produto = await tx.produto.create({

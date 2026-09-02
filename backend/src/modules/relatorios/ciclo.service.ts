@@ -190,7 +190,10 @@ export class CicloService {
         JOIN modelos_etapa me       ON me.id = cp.etapa_id
         JOIN produtos p             ON p.id = cp.produto_id
         JOIN modelos_trilha mt      ON mt.id = p.modelo_trilha_id
-        JOIN categorias_produto cat ON cat.id = mt.categoria_id
+        -- Pela categoria DO PRODUTO. Era por mt.categoria_id, que deixou de
+        -- existir quando a trilha virou catálogo; o agrupamento é o mesmo,
+        -- porque a versão sempre foi resolvida a partir desta categoria.
+        JOIN categorias_produto cat ON cat.id = p.categoria_id
         WHERE p.status = 'ATIVO'
           AND (${de}::timestamp IS NULL OR cp.criado_em >= ${de}::timestamp)
           AND (${ate}::timestamp IS NULL OR cp.criado_em <= ${ate}::timestamp)
@@ -268,7 +271,10 @@ export class CicloService {
           ) AS concluido
         FROM produtos p
         JOIN modelos_trilha mt      ON mt.id = p.modelo_trilha_id
-        JOIN categorias_produto cat ON cat.id = mt.categoria_id
+        -- Pela categoria DO PRODUTO. Era por mt.categoria_id, que deixou de
+        -- existir quando a trilha virou catálogo; o agrupamento é o mesmo,
+        -- porque a versão sempre foi resolvida a partir desta categoria.
+        JOIN categorias_produto cat ON cat.id = p.categoria_id
         WHERE p.status = 'ATIVO'
           AND (${de}::timestamp IS NULL OR p.criado_em >= ${de}::timestamp)
           AND (${ate}::timestamp IS NULL OR p.criado_em <= ${ate}::timestamp)

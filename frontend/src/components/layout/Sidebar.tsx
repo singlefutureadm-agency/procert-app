@@ -56,11 +56,20 @@ const MENU: GrupoMenu[] = [
         ],
       },
       {
+        // A categoria é a raiz: ela agrupa os produtos e escolhe QUAL trilha
+        // seguir. A trilha é o processo em si, e vive no catálogo — daí ser
+        // filha, e não um item irmão solto.
         para: '/categorias',
-        rotulo: 'Categorias e trilhas',
+        rotulo: 'Categorias',
         icone: 'pastas',
         papeis: ['ADMIN', 'FUNCIONARIO'],
         filhos: [
+          {
+            para: '/trilhas',
+            rotulo: 'Trilhas',
+            icone: 'bussola',
+            papeis: ['ADMIN', 'FUNCIONARIO'],
+          },
           {
             para: '/relatorios/tempo-ciclo',
             rotulo: 'Tempo de ciclo',

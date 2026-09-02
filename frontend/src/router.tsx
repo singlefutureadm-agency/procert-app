@@ -197,6 +197,16 @@ const CategoriaDetalhePage = lazy(() =>
     import('@/features/categorias-produto/CategoriaDetalhePage').then((m) => ({ default: m.CategoriaDetalhePage })),
   ),
 );
+const TrilhasPage = lazy(() =>
+  pagina(
+    import('@/features/trilhas/TrilhasPage').then((m) => ({ default: m.TrilhasPage })),
+  ),
+);
+const TrilhaDetalhePage = lazy(() =>
+  pagina(
+    import('@/features/trilhas/TrilhaDetalhePage').then((m) => ({ default: m.TrilhaDetalhePage })),
+  ),
+);
 const FuncionariosPage = lazy(() =>
   pagina(
     import('@/features/funcionarios/FuncionariosPage').then((m) => ({ default: m.FuncionariosPage })),
@@ -323,7 +333,26 @@ export const router = createBrowserRouter([
         ),
       },
 
-      // Categorias de produto e suas trilhas de certificação
+      // Catálogo de trilhas — o processo de avaliação, reutilizável entre
+      // categorias. As etapas se editam aqui, não na categoria.
+      {
+        path: 'trilhas',
+        element: (
+          <RotaProtegida papeis={[...EQUIPE]}>
+            <TrilhasPage />
+          </RotaProtegida>
+        ),
+      },
+      {
+        path: 'trilhas/:id',
+        element: (
+          <RotaProtegida papeis={[...EQUIPE]}>
+            <TrilhaDetalhePage />
+          </RotaProtegida>
+        ),
+      },
+
+      // Categorias de produto e a trilha que cada uma segue
       {
         path: 'categorias',
         element: (

@@ -20,6 +20,7 @@ import {
   CriarCategoriaProdutoDto,
   ListarCategoriasProdutoDto,
 } from './dto/categoria-produto.dto';
+import { VincularTrilhaDto } from '../modelos-trilha/dto/trilha.dto';
 
 /**
  * Módulo inteiro restrito à equipe, leitura inclusive: o catálogo de categorias
@@ -76,6 +77,19 @@ export class CategoriasProdutoController {
     @Body() dto: AlterarStatusCategoriaDto,
   ) {
     return this.categoriasService.alterarStatus(id, dto.status);
+  }
+
+  @Patch(':id/trilha')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary:
+      'Vincula a trilha do catálogo que esta categoria segue (null desvincula)',
+  })
+  vincularTrilha(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: VincularTrilhaDto,
+  ) {
+    return this.categoriasService.vincularTrilha(id, dto.trilhaId ?? null);
   }
 
   @Delete(':id')
