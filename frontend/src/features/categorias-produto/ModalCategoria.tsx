@@ -112,8 +112,8 @@ export function ModalCategoria({ aberto, categoria, aoFechar }: Props) {
 
         {!editando && (
           <p className="texto-pequeno texto-fraco">
-            Depois de criar a categoria, defina a trilha de certificação dela — sem
-            um modelo de trilha vigente, a categoria não aceita produtos.
+            Depois de criar a categoria, vincule a ela uma trilha do catálogo —
+            sem trilha vinculada, a categoria não aceita produtos.
           </p>
         )}
 

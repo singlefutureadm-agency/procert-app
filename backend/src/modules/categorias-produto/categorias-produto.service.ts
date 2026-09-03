@@ -13,18 +13,33 @@ import {
   ListarCategoriasProdutoDto,
 } from './dto/categoria-produto.dto';
 
-/** Resumo da versão vigente, para a listagem não precisar de outra consulta. */
+/**
+ * Resumo da trilha vinculada e da versão vigente dela, para a listagem não
+ * precisar de outra consulta.
+ *
+ * A trilha deixou de pertencer à categoria: agora a categoria APONTA para uma
+ * trilha do catálogo, e a versão vigente é a da trilha — pode ser a mesma que
+ * outras categorias estão usando.
+ */
 const INCLUDE_CATEGORIA = {
-  _count: { select: { produtos: true, modelosTrilha: true } },
-  modelosTrilha: {
-    where: { ativo: true },
-    orderBy: { versao: 'desc' },
-    take: 1,
+  _count: { select: { produtos: true } },
+  trilha: {
     select: {
       id: true,
-      versao: true,
-      vigenteDe: true,
-      _count: { select: { etapas: true, produtos: true } },
+      nome: true,
+      status: true,
+      _count: { select: { versoes: true } },
+      versoes: {
+        where: { ativo: true },
+        orderBy: { versao: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          versao: true,
+          vigenteDe: true,
+          _count: { select: { etapas: true, produtos: true } },
+        },
+      },
     },
   },
 } satisfies Prisma.CategoriaProdutoInclude;
@@ -73,27 +88,42 @@ export class CategoriasProdutoService {
         id: true,
         nome: true,
         normaReferencia: true,
-        modelosTrilha: {
-          where: { ativo: true },
-          orderBy: { versao: 'desc' },
-          take: 1,
-          select: { id: true, versao: true, _count: { select: { etapas: true } } },
+        trilha: {
+          select: {
+            id: true,
+            nome: true,
+            versoes: {
+              where: { ativo: true },
+              orderBy: { versao: 'desc' },
+              take: 1,
+              select: {
+                id: true,
+                versao: true,
+                _count: { select: { etapas: true } },
+              },
+            },
+          },
         },
       },
     });
 
-    // Sem trilha vigente a categoria não aceita produto — o formulário precisa
-    // saber disso antes de o usuário preencher tudo.
-    return categorias.map(({ modelosTrilha, ...categoria }) => ({
-      ...categoria,
-      modeloVigente: modelosTrilha[0]
-        ? {
-            id: modelosTrilha[0].id,
-            versao: modelosTrilha[0].versao,
-            totalEtapas: modelosTrilha[0]._count.etapas,
-          }
-        : null,
-    }));
+    // Sem trilha vinculada, ou sem versão vigente nela, a categoria não aceita
+    // produto — o formulário precisa saber disso antes de o usuário preencher
+    // tudo. `trilha` vem junto para a mensagem dizer QUAL trilha está falhando.
+    return categorias.map(({ trilha, ...categoria }) => {
+      const vigente = trilha?.versoes[0];
+      return {
+        ...categoria,
+        trilha: trilha ? { id: trilha.id, nome: trilha.nome } : null,
+        modeloVigente: vigente
+          ? {
+              id: vigente.id,
+              versao: vigente.versao,
+              totalEtapas: vigente._count.etapas,
+            }
+          : null,
+      };
+    });
   }
 
   async buscarPorId(id: number) {
@@ -161,14 +191,67 @@ export class CategoriasProdutoService {
       );
     }
 
-    // As versões de trilha e suas etapas caem junto (cascade em ModeloEtapa);
-    // ModeloTrilha é Restrict, então precisa sair explicitamente antes.
-    await this.prisma.$transaction([
-      this.prisma.modeloTrilha.deleteMany({ where: { categoriaId: id } }),
-      this.prisma.categoriaProduto.delete({ where: { id } }),
-    ]);
+    /*
+     * A trilha NÃO cai junto. Ela é do catálogo e provavelmente serve a outras
+     * categorias — antes ela pertencia à categoria e era apagada aqui, o que
+     * hoje destruiria o processo alheio. Excluir a categoria apenas solta o
+     * vínculo, e a FK é `Restrict` para que nunca seja o contrário.
+     */
+    await this.prisma.categoriaProduto.delete({ where: { id } });
 
     return { mensagem: 'Categoria excluída definitivamente.' };
+  }
+
+  /**
+   * Vincula (ou desvincula, com `null`) a trilha do catálogo que esta categoria
+   * segue.
+   *
+   * Não mexe em produto nenhum: cada produto carrega o retrato da versão pela
+   * qual entrou (`Produto.modeloTrilhaId`), então trocar a trilha da categoria
+   * muda o processo dos produtos FUTUROS e deixa os em andamento onde estão.
+   * Quem quiser mover um produto em curso usa a migração de versão, que é
+   * explícita e por produto.
+   */
+  async vincularTrilha(id: number, trilhaId: number | null) {
+    await this.garantirExiste(id);
+
+    if (trilhaId !== null) {
+      const trilha = await this.prisma.trilha.findUnique({
+        where: { id: trilhaId },
+        include: {
+          versoes: {
+            where: { ativo: true },
+            select: { _count: { select: { etapas: true } } },
+          },
+        },
+      });
+
+      if (!trilha) {
+        throw new NotFoundException(`Trilha ${trilhaId} não encontrada.`);
+      }
+
+      if (trilha.status !== StatusRegistro.ATIVO) {
+        throw new ConflictException(
+          'Esta trilha está inativa. Reative-a antes de vinculá-la a uma categoria.',
+        );
+      }
+
+      // Vincular trilha sem versão vigente com etapas deixaria a categoria
+      // aparentemente configurada e ainda assim recusando todo produto novo.
+      if (!trilha.versoes[0] || trilha.versoes[0]._count.etapas === 0) {
+        throw new ConflictException(
+          `A trilha "${trilha.nome}" não tem uma versão vigente com etapas. ` +
+            'Publique uma versão dela antes de vincular.',
+        );
+      }
+    }
+
+    const categoria = await this.prisma.categoriaProduto.update({
+      where: { id },
+      data: { trilhaId },
+      include: INCLUDE_CATEGORIA,
+    });
+    return this.comResumo(categoria);
   }
 
   // ---------------------------------------------------------------- privados
@@ -196,19 +279,22 @@ export class CategoriasProdutoService {
     }
   }
 
-  /** Achata a versão vigente para o formato consumido pelo frontend. */
+  /** Achata trilha e versão vigente para o formato consumido pelo frontend. */
   private comResumo(
     categoria: Prisma.CategoriaProdutoGetPayload<{
       include: typeof INCLUDE_CATEGORIA;
     }>,
   ) {
-    const { modelosTrilha, _count, ...dados } = categoria;
-    const vigente = modelosTrilha[0];
+    const { trilha, _count, ...dados } = categoria;
+    const vigente = trilha?.versoes[0];
 
     return {
       ...dados,
       totalProdutos: _count.produtos,
-      totalVersoes: _count.modelosTrilha,
+      trilha: trilha
+        ? { id: trilha.id, nome: trilha.nome, status: trilha.status }
+        : null,
+      totalVersoes: trilha?._count.versoes ?? 0,
       modeloVigente: vigente
         ? {
             id: vigente.id,

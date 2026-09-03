@@ -2,8 +2,6 @@ import { api } from '@/lib/api';
 import type {
   CategoriaProduto,
   CategoriaResumo,
-  EtapaModeloEntrada,
-  ModeloTrilha,
   RespostaPaginada,
   StatusRegistro,
 } from '@/types';
@@ -64,43 +62,21 @@ export const categoriasApi = {
     return data;
   },
 
+  /**
+   * Vincula a trilha do catálogo que esta categoria segue.
+   * `null` desvincula — e categoria sem trilha não aceita produto novo.
+   */
+  vincularTrilha: async (id: number, trilhaId: number | null) => {
+    const { data } = await api.patch<CategoriaProduto>(
+      `/categorias-produto/${id}/trilha`,
+      { trilhaId },
+    );
+    return data;
+  },
+
   remover: async (id: number) => {
     const { data } = await api.delete<{ mensagem: string }>(
       `/categorias-produto/${id}`,
-    );
-    return data;
-  },
-};
-
-export const modelosTrilhaApi = {
-  listarPorCategoria: async (categoriaId: number) => {
-    const { data } = await api.get<ModeloTrilha[]>(
-      `/categorias-produto/${categoriaId}/modelos-trilha`,
-    );
-    return data;
-  },
-
-  /** Sem etapas no corpo, o backend copia as da versão vigente. */
-  criarVersao: async (categoriaId: number, etapas?: EtapaModeloEntrada[]) => {
-    const { data } = await api.post<ModeloTrilha>(
-      `/categorias-produto/${categoriaId}/modelos-trilha`,
-      etapas ? { etapas } : {},
-    );
-    return data;
-  },
-
-  substituirEtapas: async (modeloId: number, etapas: EtapaModeloEntrada[]) => {
-    const { data } = await api.patch<ModeloTrilha>(
-      `/modelos-trilha/${modeloId}/etapas`,
-      { etapas },
-    );
-    return data;
-  },
-
-  reordenarEtapas: async (modeloId: number, ordem: number[]) => {
-    const { data } = await api.patch<ModeloTrilha>(
-      `/modelos-trilha/${modeloId}/etapas/ordem`,
-      { ordem },
     );
     return data;
   },

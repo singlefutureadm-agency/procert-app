@@ -135,6 +135,9 @@ describe('Autorização (e2e)', () => {
   describe('catálogo interno — CLIENTE é barrado inclusive na LEITURA', () => {
     it.each([
       ['GET /api/categorias-produto', '/api/categorias-produto'],
+      ['GET /api/trilhas', '/api/trilhas'],
+      ['GET /api/trilhas/:id', '/api/trilhas/1'],
+      ['GET /api/trilhas/:id/modelos-trilha', '/api/trilhas/1/modelos-trilha'],
       ['GET /api/modelos-trilha/:id', '/api/modelos-trilha/1'],
     ])('%s', async (_, rota) => {
       // Trilha e categoria são configuração interna do OCP: expõem o processo

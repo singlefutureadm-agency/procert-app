@@ -58,6 +58,8 @@ export type NomeIcone =
   | 'cadeado'
   | 'arrastar'
   | 'caixa-vazia'
+  | 'elo'
+  | 'copiar'
   | 'interrogacao';
 
 /*
@@ -270,6 +272,20 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
   ),
   clipe: (
     <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+  ),
+  /* Vínculo entre categoria e trilha: dois elos de corrente. */
+  elo: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </>
+  ),
+  /* Duplicar: uma folha sobre a outra. */
+  copiar: (
+    <>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
   ),
   download: (
     <>

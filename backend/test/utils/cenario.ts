@@ -31,6 +31,7 @@ const TABELAS = [
   'modelos_etapa',
   'modelos_trilha',
   'categorias_produto',
+  'trilhas',
   'etapas_certificacao',
   'tokens_redefinicao_senha',
   'mensagens_contato',
@@ -57,6 +58,12 @@ export interface Cenario {
   documentoId: number;
   /** Etapa com `exigeDocumento`, usada nos testes de escrita. */
   certificacaoId: number;
+
+  categoriaId: number;
+  /** Trilha do catálogo à qual a categoria está vinculada. */
+  trilhaId: number;
+  /** Versão vigente dessa trilha — a que os produtos do cenário carregam. */
+  modeloTrilhaId: number;
 
   /** Nomes dos arquivos gravados EM DISCO, por pasta. */
   arquivos: {
@@ -130,12 +137,11 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     },
   });
 
-  const categoria = await db.categoriaProduto.create({
+  // A trilha é do catálogo e a categoria aponta para ela.
+  const catalogo = await db.trilha.create({
     data: {
-      nome: 'Material elétrico',
-      normaReferencia: 'NBR 5361',
-      validadeMeses: 12,
-      modelosTrilha: {
+      nome: 'Trilha de material elétrico',
+      versoes: {
         create: {
           versao: 1,
           ativo: true,
@@ -165,10 +171,19 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
         },
       },
     },
-    include: { modelosTrilha: { include: { etapas: true } } },
+    include: { versoes: { include: { etapas: true } } },
   });
 
-  const trilha = categoria.modelosTrilha[0];
+  const categoria = await db.categoriaProduto.create({
+    data: {
+      nome: 'Material elétrico',
+      normaReferencia: 'NBR 5361',
+      validadeMeses: 12,
+      trilhaId: catalogo.id,
+    },
+  });
+
+  const trilha = catalogo.versoes[0];
   const etapas = [...trilha.etapas].sort((a, b) => a.ordem - b.ordem);
 
   const criarProduto = async (clienteId: number, nome: string) =>
@@ -244,6 +259,10 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     certificadoId: certificado.id,
     documentoId: documento.id,
     certificacaoId: produtoDono.certificacao[1].id,
+
+    categoriaId: categoria.id,
+    trilhaId: catalogo.id,
+    modeloTrilhaId: trilha.id,
 
     arquivos,
   };

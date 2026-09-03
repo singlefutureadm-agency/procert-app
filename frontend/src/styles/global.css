@@ -450,6 +450,7 @@ p {
   -webkit-backdrop-filter: blur(var(--vidro-blur));
   border: 1px solid var(--vidro-borda);
   border-radius: var(--raio);
+  padding: var(--espaco-4);
   /*
    * Sombra externa + fio de luz na aresta interna de cima. É o que dá
    * espessura ao vidro: sem o realce o card é um retângulo translúcido com

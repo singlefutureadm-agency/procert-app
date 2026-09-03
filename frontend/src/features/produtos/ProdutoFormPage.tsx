@@ -11,11 +11,9 @@ import { Campo } from '@/components/Campo';
 import { CampoArquivo } from '@/components/CampoArquivo';
 import { Icone } from '@/components/Icone';
 import { Carregando } from '@/components/Carregando';
-import {
-  categoriasApi,
-  modelosTrilhaApi,
-} from '@/features/categorias-produto/api';
-import { ROTULO_TIPO_ETAPA } from '@/features/categorias-produto/rotulos';
+import { categoriasApi } from '@/features/categorias-produto/api';
+import { modelosTrilhaApi } from '@/features/trilhas/api';
+import { ROTULO_TIPO_ETAPA } from '@/features/trilhas/rotulos';
 import { clientesApi } from '@/features/clientes/api';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { chaves } from '@/lib/queryClient';
@@ -69,11 +67,15 @@ export function ProdutoFormPage() {
     (categoria) => String(categoria.id) === watch('categoriaId'),
   );
 
-  // Preview da trilha: as etapas vêm da versão vigente da categoria escolhida.
+  /*
+   * Preview da trilha: as etapas vêm da versão vigente da TRILHA vinculada à
+   * categoria escolhida — não mais da categoria, que hoje só aponta para ela.
+   */
+  const trilhaDaCategoria = categoriaSelecionada?.trilha;
   const { data: versoes } = useQuery({
-    queryKey: chaves.modelosTrilha(categoriaSelecionada?.id ?? 0),
-    queryFn: () => modelosTrilhaApi.listarPorCategoria(categoriaSelecionada!.id),
-    enabled: Boolean(categoriaSelecionada?.modeloVigente),
+    queryKey: chaves.modelosTrilha(trilhaDaCategoria?.id ?? 0),
+    queryFn: () => modelosTrilhaApi.listarPorTrilha(trilhaDaCategoria!.id),
+    enabled: Boolean(trilhaDaCategoria && categoriaSelecionada?.modeloVigente),
   });
 
   const trilhaVigente = versoes?.find((versao) => versao.ativo);
@@ -217,14 +219,15 @@ export function ProdutoFormPage() {
         {!editando && trilhaVigente && (
           <fieldset className="secao-form">
             <legend>
-              Trilha que será aberta — versão {trilhaVigente.versao}
+              Trilha que será aberta — {trilhaDaCategoria?.nome}, versão{' '}
+              {trilhaVigente.versao}
             </legend>
             <p className="texto-pequeno texto-fraco" style={{ marginTop: 0 }}>
               {categoriaSelecionada?.normaReferencia
                 ? `Norma de referência: ${categoriaSelecionada.normaReferencia}. `
                 : ''}
-              O produto fica vinculado a esta versão mesmo que a categoria receba
-              versões novas depois.
+              O produto fica vinculado a esta versão mesmo que a trilha receba
+              versões novas depois, ou que a categoria passe a seguir outra trilha.
             </p>
             <ol className="lista-etapas">
               {trilhaVigente.etapas.map((etapa) => (

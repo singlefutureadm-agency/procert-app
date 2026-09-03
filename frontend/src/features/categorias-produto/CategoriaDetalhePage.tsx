@@ -1,156 +1,35 @@
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
+import { Campo } from '@/components/Campo';
 import { Carregando } from '@/components/Carregando';
 import { EstadoVazio } from '@/components/EstadoVazio';
 import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
-import { TabelaRolavel } from '@/components/TabelaRolavel';
+import { trilhasApi } from '@/features/trilhas/api';
 import { mensagemDeErro } from '@/lib/api';
-import { formatarData } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
-import type { EtapaModeloEntrada, ModeloEtapa, ModeloTrilha } from '@/types';
-import { categoriasApi, modelosTrilhaApi } from './api';
-import { ModalEtapaModelo } from './ModalEtapaModelo';
-import { ROTULO_TIPO_ETAPA } from './rotulos';
+import { categoriasApi } from './api';
 
-function LinhaEtapa({
-  etapa,
-  editavel,
-  aoEditar,
-  aoRemover,
-}: {
-  etapa: ModeloEtapa;
-  editavel: boolean;
-  aoEditar: (etapa: ModeloEtapa) => void;
-  aoRemover: (etapa: ModeloEtapa) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    // Diz ao dnd-kit qual elemento é a alça. Sem isso ele continua arrastando
-    // pelo ponteiro, mas as instruções de teclado ficam penduradas no <tr>, que
-    // não é focável — a reordenação por teclado nunca chegaria a ser anunciada.
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: etapa.id, disabled: !editavel });
-
-  return (
-    /*
-     * `attributes` e `listeners` do dnd-kit ficam na alça, não na linha.
-     *
-     * Espalhados no <tr> — como estavam — eles sobrescreviam o papel da linha
-     * com `role="button"`: o leitor de tela anunciava a linha inteira como um
-     * botão e a estrutura da tabela desaparecia, junto com a associação entre
-     * cada célula e seu cabeçalho. De quebra, a linha toda virava área de
-     * arraste, o que impedia selecionar o texto da etapa e obrigava cada botão
-     * de ação a abafar o `onPointerDown` para continuar clicável.
-     */
-    <tr
-      role="row"
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.55 : 1,
-      }}
-    >
-      <td role="cell" className="tabela__celula-inicial" style={{ width: 52 }}>
-        {editavel && (
-          <button
-            type="button"
-            className="tabela__alca arrastavel"
-            aria-label={`Reordenar a etapa ${etapa.nome}`}
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
-          >
-            <Icone nome="arrastar" tamanho={18} />
-          </button>
-        )}
-      </td>
-      <td role="cell" className="tabela__celula-inicial" style={{ width: 64, fontWeight: 700 }}>{etapa.ordem}</td>
-      <td role="cell" data-principal>
-        <div style={{ fontWeight: 600 }}>{etapa.nome}</div>
-        {etapa.descricao && (
-          <div className="texto-pequeno texto-fraco">{etapa.descricao}</div>
-        )}
-      </td>
-      <td role="cell" data-rotulo="Tipo" className="texto-suave sem-quebra">
-        {ROTULO_TIPO_ETAPA[etapa.tipo] ?? etapa.tipo}
-      </td>
-      <td role="cell" data-rotulo="Prazo" className="texto-suave sem-quebra">
-        {etapa.prazoSlaDias ? `${etapa.prazoSlaDias} dia(s)` : '—'}
-      </td>
-      <td role="cell" data-rotulo="Regras">
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {etapa.obrigatoria && <span className="badge badge--andamento">obrigatória</span>}
-          {etapa.exigeDocumento && <span className="badge badge--pendente">documento</span>}
-        </div>
-      </td>
-      <td role="cell" className="tabela__celula-acoes">
-        {editavel && (
-          <div className="tabela__acoes">
-            <button
-              type="button"
-              className="btn btn--icone"
-              title="Editar etapa"
-              aria-label="Editar etapa"
-              onClick={() => aoEditar(etapa)}
-            >
-              <Icone nome="lapis" />
-            </button>
-            <button
-              type="button"
-              className="btn btn--icone"
-              title="Remover etapa"
-              aria-label="Remover etapa"
-              onClick={() => aoRemover(etapa)}
-            >
-              <Icone nome="lixeira" />
-            </button>
-          </div>
-        )}
-      </td>
-    </tr>
-  );
-}
-
+/**
+ * Detalhe da categoria: qual trilha do catálogo ela segue.
+ *
+ * Esta tela EDITAVA a trilha da categoria, porque a trilha pertencia a ela.
+ * Hoje a trilha é catálogo, reutilizável, e as etapas se editam em
+ * `/trilhas/:id` — aqui se escolhe qual processo a categoria adota. Manter a
+ * edição de etapas nos dois lugares faria parecer que o ajuste vale só para
+ * esta categoria, quando ele muda o processo de todas que seguem a trilha.
+ */
 export function CategoriaDetalhePage() {
   const { id } = useParams();
   const categoriaId = Number(id);
   const queryClient = useQueryClient();
 
-  const [versaoSelecionada, setVersaoSelecionada] = useState<number | null>(null);
-  const [etapas, setEtapas] = useState<ModeloEtapa[]>([]);
-  const [modalEtapa, setModalEtapa] = useState(false);
-  const [etapaEmEdicao, setEtapaEmEdicao] = useState<ModeloEtapa | null>(null);
-  const [etapaARemover, setEtapaARemover] = useState<ModeloEtapa | null>(null);
-  const [confirmarVersao, setConfirmarVersao] = useState(false);
+  const [escolhida, setEscolhida] = useState<string>('');
+  const [confirmarTroca, setConfirmarTroca] = useState(false);
 
   const categoria = useQuery({
     queryKey: chaves.categoria(categoriaId),
@@ -158,108 +37,35 @@ export function CategoriaDetalhePage() {
     enabled: Number.isFinite(categoriaId),
   });
 
-  const versoes = useQuery({
-    queryKey: chaves.modelosTrilha(categoriaId),
-    queryFn: () => modelosTrilhaApi.listarPorCategoria(categoriaId),
-    enabled: Number.isFinite(categoriaId),
+  const trilhas = useQuery({
+    queryKey: chaves.trilhasResumo,
+    queryFn: () => trilhasApi.resumo(),
   });
-
-  const modelo: ModeloTrilha | undefined =
-    versoes.data?.find((versao) => versao.id === versaoSelecionada) ??
-    versoes.data?.find((versao) => versao.ativo) ??
-    versoes.data?.[0];
 
   useEffect(() => {
-    if (modelo) setEtapas(modelo.etapas);
-  }, [modelo]);
+    setEscolhida(
+      categoria.data?.trilhaId ? String(categoria.data.trilhaId) : '',
+    );
+  }, [categoria.data?.trilhaId]);
 
-  const sensores = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  function invalidar() {
-    void queryClient.invalidateQueries({ queryKey: ['categorias'] });
-  }
-
-  const reordenar = useMutation({
-    mutationFn: (ordem: number[]) =>
-      modelosTrilhaApi.reordenarEtapas(modelo!.id, ordem),
-    onSuccess: () => {
-      toast.success('Ordem das etapas atualizada.');
-      invalidar();
-    },
-    onError: (erro) => {
-      toast.error(mensagemDeErro(erro, 'Não foi possível salvar a nova ordem.'));
-      if (modelo) setEtapas(modelo.etapas);
-    },
-  });
-
-  /** A API troca a lista inteira: edição, inclusão e remoção passam por aqui. */
-  const salvarEtapas = useMutation({
-    mutationFn: (lista: EtapaModeloEntrada[]) =>
-      modelosTrilhaApi.substituirEtapas(modelo!.id, lista),
-    onSuccess: () => {
-      toast.success('Trilha atualizada.');
-      invalidar();
-      setEtapaARemover(null);
-    },
-    onError: (erro) => toast.error(mensagemDeErro(erro)),
-  });
-
-  /**
-   * Cria uma versão da trilha.
-   *
-   * Sem `etapas`, a API copia as da versão vigente. Isso não serve para a
-   * PRIMEIRA versão de uma categoria: não há de onde copiar, e o servidor
-   * recusa com "informe as etapas da nova versão". A tela chamava sempre sem
-   * etapas, então categoria criada pelo painel ficava sem trilha para sempre —
-   * e sem trilha ela não aceita produto nenhum.
-   */
-  const criarVersao = useMutation({
-    mutationFn: (etapasIniciais?: EtapaModeloEntrada[]) =>
-      modelosTrilhaApi.criarVersao(categoriaId, etapasIniciais),
-    onSuccess: (nova) => {
+  const vincular = useMutation({
+    mutationFn: (trilhaId: number | null) =>
+      categoriasApi.vincularTrilha(categoriaId, trilhaId),
+    onSuccess: (atualizada) => {
       toast.success(
-        nova.versao === 1
-          ? 'Trilha criada. Acrescente as demais etapas do processo.'
-          : `Versão ${nova.versao} criada a partir da vigente.`,
+        atualizada.trilha
+          ? `Categoria vinculada à trilha "${atualizada.trilha.nome}".`
+          : 'Trilha desvinculada. A categoria deixou de aceitar produtos novos.',
       );
-      setVersaoSelecionada(nova.id);
-      setConfirmarVersao(false);
-      setModalEtapa(false);
-      invalidar();
+      void queryClient.invalidateQueries({ queryKey: ['categorias'] });
+      // O contador de categorias da trilha muda dos dois lados do vínculo.
+      void queryClient.invalidateQueries({ queryKey: ['trilhas'] });
+      setConfirmarTroca(false);
     },
     onError: (erro) => toast.error(mensagemDeErro(erro)),
   });
 
-  /** Nenhuma versão ainda: o botão cria a trilha, não uma "nova versão". */
-  const semTrilha = !versoes.isLoading && (versoes.data?.length ?? 0) === 0;
-
-  function paraEntrada(lista: ModeloEtapa[]): EtapaModeloEntrada[] {
-    return lista.map((etapa) => ({
-      nome: etapa.nome,
-      descricao: etapa.descricao ?? undefined,
-      tipo: etapa.tipo,
-      obrigatoria: etapa.obrigatoria,
-      prazoSlaDias: etapa.prazoSlaDias ?? undefined,
-      exigeDocumento: etapa.exigeDocumento,
-    }));
-  }
-
-  function aoSoltar(evento: DragEndEvent) {
-    const { active, over } = evento;
-    if (!over || active.id === over.id || !modelo) return;
-
-    const de = etapas.findIndex((etapa) => etapa.id === active.id);
-    const para = etapas.findIndex((etapa) => etapa.id === over.id);
-    const nova = arrayMove(etapas, de, para);
-
-    setEtapas(nova.map((etapa, indice) => ({ ...etapa, ordem: indice + 1 })));
-    reordenar.mutate(nova.map((etapa) => etapa.id));
-  }
-
-  if (categoria.isLoading || versoes.isLoading) return <Carregando />;
+  if (categoria.isLoading) return <Carregando />;
 
   if (categoria.isError || !categoria.data) {
     return (
@@ -275,16 +81,21 @@ export function CategoriaDetalhePage() {
     );
   }
 
-  const editavel = Boolean(modelo?.editavel);
+  const dados = categoria.data;
+  const trilhaAtual = dados.trilha;
+  const alterada = escolhida !== (dados.trilhaId ? String(dados.trilhaId) : '');
+  const trilhaEscolhida = trilhas.data?.find(
+    (trilha) => String(trilha.id) === escolhida,
+  );
 
   return (
     <>
       <CabecalhoPagina
-        titulo={categoria.data.nome}
+        titulo={dados.nome}
         descricao={
-          categoria.data.normaReferencia
-            ? `Norma de referência: ${categoria.data.normaReferencia}`
-            : 'Trilha de certificação desta categoria.'
+          dados.normaReferencia
+            ? `Norma de referência: ${dados.normaReferencia}`
+            : 'Trilha de certificação seguida por esta categoria.'
         }
         acoes={
           <>
@@ -292,227 +103,151 @@ export function CategoriaDetalhePage() {
               <Icone nome="seta-esquerda" tamanho={16} />
               Categorias
             </Link>
-            <button
-              type="button"
-              className="btn btn--primario"
-              onClick={() => {
-                // Sem versão anterior o modal de confirmação não tem o que
-                // confirmar — o que falta é a primeira etapa.
-                if (semTrilha) {
-                  setEtapaEmEdicao(null);
-                  setModalEtapa(true);
-                } else {
-                  setConfirmarVersao(true);
-                }
-              }}
-            >
-              {semTrilha ? '+ Criar trilha' : '+ Nova versão'}
-            </button>
+            {trilhaAtual && (
+              <Link to={`/trilhas/${trilhaAtual.id}`} className="btn btn--primario">
+                <Icone nome="bussola" tamanho={16} />
+                Ver etapas da trilha
+              </Link>
+            )}
           </>
         }
       />
 
       <section className="vidro" style={{ marginBottom: 16 }}>
-        <TabelaRolavel rotulo="Versões da trilha">
-          <table className="tabela" role="table">
-            <thead role="rowgroup">
-              <tr role="row">
-                <th role="columnheader">Versão</th>
-                <th role="columnheader">Vigência</th>
-                <th role="columnheader">Etapas</th>
-                <th role="columnheader">Produtos</th>
-                <th role="columnheader">Situação</th>
-              </tr>
-            </thead>
-            <tbody role="rowgroup">
-              {versoes.data?.map((versao) => (
-                <tr
-                  role="row"
-                  key={versao.id}
-                  onClick={() => setVersaoSelecionada(versao.id)}
-                  style={{
-                    cursor: 'pointer',
-                    outline:
-                      versao.id === modelo?.id
-                        ? '1px solid var(--cor-primaria)'
-                        : undefined,
-                  }}
-                >
-                  <td role="cell" data-principal style={{ fontWeight: 700 }}>v{versao.versao}</td>
-                  <td role="cell" data-rotulo="Vigência" className="texto-suave sem-quebra">
-                    {formatarData(versao.vigenteDe)}
-                    {versao.vigenteAte ? ` → ${formatarData(versao.vigenteAte)}` : ''}
-                  </td>
-                  <td role="cell" data-rotulo="Etapas" className="texto-suave">{versao.etapas.length}</td>
-                  <td role="cell" data-rotulo="Produtos" className="texto-suave">{versao.totalProdutos}</td>
-                  <td role="cell" data-rotulo="Situação">
-                    <span
-                      className={`badge ${versao.ativo ? 'badge--aprovado' : 'badge--pendente'}`}
-                    >
-                      {versao.ativo ? 'Vigente' : 'Encerrada'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TabelaRolavel>
-      </section>
+        <h3 className="titulo-bloco" style={{ marginTop: 0 }}>
+          Trilha de certificação
+        </h3>
 
-      <section className="vidro">
-        <div className="entre" style={{ padding: '4px 4px 12px' }}>
-          <div>
-            <h3 style={{ margin: 0 }}>
-              {semTrilha ? 'Trilha de certificação' : `Etapas da versão ${modelo?.versao ?? '—'}`}
-            </h3>
-            <p className="texto-pequeno texto-fraco" style={{ margin: '4px 0 0' }}>
-              {/* Sem trilha, a mensagem de imutabilidade dizia "já está em uso
-                  por 0 produto(s)" — descrevia uma versão que não existe. */}
-              {semTrilha
-                ? 'Esta categoria ainda não tem trilha. Crie a primeira para que ela aceite produtos.'
-                : editavel
-                  ? 'Arraste para reordenar. A ordem é salva automaticamente.'
-                  : `Esta versão já está em uso por ${modelo?.totalProdutos ?? 0} produto(s) e não pode ser alterada — crie uma nova versão para mudar o processo.`}
-            </p>
-          </div>
-          {editavel && (
+        {trilhaAtual ? (
+          <p className="texto-pequeno texto-fraco" style={{ marginTop: 4 }}>
+            Esta categoria segue a trilha{' '}
+            <Link to={`/trilhas/${trilhaAtual.id}`}>
+              <strong>{trilhaAtual.nome}</strong>
+            </Link>
+            {dados.modeloVigente ? (
+              <>
+                , na versão <strong>v{dados.modeloVigente.versao}</strong> com{' '}
+                {dados.modeloVigente.totalEtapas} etapa(s).
+              </>
+            ) : (
+              // Trilha vinculada mas sem versão vigente: a categoria parece
+              // configurada e recusa todo produto novo.
+              <> — que está sem versão vigente e por isso não aceita produtos.</>
+            )}
+          </p>
+        ) : (
+          <p className="texto-pequeno texto-fraco" style={{ marginTop: 4 }}>
+            Esta categoria ainda não tem trilha. Sem trilha ela não aceita
+            produtos: escolha uma do catálogo abaixo.
+          </p>
+        )}
+
+        <div style={{ maxWidth: 520, marginTop: 12 }}>
+          <Campo
+            label="Trilha do catálogo"
+            dica="Trilhas sem versão vigente não aparecem como opção — publique uma versão delas primeiro."
+          >
+            <select
+              value={escolhida}
+              onChange={(evento) => setEscolhida(evento.target.value)}
+              disabled={trilhas.isLoading}
+            >
+              <option value="">— Sem trilha —</option>
+              {trilhas.data
+                ?.filter((trilha) => trilha.modeloVigente)
+                .map((trilha) => (
+                  <option key={trilha.id} value={trilha.id}>
+                    {trilha.nome} · v{trilha.modeloVigente!.versao} ·{' '}
+                    {trilha.modeloVigente!.totalEtapas} etapa(s)
+                  </option>
+                ))}
+            </select>
+          </Campo>
+        </div>
+
+        <div className="form-acoes" style={{ justifyContent: 'flex-start' }}>
+          <button
+            type="button"
+            className="btn btn--primario"
+            disabled={!alterada || vincular.isPending}
+            onClick={() => {
+              // Trocar a trilha de uma categoria com produtos muda a régua dos
+              // FUTUROS. Vale um aviso explícito: o efeito não é visível na
+              // tela em que a ação acontece.
+              if (dados.totalProdutos > 0) {
+                setConfirmarTroca(true);
+              } else {
+                vincular.mutate(escolhida ? Number(escolhida) : null);
+              }
+            }}
+          >
+            {vincular.isPending ? 'Salvando...' : 'Salvar vínculo'}
+          </button>
+          {alterada && (
             <button
               type="button"
               className="btn"
-              onClick={() => {
-                setEtapaEmEdicao(null);
-                setModalEtapa(true);
-              }}
+              onClick={() =>
+                setEscolhida(dados.trilhaId ? String(dados.trilhaId) : '')
+              }
             >
-              + Etapa
+              Desfazer
             </button>
           )}
         </div>
 
-        {etapas.length === 0 ? (
-          <EstadoVazio
-            icone="peca"
-            titulo={semTrilha ? 'Nenhuma trilha definida' : 'Nenhuma etapa nesta versão'}
-            descricao="Sem etapas, a categoria não aceita produtos."
-            acao={
-              editavel || semTrilha ? (
-                <button
-                  type="button"
-                  className="btn btn--primario"
-                  onClick={() => {
-                    setEtapaEmEdicao(null);
-                    setModalEtapa(true);
-                  }}
-                >
-                  {semTrilha ? 'Criar trilha' : 'Adicionar etapa'}
-                </button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <TabelaRolavel rotulo="Etapas da versão">
-            <DndContext
-              sensors={sensores}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={aoSoltar}
-            >
-              <table className="tabela" role="table">
-                <thead role="rowgroup">
-                  <tr role="row">
-                    <th role="columnheader" />
-                    <th role="columnheader">Ordem</th>
-                    <th role="columnheader">Etapa</th>
-                    <th role="columnheader">Tipo</th>
-                    <th role="columnheader">Prazo</th>
-                    <th role="columnheader">Regras</th>
-                    <th role="columnheader" className="texto-direita">Ações</th>
-                  </tr>
-                </thead>
-                <tbody role="rowgroup">
-                  <SortableContext
-                    items={etapas.map((etapa) => etapa.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {etapas.map((etapa) => (
-                      <LinhaEtapa
-                        key={etapa.id}
-                        etapa={etapa}
-                        editavel={editavel}
-                        aoEditar={(selecionada) => {
-                          setEtapaEmEdicao(selecionada);
-                          setModalEtapa(true);
-                        }}
-                        aoRemover={setEtapaARemover}
-                      />
-                    ))}
-                  </SortableContext>
-                </tbody>
-              </table>
-            </DndContext>
-          </TabelaRolavel>
+        {trilhas.data?.filter((trilha) => trilha.modeloVigente).length === 0 && (
+          <p className="texto-pequeno texto-fraco">
+            Nenhuma trilha do catálogo tem versão vigente ainda.{' '}
+            <Link to="/trilhas">Crie uma trilha</Link> para poder vincular.
+          </p>
         )}
       </section>
 
-      <ModalEtapaModelo
-        aberto={modalEtapa}
-        etapa={etapaEmEdicao}
-        salvando={salvarEtapas.isPending || criarVersao.isPending}
-        aoFechar={() => {
-          setModalEtapa(false);
-          setEtapaEmEdicao(null);
-        }}
-        aoSalvar={(dados) => {
-          // Primeira trilha da categoria: não há versão para substituir as
-          // etapas, então a própria criação da versão leva a etapa inicial.
-          if (semTrilha) {
-            criarVersao.mutate([dados]);
-            return;
-          }
-
-          const lista = paraEntrada(etapas);
-          if (etapaEmEdicao) {
-            const indice = etapas.findIndex((e) => e.id === etapaEmEdicao.id);
-            lista[indice] = dados;
-          } else {
-            lista.push(dados);
-          }
-          salvarEtapas.mutate(lista, {
-            onSuccess: () => {
-              setModalEtapa(false);
-              setEtapaEmEdicao(null);
-            },
-          });
-        }}
-      />
-
-      <ModalConfirmacao
-        aberto={Boolean(etapaARemover)}
-        titulo="Remover etapa"
-        mensagem={`Remover "${etapaARemover?.nome}" desta versão da trilha?`}
-        rotuloConfirmar="Remover"
-        perigo
-        carregando={salvarEtapas.isPending}
-        aoCancelar={() => setEtapaARemover(null)}
-        aoConfirmar={() =>
-          salvarEtapas.mutate(
-            paraEntrada(etapas.filter((etapa) => etapa.id !== etapaARemover?.id)),
-          )
-        }
-      />
+      <section className="vidro">
+        <h3 className="titulo-bloco" style={{ marginTop: 0 }}>
+          Resumo
+        </h3>
+        {/*
+          Sem classe própria: são três pares rótulo/valor numa tela só. O
+          espaçamento sai da escala (`--espaco-*`), não de número solto — é a
+          regra do CLAUDE.md, e é o que mantém este bloco respirando igual aos
+          irmãos sem que ninguém tenha de decidir isso de novo aqui.
+        */}
+        <dl
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--espaco-6)',
+            margin: 'var(--espaco-3) 0 0',
+          }}
+        >
+          {[
+            ['Produtos nesta categoria', dados.totalProdutos],
+            ['Validade do certificado', `${dados.validadeMeses} meses`],
+            ['Versões da trilha', dados.totalVersoes],
+          ].map(([rotulo, valor]) => (
+            <div key={String(rotulo)}>
+              <dt className="texto-pequeno texto-fraco">{rotulo}</dt>
+              <dd style={{ margin: 0, fontWeight: 600 }}>{valor}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       <ModalConfirmacao
-        aberto={confirmarVersao}
-        titulo="Criar nova versão da trilha"
+        aberto={confirmarTroca}
+        titulo={escolhida ? 'Trocar a trilha da categoria' : 'Desvincular a trilha'}
         mensagem={
-          `A versão ${modelo?.versao ?? 1} será encerrada e uma nova entra em vigor, ` +
-          'copiando as etapas atuais como ponto de partida. Produtos já submetidos ' +
-          'continuam na versão em que entraram.'
+          escolhida
+            ? `Esta categoria tem ${dados.totalProdutos} produto(s). Passar a seguir "${trilhaEscolhida?.nome}" vale só para produtos NOVOS — os que já estão em avaliação continuam na versão pela qual entraram.`
+            : `Esta categoria tem ${dados.totalProdutos} produto(s). Sem trilha ela deixa de aceitar produtos novos; os em avaliação não são afetados.`
         }
-        rotuloConfirmar="Criar versão"
-        carregando={criarVersao.isPending}
-        aoCancelar={() => setConfirmarVersao(false)}
-        aoConfirmar={() => criarVersao.mutate(undefined)}
+        rotuloConfirmar={escolhida ? 'Trocar trilha' : 'Desvincular'}
+        perigo={!escolhida}
+        carregando={vincular.isPending}
+        aoCancelar={() => setConfirmarTroca(false)}
+        aoConfirmar={() => vincular.mutate(escolhida ? Number(escolhida) : null)}
       />
     </>
   );

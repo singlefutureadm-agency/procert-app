@@ -366,7 +366,11 @@ export function CertificacaoDetalhePage() {
                 title={versao.mensagem}
               >
                 <Icone nome="atualizar" tamanho={16} />
-                Atualizar trilha (v{versao.versaoProduto} → v{versao.versaoVigente})
+                {/* Trocada a trilha da categoria, os dois lados podem ser "v1":
+                    o número sozinho vira "v1 → v1" e não informa nada. */}
+                {versao.trilhaProduto === versao.trilhaVigente
+                  ? `Atualizar trilha (v${versao.versaoProduto} → v${versao.versaoVigente})`
+                  : `Migrar para "${versao.trilhaVigente}" (v${versao.versaoVigente})`}
               </button>
             )}
           </>

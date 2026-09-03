@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -19,33 +20,36 @@ import {
 } from './dto/modelo-trilha.dto';
 
 /**
- * Rotas aninhadas na categoria: as versões só existem no contexto dela.
- * Restrito à equipe, leitura inclusive — acompanha a restrição de
- * `categorias-produto`, de onde estas rotas pendem.
+ * Rotas aninhadas na trilha: as versões só existem no contexto dela.
+ *
+ * Eram aninhadas na CATEGORIA — mudou quando a trilha virou catálogo próprio,
+ * reutilizável por várias categorias. Leitura para a equipe; escrita só ADMIN,
+ * pela mesma razão de `TrilhasController`.
  */
 @ApiTags('Modelos de trilha')
 @ApiBearerAuth()
 @Roles(Role.ADMIN, Role.FUNCIONARIO)
-@Controller('categorias-produto/:categoriaId/modelos-trilha')
-export class ModelosTrilhaCategoriaController {
+@Controller('trilhas/:trilhaId/modelos-trilha')
+export class ModelosTrilhaDaTrilhaController {
   constructor(private readonly modelosService: ModelosTrilhaService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista as versões de trilha da categoria' })
-  listar(@Param('categoriaId', ParseIntPipe) categoriaId: number) {
-    return this.modelosService.listarPorCategoria(categoriaId);
+  @ApiOperation({ summary: 'Lista as versões da trilha' })
+  listar(@Param('trilhaId', ParseIntPipe) trilhaId: number) {
+    return this.modelosService.listarPorTrilha(trilhaId);
   }
 
   @Post()
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary:
       'Cria a próxima versão (copia as etapas da vigente quando o corpo vem vazio) e encerra a anterior',
   })
   criarVersao(
-    @Param('categoriaId', ParseIntPipe) categoriaId: number,
+    @Param('trilhaId', ParseIntPipe) trilhaId: number,
     @Body() dto: CriarVersaoTrilhaDto,
   ) {
-    return this.modelosService.criarVersao(categoriaId, dto);
+    return this.modelosService.criarVersao(trilhaId, dto);
   }
 }
 
@@ -63,6 +67,7 @@ export class ModelosTrilhaController {
   }
 
   @Patch(':id/etapas')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Substitui as etapas da versão; 409 se ela já tiver produtos',
   })
@@ -74,11 +79,30 @@ export class ModelosTrilhaController {
   }
 
   @Patch(':id/etapas/ordem')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Reordena as etapas da versão' })
   reordenar(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ReordenarEtapasModeloDto,
   ) {
     return this.modelosService.reordenarEtapas(id, dto);
+  }
+
+  @Patch(':id/vigente')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Torna esta a versão vigente da trilha, encerrando a anterior',
+  })
+  definirVigente(@Param('id', ParseIntPipe) id: number) {
+    return this.modelosService.definirVigente(id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Exclui a versão; 409 se ela tiver produtos ou for a única da trilha',
+  })
+  remover(@Param('id', ParseIntPipe) id: number) {
+    return this.modelosService.removerVersao(id);
   }
 }
