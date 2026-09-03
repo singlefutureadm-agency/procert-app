@@ -10,6 +10,9 @@ import {
 } from '@prisma/client';
 
 import { NaoConformidadesService } from './nao-conformidades.service';
+import { mockDeep } from 'jest-mock-extended';
+
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
 import { admin, cliente, funcionario } from '../../testing/usuarios.fixture';
@@ -50,12 +53,15 @@ const ncSalva = (extra: Record<string, unknown> = {}) => ({
 describe('NaoConformidadesService', () => {
   let servico: NaoConformidadesService;
   let banco: PrismaMock;
+  let notificacoes: jest.Mocked<NotificacoesService>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     banco = criarPrismaMock();
+    notificacoes = mockDeep<NotificacoesService>();
     servico = new NaoConformidadesService(
       banco.prisma as unknown as PrismaService,
+      notificacoes,
     );
   });
 
@@ -390,6 +396,140 @@ describe('NaoConformidadesService', () => {
         ),
       ).rejects.toThrow(
         new NotFoundException('Não conformidade 999 não encontrada.'),
+      );
+    });
+  });
+
+  /**
+   * Avisos ao cliente.
+   *
+   * A NC é o único ponto do fluxo em que a bola fica com ele: sem o e-mail, a
+   * descoberta depende de o cliente abrir o painel por conta própria, e o
+   * prazo de resposta corre do mesmo jeito.
+   */
+  describe('avisos por e-mail', () => {
+    /** Retorno de `carregarParaAviso`, que é uma consulta à parte. */
+    const paraAviso = (extra: Record<string, unknown> = {}) => ({
+      codigo: 'NC-2026-000001',
+      criticidade: 'MAIOR',
+      descricao: 'Ensaio de aquecimento fora do limite.',
+      prazoResposta: new Date('2026-09-20T00:00:00.000Z'),
+      parecer: null,
+      certificacao: {
+        etapa: { nome: 'Ensaios laboratoriais' },
+        produto: {
+          nome: 'Disjuntor DIN 25A',
+          cliente: {
+            nome: 'Indústria Cliente Ltda',
+            email: 'contato@cliente.com.br',
+          },
+        },
+      },
+      ...extra,
+    });
+
+    it('abrir avulsa avisa o cliente, com código, etapa e prazo', async () => {
+      banco.prisma.certificacaoProduto.findUnique.mockResolvedValue({
+        id: 20,
+        status: StatusCertificacao.REPROVADO,
+      } as never);
+      banco.prisma.naoConformidade.findFirst.mockResolvedValue(null as never);
+      banco.prisma.naoConformidade.create.mockResolvedValue({ id: 500 } as never);
+      banco.prisma.naoConformidade.findUniqueOrThrow.mockResolvedValue(
+        { id: 500 } as never,
+      );
+      banco.prisma.naoConformidade.findUnique.mockResolvedValue(
+        paraAviso() as never,
+      );
+
+      await servico.abrir(
+        20,
+        { descricao: 'Ensaio de aquecimento fora do limite.', criticidade: 'MAIOR' } as never,
+        admin(),
+      );
+
+      expect(notificacoes.naoConformidadeAberta).toHaveBeenCalledTimes(1);
+      const [para, nomeCliente, produto, nc] =
+        notificacoes.naoConformidadeAberta.mock.calls[0];
+      expect(para).toBe('contato@cliente.com.br');
+      expect(nomeCliente).toBe('Indústria Cliente Ltda');
+      expect(produto).toBe('Disjuntor DIN 25A');
+      expect(nc).toMatchObject({
+        codigo: 'NC-2026-000001',
+        etapa: 'Ensaios laboratoriais',
+        criticidade: 'MAIOR',
+      });
+    });
+
+    /**
+     * `RESOLVIDA` devolve a etapa para `EM_ANDAMENTO`, não para aprovada. O
+     * flag chega ao texto do e-mail porque é ele que impede o cliente de ler
+     * "resolvida" e supor que o produto avançou.
+     */
+    it('avaliar RESOLVIDA avisa com o desfecho e o parecer', async () => {
+      banco.prisma.naoConformidade.findUnique
+        .mockResolvedValueOnce({
+          id: 500,
+          status: StatusNaoConformidade.EM_TRATATIVA,
+          codigo: 'NC-2026-000001',
+          certificacao: { id: 20, status: StatusCertificacao.REPROVADO },
+        } as never)
+        .mockResolvedValueOnce(
+          paraAviso({ parecer: 'Ensaio refeito e conforme.' }) as never,
+        )
+        .mockResolvedValueOnce(ncSalva() as never);
+      banco.prisma.naoConformidade.findUniqueOrThrow.mockResolvedValue(
+        ncSalva() as never,
+      );
+
+      await servico.avaliar(
+        500,
+        { status: StatusNaoConformidade.RESOLVIDA, parecer: 'Ensaio refeito e conforme.' } as never,
+        admin(),
+      );
+
+      expect(notificacoes.naoConformidadeAvaliada).toHaveBeenCalledTimes(1);
+      const [, , , nc] = notificacoes.naoConformidadeAvaliada.mock.calls[0];
+      expect(nc).toMatchObject({
+        codigo: 'NC-2026-000001',
+        resolvida: true,
+        parecer: 'Ensaio refeito e conforme.',
+      });
+    });
+
+    /**
+     * O aviso roda depois do commit. Uma falha nele não pode desfazer a
+     * decisão técnica que já está gravada — o preço é o silêncio, e é por isso
+     * que o erro vai para o log.
+     */
+    it('falha no aviso não derruba a avaliação já gravada', async () => {
+      banco.prisma.naoConformidade.findUnique
+        .mockResolvedValueOnce({
+          id: 500,
+          status: StatusNaoConformidade.EM_TRATATIVA,
+          codigo: 'NC-2026-000001',
+          certificacao: { id: 20, status: StatusCertificacao.REPROVADO },
+        } as never)
+        .mockResolvedValueOnce(paraAviso() as never)
+        .mockResolvedValueOnce(ncSalva() as never);
+      notificacoes.naoConformidadeAvaliada.mockRejectedValue(
+        new Error('SMTP fora do ar'),
+      );
+      const erro = jest
+        .spyOn(servico['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        servico.avaliar(
+          500,
+          { status: StatusNaoConformidade.REPROVADA, parecer: 'Insuficiente.' } as never,
+          admin(),
+        ),
+      ).resolves.toBeDefined();
+
+      expect(banco.tx.naoConformidade.update).toHaveBeenCalled();
+      expect(erro).toHaveBeenCalledWith(
+        expect.stringContaining('Falha ao avisar a avaliação da NC 500'),
       );
     });
   });

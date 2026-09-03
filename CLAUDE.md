@@ -80,7 +80,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 326 unitários, 18 suítes, Prisma mockado |
+| `npm test` | ✅ 351 unitários, 19 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 144 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -413,6 +413,48 @@ usuário a uma ação que a tela não completa.
 - Código sequencial por ano `NC-2026-000001`, derivado do **maior código do ano** (não de
   `count`, que reutilizaria número após exclusão). Corridas esbarram no índice único e o
   filtro traduz para 409.
+
+### E-mails ao cliente — a lista de eventos é uma allowlist
+
+Quem compõe o texto é `NotificacoesService` (módulo `mail`, global). O
+`MailService` é **só transporte**: recebe destinatário, assunto e HTML pronto.
+Ao acrescentar um aviso, escreva um método lá — não monte HTML no service de
+domínio.
+
+**Só marcos decisivos notificam.** Decisão do cliente em 03/09/2026:
+
+| Evento | Onde dispara |
+|---|---|
+| Etapa **reprovada** | `CertificacoesService.salvar` → `EVENTOS_NOTIFICAVEIS` |
+| NC aberta **no lote da reprovação** | mesmo e-mail da reprovação, não um segundo |
+| NC aberta **avulsa** | `NaoConformidadesService.abrir` |
+| NC avaliada (resolvida ou não) | `NaoConformidadesService.avaliar` |
+| Certificado **emitido** | `CertificadosService.emitir` |
+| Certificado **suspenso** ou **cancelado** | `CertificadosService.alterarStatus` |
+
+**Não notificam**, de propósito: `PENDENTE → EM_ANDAMENTO`, aprovação de etapa
+isolada e reativação de certificado. Aviso demais treina o destinatário a
+ignorar todos, e aí o único que exigia ação dele chega junto com os que não
+exigiam. Alargar a régua para status de etapa é acrescentar um valor a
+`EVENTOS_NOTIFICAVEIS` — é uma lista por isso.
+
+**Um destinatário**, o e-mail da conta (`Cliente.email`). Não há tabela de
+contatos, e a decisão de 03/09/2026 foi manter assim: quem repassa internamente
+é o cliente.
+
+Três regras que não devem regredir:
+
+- **O envio é `await`, nunca `void`.** Em serverless a função congela quando a
+  resposta sai e a promessa solta se perde — o e-mail não sai e não há erro.
+  Cada `avisar*` engole a própria falha, então esperar é seguro.
+- **Todo texto vindo do banco passa por `seguro`**, o template que escapa
+  sozinho. `html()` é a escotilha para trecho que o próprio arquivo montou.
+- **Todo assunto passa por `assuntoLimpo()`** — nome de produto com CRLF
+  emendaria cabeçalho, e o `nodemailer` 9 recusaria a mensagem inteira.
+
+O e-mail do cliente **não entra** nos `SELECT_*` dos services: cada `avisar*`
+faz a consulta própria. Acrescentá-lo ao select mudaria o corpo devolvido por
+todos os endpoints do domínio.
 
 ### Certificado
 

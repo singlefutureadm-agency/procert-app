@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -12,6 +13,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { paginar } from '../../common/dto/paginacao.dto';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import {
@@ -61,7 +63,12 @@ const EM_ABERTO: StatusNaoConformidade[] = [
 
 @Injectable()
 export class NaoConformidadesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NaoConformidadesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificacoes: NotificacoesService,
+  ) {}
 
   /**
    * Lista com escopo por papel: o cliente vê apenas as NCs dos seus produtos.
@@ -139,10 +146,17 @@ export class NaoConformidadesService {
     }
 
     const criada = await this.criarRegistro(certificacaoId, dto, usuario);
-    return this.prisma.naoConformidade.findUniqueOrThrow({
+    const registro = await this.prisma.naoConformidade.findUniqueOrThrow({
       where: { id: criada.id },
       select: SELECT_NC,
     });
+
+    // Aberta avulsa, fora do lote de `CertificacoesService.salvar` — lá a NC
+    // entra no mesmo e-mail da reprovação que a originou. Aqui não há
+    // reprovação nova para acompanhar, então o aviso é próprio.
+    await this.avisarAbertura(registro.id);
+
+    return registro;
   }
 
   /**
@@ -269,10 +283,92 @@ export class NaoConformidadesService {
       });
     });
 
+    await this.avisarAvaliacao(id, resolvida);
+
     return this.buscarPorId(id, usuario);
   }
 
   // ---------------------------------------------------------------- privados
+
+  /**
+   * Avisa o cliente, sem nunca derrubar a operação já gravada.
+   *
+   * Consulta à parte em vez de reaproveitar `SELECT_NC`: o e-mail do cliente
+   * não está lá, e acrescentá-lo mudaria o corpo devolvido por todos os
+   * endpoints de NC — dado a mais numa resposta que ninguém pediu.
+   */
+  private async carregarParaAviso(id: number) {
+    return this.prisma.naoConformidade.findUnique({
+      where: { id },
+      select: {
+        codigo: true,
+        criticidade: true,
+        descricao: true,
+        prazoResposta: true,
+        parecer: true,
+        certificacao: {
+          select: {
+            etapa: { select: { nome: true } },
+            produto: {
+              select: {
+                nome: true,
+                cliente: { select: { nome: true, email: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private async avisarAbertura(id: number): Promise<void> {
+    try {
+      const nc = await this.carregarParaAviso(id);
+      if (!nc) return;
+
+      const { produto } = nc.certificacao;
+      await this.notificacoes.naoConformidadeAberta(
+        produto.cliente.email,
+        produto.cliente.nome,
+        produto.nome,
+        {
+          codigo: nc.codigo,
+          etapa: nc.certificacao.etapa.nome,
+          criticidade: nc.criticidade,
+          descricao: nc.descricao,
+          prazoResposta: nc.prazoResposta,
+        },
+      );
+    } catch (erro) {
+      this.logger.error(
+        `Falha ao avisar a abertura da NC ${id}: ${(erro as Error).message}`,
+      );
+    }
+  }
+
+  private async avisarAvaliacao(id: number, resolvida: boolean): Promise<void> {
+    try {
+      const nc = await this.carregarParaAviso(id);
+      if (!nc) return;
+
+      const { produto } = nc.certificacao;
+      await this.notificacoes.naoConformidadeAvaliada(
+        produto.cliente.email,
+        produto.cliente.nome,
+        produto.nome,
+        {
+          codigo: nc.codigo,
+          etapa: nc.certificacao.etapa.nome,
+          resolvida,
+          parecer: nc.parecer,
+        },
+      );
+    } catch (erro) {
+      this.logger.error(
+        `Falha ao avisar a avaliação da NC ${id}: ${(erro as Error).message}`,
+      );
+    }
+  }
 
   /**
    * Sequencial por ano: NC-2026-000001.

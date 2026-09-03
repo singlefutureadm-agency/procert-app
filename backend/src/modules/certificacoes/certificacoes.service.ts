@@ -9,7 +9,10 @@ import { Prisma, Role, StatusCertificacao, StatusRegistro } from '@prisma/client
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { NaoConformidadesService } from '../nao-conformidades/nao-conformidades.service';
-import { NotificacoesService } from '../mail/notificacoes.service';
+import {
+  NaoConformidadeAvisada,
+  NotificacoesService,
+} from '../mail/notificacoes.service';
 import { DocumentosCertificacaoService } from './documentos.service';
 import { paginar } from '../../common/dto/paginacao.dto';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
@@ -25,6 +28,22 @@ const ROTULO_STATUS: Record<StatusCertificacao, string> = {
   APROVADO: 'Aprovado',
   REPROVADO: 'Reprovado',
 };
+
+/**
+ * Os únicos status cuja mudança gera e-mail para o cliente.
+ *
+ * Decisão do cliente, registrada em 03/09/2026: notificar apenas marcos
+ * decisivos. `PENDENTE → EM_ANDAMENTO` é ruído de rotina, e aprovação de etapa
+ * isolada também — o desfecho positivo que interessa é o certificado emitido,
+ * que tem aviso próprio. Notificação em massa treina o destinatário a ignorar
+ * todas, e aí o aviso que importa chega junto com os que não importam.
+ *
+ * É uma lista, e não um `if`, porque alargar a régua é mexer numa linha. Se o
+ * cliente reclamar de silêncio demais, `APROVADO` entra aqui.
+ */
+const EVENTOS_NOTIFICAVEIS: StatusCertificacao[] = [
+  StatusCertificacao.REPROVADO,
+];
 
 @Injectable()
 export class CertificacoesService {
@@ -312,6 +331,7 @@ export class CertificacoesService {
     }
 
     const mudancas: Array<{ etapa: string; statusNovo: StatusCertificacao }> = [];
+    const ncsAbertas: NaoConformidadeAvisada[] = [];
 
     await this.prisma.$transaction(async (tx) => {
       for (const alteracao of dto.etapas) {
@@ -348,12 +368,24 @@ export class CertificacoesService {
 
         // Mesmo commit da reprovação: ou a etapa cai e a NC nasce, ou nada.
         if (alteracao.naoConformidade) {
-          await this.naoConformidades.criarRegistro(
+          const criada = await this.naoConformidades.criarRegistro(
             alteracao.id,
             alteracao.naoConformidade,
             usuario,
             tx,
           );
+
+          // Guardada para o e-mail, que sai depois do commit. A NC entra no
+          // MESMO aviso da reprovação que a originou: são o mesmo fato para
+          // quem recebe, e dois e-mails no mesmo minuto fariam o segundo
+          // parecer repetição do primeiro.
+          ncsAbertas.push({
+            codigo: criada.codigo,
+            etapa: atual.etapa.nome,
+            criticidade: criada.criticidade,
+            descricao: criada.descricao,
+            prazoResposta: criada.prazoResposta,
+          });
         }
 
         if (mudouStatus) {
@@ -372,8 +404,13 @@ export class CertificacoesService {
     // carimbo de `ultimoAcessoEm` do login. Esperar é seguro porque
     // `notificarCliente` engole a própria falha — uma avaliação técnica já
     // gravada não pode ser derrubada por um e-mail que não saiu.
-    if (mudancas.length) {
-      await this.notificarCliente(produtoId, mudancas);
+    // Só marcos decisivos viram e-mail — ver `EVENTOS_NOTIFICAVEIS`.
+    const notificaveis = mudancas.filter((mudanca) =>
+      EVENTOS_NOTIFICAVEIS.includes(mudanca.statusNovo),
+    );
+
+    if (notificaveis.length || ncsAbertas.length) {
+      await this.notificarCliente(produtoId, notificaveis, ncsAbertas);
     }
 
     return this.detalharPorProduto(produtoId, usuario);
@@ -622,6 +659,7 @@ export class CertificacoesService {
   private async notificarCliente(
     produtoId: number,
     mudancas: Array<{ etapa: string; statusNovo: StatusCertificacao }>,
+    naoConformidades: NaoConformidadeAvisada[] = [],
   ): Promise<void> {
     try {
       const produto = await this.prisma.produto.findUnique({
@@ -643,6 +681,7 @@ export class CertificacoesService {
           etapa: mudanca.etapa,
           status: ROTULO_STATUS[mudanca.statusNovo],
         })),
+        naoConformidades,
       );
     } catch (erro) {
       this.logger.error(

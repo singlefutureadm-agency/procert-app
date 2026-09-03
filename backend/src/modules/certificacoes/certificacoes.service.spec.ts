@@ -435,7 +435,7 @@ describe('CertificacoesService', () => {
       const emCurso = servico
         .salvar(
           1,
-          { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+          { etapas: [{ id: 10, status: StatusCertificacao.REPROVADO }] },
           admin(),
         )
         .then((resultado) => {
@@ -492,12 +492,172 @@ describe('CertificacoesService', () => {
       await expect(
         servico.salvar(
           1,
-          { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+          { etapas: [{ id: 10, status: StatusCertificacao.REPROVADO }] },
           admin(),
         ),
       ).resolves.toBeDefined();
 
       expect(banco.tx.certificacaoHistorico.create).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * Decisão do cliente, 03/09/2026: só marcos decisivos viram e-mail.
+   *
+   * A régua anterior avisava a cada mudança de status. Um produto percorrendo
+   * a trilha sem tropeço rendia um e-mail por etapa, e o efeito conhecido é o
+   * destinatário passar a ignorar todos — inclusive o único que exigia ação
+   * dele. O que sobrou notificando é o que pede resposta ou muda a situação
+   * comercial.
+   */
+  describe('salvar — só marcos decisivos notificam', () => {
+    beforeEach(() => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+        {
+          id: 10,
+          status: StatusCertificacao.PENDENTE,
+          observacao: null,
+          etapa: { nome: 'Ensaios laboratoriais' },
+        },
+      ] as never);
+    });
+
+    it('PENDENTE → EM_ANDAMENTO é rotina e não vira e-mail', async () => {
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.EM_ANDAMENTO }] },
+        admin(),
+      );
+
+      // A mudança é gravada normalmente — o que não acontece é o aviso.
+      expect(banco.tx.certificacaoHistorico.create).toHaveBeenCalledTimes(1);
+      expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
+    });
+
+    /**
+     * O desfecho positivo que interessa ao cliente é o certificado, que tem
+     * aviso próprio. Aprovar uma etapa no meio da trilha não muda nada que ele
+     * precise fazer.
+     */
+    it('aprovação de etapa isolada também não vira e-mail', async () => {
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
+      expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A NC nasce no mesmo commit da reprovação, e sai no MESMO e-mail.
+     *
+     * Dois avisos no mesmo minuto — um dizendo "etapa reprovada", outro
+     * dizendo "não conformidade aberta" — descrevem o mesmo fato para quem
+     * recebe, e o segundo parece repetição do primeiro. Junto, o botão também
+     * muda: deixa de apontar para a trilha e passa a apontar para a tela onde
+     * ele responde.
+     */
+    it('NC aberta junto da reprovação entra no mesmo e-mail', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+        {
+          id: 10,
+          status: StatusCertificacao.EM_ANDAMENTO,
+          observacao: null,
+          etapa: { nome: 'Ensaios laboratoriais' },
+        },
+      ] as never);
+      naoConformidades.criarRegistro.mockResolvedValue({
+        id: 500,
+        codigo: 'NC-2026-000001',
+        criticidade: 'MAIOR',
+        descricao: 'Ensaio de aquecimento fora do limite.',
+        prazoResposta: new Date('2026-09-20T00:00:00.000Z'),
+      } as never);
+
+      await servico.salvar(
+        1,
+        {
+          etapas: [
+            {
+              id: 10,
+              status: StatusCertificacao.REPROVADO,
+              naoConformidade: {
+                descricao: 'Ensaio de aquecimento fora do limite.',
+                criticidade: 'MAIOR',
+              },
+            },
+          ],
+        },
+        admin(),
+      );
+
+      expect(notificacoes.certificacaoAtualizada).toHaveBeenCalledTimes(1);
+      const [, , , , mudancas, ncs] =
+        notificacoes.certificacaoAtualizada.mock.calls[0];
+
+      expect(mudancas).toEqual([
+        { etapa: 'Ensaios laboratoriais', status: 'Reprovado' },
+      ]);
+      expect(ncs).toEqual([
+        {
+          codigo: 'NC-2026-000001',
+          etapa: 'Ensaios laboratoriais',
+          criticidade: 'MAIOR',
+          descricao: 'Ensaio de aquecimento fora do limite.',
+          prazoResposta: new Date('2026-09-20T00:00:00.000Z'),
+        },
+      ]);
+    });
+
+    it('reprovação notifica: é o marco que pede ação do cliente', async () => {
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.REPROVADO }] },
+        admin(),
+      );
+
+      expect(notificacoes.certificacaoAtualizada).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Um lote com aprovações e uma reprovação manda UM e-mail, e nele só a
+     * reprovação. Listar as aprovações junto devolveria o ruído pela porta dos
+     * fundos — e a etapa que exige ação ficaria no meio de uma lista boa.
+     */
+    it('no lote misto, o e-mail leva só a reprovação', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+        {
+          id: 10,
+          status: StatusCertificacao.PENDENTE,
+          observacao: null,
+          etapa: { nome: 'Análise documental' },
+        },
+        {
+          id: 11,
+          status: StatusCertificacao.PENDENTE,
+          observacao: null,
+          etapa: { nome: 'Ensaios laboratoriais' },
+        },
+      ] as never);
+
+      await servico.salvar(
+        1,
+        {
+          etapas: [
+            { id: 10, status: StatusCertificacao.APROVADO },
+            { id: 11, status: StatusCertificacao.REPROVADO },
+          ],
+        },
+        admin(),
+      );
+
+      expect(notificacoes.certificacaoAtualizada).toHaveBeenCalledTimes(1);
+      const mudancas = notificacoes.certificacaoAtualizada.mock.calls[0][4];
+      expect(mudancas).toEqual([
+        { etapa: 'Ensaios laboratoriais', status: 'Reprovado' },
+      ]);
     });
   });
 

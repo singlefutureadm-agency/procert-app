@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { paginar } from '../../common/dto/paginacao.dto';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
@@ -64,6 +65,7 @@ export class CertificadosService {
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
     private readonly pdf: CertificadoPdfService,
+    private readonly notificacoes: NotificacoesService,
   ) {}
 
   async listar(filtros: ListarCertificadosDto, usuario: UsuarioAutenticado) {
@@ -305,6 +307,12 @@ export class CertificadosService {
       );
     });
 
+    // Depois do PDF de propósito: o e-mail diz que o arquivo está disponível
+    // para download, e a geração é o que torna isso verdade na maior parte das
+    // vezes. Se ela falhar, o certificado existe e o PDF nasce no primeiro
+    // download — o aviso continua correto, só com um segundo de atraso lá.
+    await this.avisarEmissao(certificado.id);
+
     return this.buscarPorId(certificado.id, usuario);
   }
 
@@ -359,10 +367,84 @@ export class CertificadosService {
       },
     });
 
+    // Suspensão e cancelamento têm efeito comercial imediato para o cliente.
+    // Reativação não avisa: é a volta ao estado que ele já considerava vigente.
+    if (encerra) {
+      await this.avisarAlteracao(id, dto.status === StatusCertificado.CANCELADO);
+    }
+
     return this.prisma.certificado.findUniqueOrThrow({
       where: { id },
       select: SELECT_CERTIFICADO,
     });
+  }
+
+  // ------------------------------------------------------- avisos ao cliente
+
+  /**
+   * Consulta à parte, e não `SELECT_CERTIFICADO`: o e-mail do cliente não está
+   * lá, e acrescentá-lo mudaria o corpo de todos os endpoints de certificado.
+   */
+  private async carregarParaAviso(id: number) {
+    return this.prisma.certificado.findUnique({
+      where: { id },
+      select: {
+        numero: true,
+        dataValidade: true,
+        motivoStatus: true,
+        produto: {
+          select: {
+            nome: true,
+            cliente: { select: { nome: true, email: true } },
+          },
+        },
+      },
+    });
+  }
+
+  private async avisarEmissao(id: number): Promise<void> {
+    try {
+      const certificado = await this.carregarParaAviso(id);
+      if (!certificado) return;
+
+      const { produto } = certificado;
+      await this.notificacoes.certificadoEmitido(
+        produto.cliente.email,
+        produto.cliente.nome,
+        produto.nome,
+        {
+          numero: certificado.numero,
+          dataValidade: certificado.dataValidade,
+        },
+      );
+    } catch (erro) {
+      this.logger.error(
+        `Falha ao avisar a emissão do certificado ${id}: ${(erro as Error).message}`,
+      );
+    }
+  }
+
+  private async avisarAlteracao(id: number, cancelado: boolean): Promise<void> {
+    try {
+      const certificado = await this.carregarParaAviso(id);
+      if (!certificado) return;
+
+      const { produto } = certificado;
+      await this.notificacoes.certificadoAlterado(
+        produto.cliente.email,
+        produto.cliente.nome,
+        produto.nome,
+        {
+          numero: certificado.numero,
+          cancelado,
+          motivo: certificado.motivoStatus,
+        },
+      );
+    } catch (erro) {
+      this.logger.error(
+        `Falha ao avisar a alteração do certificado ${id}: ${(erro as Error).message}`,
+      );
+    }
   }
 
   /** Devolve o PDF, gerando-o se ainda não existir no armazenamento. */
