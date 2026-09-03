@@ -78,6 +78,7 @@ npm run dev                   # http://localhost:5173
 | `postinstall` | `prisma generate` a cada `npm ci`. O `@prisma/client` já faz isso no postinstall dele, mas o npm 11 passou a gatear script de dependência por allowlist — declarar aqui tira o client de refém de um detalhe de empacotamento de terceiro. É a mesma razão do passo explícito no CI. |
 | `npm run migrate:legacy` | ETL MySQL legado → PostgreSQL (exige as vars `LEGACY_MYSQL_*`) |
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
+| `npm run conferir:trilhas` | Confere a migração de trilhas (§7, item 27). Somente leitura; código 1 se achar problema |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
 | `npm test` | ✅ 351 unitários, 19 suítes, Prisma mockado |
@@ -1135,9 +1136,16 @@ não aceita placeholder.
     > **Ao rodar em produção, refaça a conferência.** A base de produção tem outra forma,
     > e o CI não cobre isto: o e2e sobe um Postgres vazio, onde `migrate deploy` prova que
     > o SQL roda, não que os `UPDATE ... FROM` acertam linhas — porque não há linha.
-    > `SELECT count(*) FROM modelos_trilha WHERE trilha_id IS NULL` deve dar 0, e o total
-    > de `categorias_produto WHERE trilha_id IS NOT NULL` deve bater com o de categorias
-    > que tinham trilha antes.
+    >
+    > A conferência virou script em 03/09/2026: **`npm run conferir:trilhas`**, somente
+    > leitura, contra o banco de `DATABASE_URL`. Para apontá-lo a outro banco sem tocar no
+    > `.env`: `DATABASE_URL="postgresql://..." npm run conferir:trilhas`. Sai com código 1
+    > se achar problema grave.
+    >
+    > O que ele procura tem um sintoma em comum, e é por isso que existe: **nada disso gera
+    > erro em tempo de execução**. Categoria sem trilha não quebra nada — ela recusa todo
+    > produto novo com uma mensagem que parece regra de negócio, e o defeito só aparece
+    > quando alguém tenta cadastrar.
 
 28. Achado só no navegador, depois de tudo verde: com a categoria trocando de trilha, o
     botão de migração dizia **"Atualizar trilha (v1 → v1)"**. Verdadeiro e inútil — cada
