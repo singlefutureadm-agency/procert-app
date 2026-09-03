@@ -25,6 +25,7 @@
     "senha:admin": "ts-node prisma/redefinir-senha-admin.ts",
     "migrate:legacy": "ts-node prisma/migrate-legacy.ts",
     "migrate:categorias": "ts-node prisma/migrate-categorias.ts",
+    "conferir:trilhas": "ts-node prisma/conferir-trilhas.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
