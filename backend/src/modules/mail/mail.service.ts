@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 
+import { urlDoPainel } from '../../common/utils/ambiente.util';
+
 /**
  * Envio de e-mail via SMTP.
  *
@@ -22,9 +24,12 @@ export class MailService implements OnModuleInit {
     const user = this.config.get<string>('MAIL_USER');
 
     if (!host || !user) {
-      this.logger.warn(
-        'SMTP não configurado — os e-mails serão apenas registrados no log.',
-      );
+      // Em desenvolvimento é o comportamento desejado; em produção é a
+      // funcionalidade inteira ausente, e o nível precisa acusar isso.
+      const aviso =
+        'SMTP não configurado — os e-mails serão apenas registrados no log.';
+      if (this.emProducao()) this.logger.error(aviso);
+      else this.logger.warn(aviso);
       return;
     }
 
@@ -38,7 +43,12 @@ export class MailService implements OnModuleInit {
 
   async enviar(para: string, assunto: string, html: string): Promise<void> {
     if (!this.transporter) {
-      this.logger.log(`[SIMULADO] Para: ${para} | Assunto: ${assunto}`);
+      // "SIMULADO" descrevia bem o caso de desenvolvimento e mal o de
+      // produção, onde ninguém pediu simulação nenhuma: é um e-mail que o
+      // destinatário nunca vai receber, e o texto agora diz isso.
+      const linha = `[NÃO ENVIADO — sem SMTP] Para: ${para} | Assunto: ${assunto}`;
+      if (this.emProducao()) this.logger.error(linha);
+      else this.logger.log(linha);
       this.logger.debug(html);
       return;
     }
@@ -72,7 +82,7 @@ export class MailService implements OnModuleInit {
     produtoId: number,
     mudancas: Array<{ etapa: string; status: string }>,
   ): Promise<void> {
-    const link = `${this.config.get<string>('FRONTEND_URL', 'http://localhost:5173')}/certificacoes/produto/${produtoId}`;
+    const link = `${urlDoPainel(this.config)}/certificacoes/produto/${produtoId}`;
 
     const linhas = mudancas
       .map(
@@ -100,6 +110,10 @@ export class MailService implements OnModuleInit {
       </div>`;
 
     await this.enviar(para, `Atualização na certificação — ${produto}`, html);
+  }
+
+  private emProducao(): boolean {
+    return this.config.get<string>('NODE_ENV') === 'production';
   }
 
   /** Nome de produto e etapa vêm do banco: escapar antes de montar o HTML. */

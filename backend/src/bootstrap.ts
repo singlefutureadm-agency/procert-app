@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { conferirAmbiente } from './common/utils/ambiente.util';
 import {
   ARMAZENAMENTO,
   type Armazenamento,
@@ -36,6 +37,7 @@ export function configurarApp(app: NestExpressApplication): void {
   const uploadDir = config.get<string>('UPLOAD_DIR', './uploads');
 
   validarSegredosDeProducao(config);
+  avisarAmbienteIncompleto(config);
 
   app.setGlobalPrefix(prefix);
 
@@ -68,6 +70,30 @@ export function configurarApp(app: NestExpressApplication): void {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   configurarUploads(app, uploadDir);
+}
+
+/**
+ * Registra, no boot, o que está incompleto sem derrubar a aplicação.
+ *
+ * A separação de `validarSegredosDeProducao` é proposital e vale enunciar: lá
+ * o problema é de **segurança**, e subir com ele é pior do que não subir. Aqui
+ * o problema é de **alcance** — sem SMTP o sistema inteiro funciona, só não
+ * avisa ninguém. Recusar o boot por isso trocaria uma funcionalidade
+ * silenciosamente ausente por uma API inteira fora do ar.
+ *
+ * O nível é `error`, e não `warn`, porque foi exatamente como warn que a
+ * ausência de SMTP passou despercebida desde a publicação: o aviso saía uma
+ * vez, no boot de uma instância fria, no meio do log de uma requisição
+ * qualquer — e no plano Hobby da Vercel o log expira em uma hora.
+ */
+function avisarAmbienteIncompleto(config: ConfigService): void {
+  const problemas = conferirAmbiente(config);
+  if (problemas.length === 0) return;
+
+  const logger = new Logger('Ambiente');
+  for (const problema of problemas) {
+    logger.error(problema);
+  }
 }
 
 /**

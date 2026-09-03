@@ -61,7 +61,49 @@ describe('MailService', () => {
 
       expect(criarTransport).not.toHaveBeenCalled();
       expect(log).toHaveBeenCalledWith(
-        expect.stringContaining('[SIMULADO] Para: cliente@exemplo.com'),
+        expect.stringContaining('[NÃO ENVIADO — sem SMTP] Para: cliente@exemplo.com'),
+      );
+    });
+
+    /**
+     * O mesmo caminho, em produção, é outra coisa: ninguém pediu simulação, e
+     * o que houve foi um e-mail que o destinatário não recebeu. Em nível `log`
+     * isso se perde entre as linhas de requisição — foi assim que a ausência
+     * de SMTP em produção passou despercebida desde a publicação até
+     * 01/09/2026, quando o log da função foi lido à procura de outra coisa.
+     */
+    it('em produção o mesmo caso sai como error, com destinatário e assunto', async () => {
+      montar({ NODE_ENV: 'production' });
+      const erro = jest
+        .spyOn(servico['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      await servico.enviarRedefinicaoSenha(
+        'cliente@exemplo.com',
+        'Cliente',
+        'https://painel.exemplo.com.br/redefinir-senha?token=abc',
+      );
+
+      const linha = erro.mock.calls.at(-1)?.[0] as string;
+      expect(linha).toContain('[NÃO ENVIADO — sem SMTP]');
+      expect(linha).toContain('cliente@exemplo.com');
+      expect(linha).toContain('Redefinição de senha — ProCert');
+    });
+
+    /** O boot também precisa acusar: é a única linha antes da primeira falha. */
+    it('em produção o aviso de boot sobe de warn para error', () => {
+      const servicoLocal = new MailService({
+        get: (chave: string, padrao?: string) =>
+          ({ NODE_ENV: 'production' })[chave] ?? padrao,
+      } as never);
+      const erro = jest
+        .spyOn(servicoLocal['logger'], 'error')
+        .mockImplementation(() => undefined);
+
+      servicoLocal.onModuleInit();
+
+      expect(erro).toHaveBeenCalledWith(
+        expect.stringContaining('SMTP não configurado'),
       );
     });
   });

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 
+import { urlDoPainel } from '../../common/utils/ambiente.util';
+
 export interface DadosCertificadoPdf {
   numero: string;
   escopo: string;
@@ -147,7 +149,7 @@ export class CertificadoPdfService {
         });
 
       // --- Rodapé ------------------------------------------------------------
-      const url = this.config.get<string>('FRONTEND_URL', 'http://localhost:5173');
+      const url = urlDoPainel(this.config);
       doc
         .fillColor(CINZA)
         .fontSize(8)
