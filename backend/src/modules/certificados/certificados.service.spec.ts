@@ -9,6 +9,7 @@ import { mockDeep } from 'jest-mock-extended';
 
 import { CertificadosService } from './certificados.service';
 import { CertificadoPdfService } from './certificado-pdf.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
@@ -68,6 +69,7 @@ const certificadoSalvo = (extra: Record<string, unknown> = {}) => ({
 describe('CertificadosService', () => {
   let servico: CertificadosService;
   let banco: PrismaMock;
+  let notificacoes: jest.Mocked<NotificacoesService>;
   let uploads: jest.Mocked<UploadsService>;
   let pdf: jest.Mocked<CertificadoPdfService>;
 
@@ -75,6 +77,7 @@ describe('CertificadosService', () => {
     jest.clearAllMocks();
 
     banco = criarPrismaMock();
+    notificacoes = mockDeep<NotificacoesService>();
     uploads = mockDeep<UploadsService>();
     pdf = mockDeep<CertificadoPdfService>();
 
@@ -82,6 +85,7 @@ describe('CertificadosService', () => {
       banco.prisma as unknown as PrismaService,
       uploads,
       pdf,
+      notificacoes,
     );
 
     // `expirarVencidos` registra o resultado em nível `log`; sem silenciar, a
@@ -508,6 +512,94 @@ describe('CertificadosService', () => {
           motivoStatus: 'Auditoria de manutenção reprovada',
         },
       });
+    });
+  });
+
+  /**
+   * Avisos ao cliente.
+   *
+   * A emissão é o desfecho que ele espera desde a submissão; a suspensão e o
+   * cancelamento têm efeito comercial imediato. Os três são o que a decisão de
+   * 03/09/2026 chamou de marco decisivo — e reativação, deliberadamente, não
+   * entra: é a volta ao estado que o cliente já considerava vigente.
+   */
+  describe('avisos por e-mail', () => {
+    const paraAviso = (extra: Record<string, unknown> = {}) => ({
+      numero: 'PROCERT-2026-000045',
+      dataValidade: new Date('2027-09-03T12:00:00.000Z'),
+      motivoStatus: null,
+      produto: {
+        nome: 'Disjuntor DIN 25A',
+        cliente: {
+          nome: 'Indústria Cliente Ltda',
+          email: 'contato@cliente.com.br',
+        },
+      },
+      ...extra,
+    });
+
+    it('suspensão avisa o cliente com número e motivo', async () => {
+      banco.prisma.certificado.findUnique
+        .mockResolvedValueOnce({
+          id: 1,
+          status: StatusCertificado.EMITIDO,
+          dataValidade: new Date('2027-09-03T12:00:00.000Z'),
+        } as never)
+        .mockResolvedValueOnce(
+          paraAviso({ motivoStatus: 'Ensaio de rotina reprovado.' }) as never,
+        );
+      banco.prisma.certificado.findUniqueOrThrow.mockResolvedValue({} as never);
+
+      await servico.alterarStatus(1, {
+        status: StatusCertificado.SUSPENSO,
+        motivoStatus: 'Ensaio de rotina reprovado.',
+      } as never);
+
+      expect(notificacoes.certificadoAlterado).toHaveBeenCalledTimes(1);
+      const [para, , produto, certificado] =
+        notificacoes.certificadoAlterado.mock.calls[0];
+      expect(para).toBe('contato@cliente.com.br');
+      expect(produto).toBe('Disjuntor DIN 25A');
+      expect(certificado).toMatchObject({
+        numero: 'PROCERT-2026-000045',
+        cancelado: false,
+        motivo: 'Ensaio de rotina reprovado.',
+      });
+    });
+
+    it('cancelamento avisa com o flag que muda o texto', async () => {
+      banco.prisma.certificado.findUnique
+        .mockResolvedValueOnce({
+          id: 1,
+          status: StatusCertificado.SUSPENSO,
+          dataValidade: new Date('2027-09-03T12:00:00.000Z'),
+        } as never)
+        .mockResolvedValueOnce(paraAviso({ motivoStatus: 'Escopo encerrado.' }) as never);
+      banco.prisma.certificado.findUniqueOrThrow.mockResolvedValue({} as never);
+
+      await servico.alterarStatus(1, {
+        status: StatusCertificado.CANCELADO,
+        motivoStatus: 'Escopo encerrado.',
+      } as never);
+
+      expect(
+        notificacoes.certificadoAlterado.mock.calls[0][3],
+      ).toMatchObject({ cancelado: true });
+    });
+
+    it('reativação NÃO avisa: nada mudou para quem já o tinha por vigente', async () => {
+      banco.prisma.certificado.findUnique.mockResolvedValueOnce({
+        id: 1,
+        status: StatusCertificado.SUSPENSO,
+        dataValidade: new Date('2099-01-01T12:00:00.000Z'),
+      } as never);
+      banco.prisma.certificado.findUniqueOrThrow.mockResolvedValue({} as never);
+
+      await servico.alterarStatus(1, {
+        status: StatusCertificado.EMITIDO,
+      } as never);
+
+      expect(notificacoes.certificadoAlterado).not.toHaveBeenCalled();
     });
   });
 
