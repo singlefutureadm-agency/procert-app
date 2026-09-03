@@ -9,7 +9,7 @@ import { Prisma, Role, StatusCertificacao, StatusRegistro } from '@prisma/client
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { NaoConformidadesService } from '../nao-conformidades/nao-conformidades.service';
-import { MailService } from '../mail/mail.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { DocumentosCertificacaoService } from './documentos.service';
 import { paginar } from '../../common/dto/paginacao.dto';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
@@ -34,7 +34,7 @@ export class CertificacoesService {
     private readonly prisma: PrismaService,
     private readonly naoConformidades: NaoConformidadesService,
     private readonly documentos: DocumentosCertificacaoService,
-    private readonly mail: MailService,
+    private readonly notificacoes: NotificacoesService,
   ) {}
 
   /**
@@ -634,7 +634,7 @@ export class CertificacoesService {
 
       if (!produto) return;
 
-      await this.mail.enviarAtualizacaoCertificacao(
+      await this.notificacoes.certificacaoAtualizada(
         produto.cliente.email,
         produto.cliente.nome,
         produto.nome,

@@ -5,7 +5,7 @@ import { Role, StatusRegistro } from '@prisma/client';
 import { mockDeep } from 'jest-mock-extended';
 
 import { AuthService } from './auth.service';
-import { MailService } from '../mail/mail.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
 import { admin, cliente } from '../../testing/usuarios.fixture';
@@ -50,7 +50,7 @@ describe('AuthService', () => {
   let servico: AuthService;
   let banco: PrismaMock;
   let jwt: jest.Mocked<JwtService>;
-  let mail: jest.Mocked<MailService>;
+  let notificacoes: jest.Mocked<NotificacoesService>;
   let config: jest.Mocked<ConfigService>;
 
   beforeEach(() => {
@@ -58,14 +58,14 @@ describe('AuthService', () => {
 
     banco = criarPrismaMock();
     jwt = mockDeep<JwtService>();
-    mail = mockDeep<MailService>();
+    notificacoes = mockDeep<NotificacoesService>();
     config = mockDeep<ConfigService>();
 
     jwt.sign.mockReturnValue('token.jwt.assinado');
     config.get.mockImplementation(
       (_chave: string, padrao?: unknown) => padrao as never,
     );
-    mail.enviarRedefinicaoSenha.mockResolvedValue(undefined);
+    notificacoes.redefinicaoDeSenha.mockResolvedValue(undefined);
 
     banco.prisma.funcionario.findUnique.mockResolvedValue(null as never);
     banco.prisma.cliente.findUnique.mockResolvedValue(null as never);
@@ -74,7 +74,7 @@ describe('AuthService', () => {
       banco.prisma as unknown as PrismaService,
       jwt,
       config,
-      mail,
+      notificacoes,
     );
   });
 
@@ -304,7 +304,7 @@ describe('AuthService', () => {
       ).resolves.toEqual({ mensagem: MENSAGEM_NEUTRA });
 
       expect(banco.prisma.tokenRedefinicaoSenha.create).not.toHaveBeenCalled();
-      expect(mail.enviarRedefinicaoSenha).not.toHaveBeenCalled();
+      expect(notificacoes.redefinicaoDeSenha).not.toHaveBeenCalled();
     });
 
     it('responde EXATAMENTE a mesma mensagem para e-mail existente', async () => {
@@ -357,7 +357,7 @@ describe('AuthService', () => {
 
       const [{ data }] =
         banco.prisma.tokenRedefinicaoSenha.create.mock.calls[0];
-      const [, , link] = mail.enviarRedefinicaoSenha.mock.calls[0];
+      const [, , link] = notificacoes.redefinicaoDeSenha.mock.calls[0];
       const tokenEnviado = new URL(link).searchParams.get('token');
 
       // 64 hex = SHA-256; o token em claro tem 64 hex também (32 bytes), então
@@ -569,7 +569,7 @@ describe('AuthService', () => {
       );
       // Espelha a produção: `MailService.enviar` tem try/catch próprio e resolve
       // mesmo com o SMTP fora do ar.
-      mail.enviarRedefinicaoSenha.mockResolvedValue(undefined);
+      notificacoes.redefinicaoDeSenha.mockResolvedValue(undefined);
 
       await expect(
         servico.esqueciSenha({ email: 'bruno@procertocp.com.br' }),
@@ -580,10 +580,10 @@ describe('AuthService', () => {
       banco.prisma.funcionario.findUnique.mockResolvedValue(
         FUNCIONARIO_ATIVO as never,
       );
-      mail.enviarRedefinicaoSenha.mockRejectedValue(new Error('SMTP fora do ar'));
+      notificacoes.redefinicaoDeSenha.mockRejectedValue(new Error('SMTP fora do ar'));
 
       // Este teste afirma o comportamento ATUAL, não o desejado. Hoje
-      // `AuthService.esqueciSenha` faz `await this.mail.enviarRedefinicaoSenha`
+      // `AuthService.esqueciSenha` faz `await this.notificacoes.redefinicaoDeSenha`
       // sem try/catch: a garantia de "e-mail não derruba o fluxo" mora inteira
       // dentro de `MailService.enviar`.
       //

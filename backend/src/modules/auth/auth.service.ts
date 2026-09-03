@@ -10,7 +10,7 @@ import { Role, StatusRegistro } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import { conferirSenha, gerarHashSenha } from '../../common/utils/senha.util';
 import { urlDoPainel } from '../../common/utils/ambiente.util';
@@ -33,7 +33,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly mail: MailService,
+    private readonly notificacoes: NotificacoesService,
   ) {}
 
   /**
@@ -145,7 +145,7 @@ export class AuthService {
     });
 
     const link = `${urlDoPainel(this.config)}/redefinir-senha?token=${token}`;
-    await this.mail.enviarRedefinicaoSenha(usuario.email, usuario.nome, link);
+    await this.notificacoes.redefinicaoDeSenha(usuario.email, usuario.nome, link);
 
     return { mensagem };
   }
