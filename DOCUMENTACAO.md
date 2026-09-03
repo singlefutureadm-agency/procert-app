@@ -2013,38 +2013,34 @@ dados migrados; o script só volta a importar se houver reimportação.
 
 Gatilho para promover: plano de reimportação do legado.
 
-### `nodemailer` 9: nome de produto com CRLF derruba o aviso em silêncio (risco aberto)
+### `nodemailer` 9: nome de produto com CRLF no assunto (resolvido)
 
-Registrado em 19/08/2026. O upgrade 6 → 9 fechou, entre outras, a injeção de cabeçalho por
-CRLF — mas as versões novas **rejeitam** o header malformado lançando exceção, onde as
-antigas saneavam e seguiam. Isso muda o comportamento do `MailService` num caminho que
-nunca foi exercitado: sem `MAIL_HOST`/`MAIL_USER` no `.env`, só roda o `[SIMULADO]`, que
-nem instancia o transporter.
+Registrado em 19/08/2026 como risco aberto; **fechado em 03/09/2026**, quando o gatilho
+previsto — configurar SMTP real — finalmente ocorreu.
 
-O ponto exposto é `enviarAtualizacaoCertificacao`, que monta o assunto com um valor vindo
-do banco:
+O upgrade 6 → 9 fechou a injeção de cabeçalho por CRLF, mas as versões novas **rejeitam**
+o header malformado lançando exceção, onde as antigas saneavam e seguiam. O ponto exposto
+era `enviarAtualizacaoCertificacao`, que montava o assunto com o nome do produto vindo do
+banco: um nome com `
+` — colado de uma planilha, por exemplo — produzia um assunto com
+quebra de linha, o `sendMail` lançava, e o `try/catch` de `MailService.enviar` engolia a
+exceção. Efeito prático: a operação de domínio concluía e **o cliente simplesmente não
+recebia o aviso**, sem nada na tela indicando isso.
 
-```ts
-await this.enviar(para, `Atualização na certificação — ${produto}`, html);
-```
+A correção veio junto da extração do `NotificacoesService`, e é onde ela tinha de estar:
+todo assunto passa por `assuntoLimpo()`, que colapsa `` e `
+` em espaço. Como agora há
+um único ponto que monta assunto, o saneamento vale para os eventos futuros sem que
+ninguém precise lembrar dele.
 
-`produto` é o nome cadastrado do produto. Um nome com `\r\n` — colado de uma planilha, por
-exemplo — produz um assunto com quebra de linha, o `sendMail` lança, e o `try/catch` de
-`MailService.enviar` engole a exceção e registra em log. O efeito prático: **a operação de
-domínio conclui normalmente e o cliente simplesmente não recebe o aviso**, sem nada na tela
-indicando isso.
+O `try/catch` do `MailService` **continua**, e por outra razão que não mudou: e-mail não
+pode derrubar avaliação de etapa nem enumerar contas pelo tempo de resposta. O que mudou é
+que ele deixou de ser a única defesa.
 
-O `try/catch` está certo e deve continuar — e-mail não pode derrubar avaliação de etapa
-nem enumerar contas pelo tempo de resposta. O que falta é o assunto não chegar malformado.
-
-Estado: **coberto por teste** (`mail.service.spec.ts` — assunto com `\r\n` no nome do
-produto: o envio falha, a exceção não escapa de `enviar`, e o erro vai para o log), mas
-**não corrigido**. O saneamento — colapsar `\r` e `\n` do assunto antes do `sendMail` — é
-mudança de comportamento no `MailService` e fica para uma entrega própria.
-
-Gatilho para promover: configurar SMTP real (`MAIL_USER`/`MAIL_PASS`). O primeiro envio de
-verdade — Hostinger, porta 465/TLS — nunca aconteceu, e é quando esse caminho passa a
-existir em produção.
+Coberto por `notificacoes.service.spec.ts` (`saneia o CRLF do assunto`). O teste espelho
+que vivia em `mail.service.spec.ts`, afirmando que o assunto saía **com** o CRLF, foi
+removido — ele documentava o defeito, e o comentário dele já previa que passaria a falhar
+quando o saneamento existisse.
 
 ### Ordenação após migração de versão (resolvido)
 

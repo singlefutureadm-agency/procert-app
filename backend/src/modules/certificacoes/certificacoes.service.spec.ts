@@ -8,7 +8,7 @@ import { mockDeep } from 'jest-mock-extended';
 
 import { CertificacoesService } from './certificacoes.service';
 import { DocumentosCertificacaoService } from './documentos.service';
-import { MailService } from '../mail/mail.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 import { NaoConformidadesService } from '../nao-conformidades/nao-conformidades.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
@@ -41,7 +41,7 @@ describe('CertificacoesService', () => {
   let banco: PrismaMock;
   let naoConformidades: jest.Mocked<NaoConformidadesService>;
   let documentos: jest.Mocked<DocumentosCertificacaoService>;
-  let mail: jest.Mocked<MailService>;
+  let notificacoes: jest.Mocked<NotificacoesService>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -49,10 +49,10 @@ describe('CertificacoesService', () => {
     banco = criarPrismaMock();
     naoConformidades = mockDeep<NaoConformidadesService>();
     documentos = mockDeep<DocumentosCertificacaoService>();
-    mail = mockDeep<MailService>();
+    notificacoes = mockDeep<NotificacoesService>();
 
     documentos.etapasSemDocumento.mockResolvedValue([]);
-    mail.enviarAtualizacaoCertificacao.mockResolvedValue(undefined);
+    notificacoes.certificacaoAtualizada.mockResolvedValue(undefined);
     banco.prisma.produto.findUnique.mockResolvedValue(
       detalheDoProduto() as never,
     );
@@ -61,7 +61,7 @@ describe('CertificacoesService', () => {
       banco.prisma as unknown as PrismaService,
       naoConformidades,
       documentos,
-      mail,
+      notificacoes,
     );
   });
 
@@ -178,7 +178,7 @@ describe('CertificacoesService', () => {
       expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
       expect(banco.tx.certificacaoHistorico.create).not.toHaveBeenCalled();
       // Sem mudança de status, o cliente também não recebe e-mail.
-      expect(mail.enviarAtualizacaoCertificacao).not.toHaveBeenCalled();
+      expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
     });
 
     it('mudar só a observação grava histórico, mas não notifica o cliente', async () => {
@@ -197,7 +197,7 @@ describe('CertificacoesService', () => {
       );
 
       expect(banco.tx.certificacaoHistorico.create).toHaveBeenCalledTimes(1);
-      expect(mail.enviarAtualizacaoCertificacao).not.toHaveBeenCalled();
+      expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
     });
   });
 
@@ -425,7 +425,7 @@ describe('CertificacoesService', () => {
      */
     it('só responde depois que o envio termina — promessa solta se perde em serverless', async () => {
       let concluirEnvio!: () => void;
-      mail.enviarAtualizacaoCertificacao.mockReturnValue(
+      notificacoes.certificacaoAtualizada.mockReturnValue(
         new Promise<void>((resolve) => {
           concluirEnvio = () => resolve();
         }),
@@ -445,7 +445,7 @@ describe('CertificacoesService', () => {
 
       await drenarMicrotasks();
 
-      expect(mail.enviarAtualizacaoCertificacao).toHaveBeenCalledTimes(1);
+      expect(notificacoes.certificacaoAtualizada).toHaveBeenCalledTimes(1);
       expect(respondeu).toBe(false);
 
       concluirEnvio();
@@ -467,7 +467,7 @@ describe('CertificacoesService', () => {
       );
 
       const [para, nomeCliente, produto, produtoId, mudancas] =
-        mail.enviarAtualizacaoCertificacao.mock.calls[0];
+        notificacoes.certificacaoAtualizada.mock.calls[0];
 
       expect(para).toBe('contato@cliente.com.br');
       expect(nomeCliente).toBe('Indústria Cliente Ltda');
@@ -485,7 +485,7 @@ describe('CertificacoesService', () => {
      * não se desfaz porque o servidor de e-mail caiu.
      */
     it('falha no envio não derruba o salvamento já commitado', async () => {
-      mail.enviarAtualizacaoCertificacao.mockRejectedValue(
+      notificacoes.certificacaoAtualizada.mockRejectedValue(
         new Error('SMTP fora do ar'),
       );
 
