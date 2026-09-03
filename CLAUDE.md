@@ -1119,9 +1119,10 @@ A lacuna do frontend foi fechada — são 117 testes hoje, mirando o que quebra 
 item.
 
 **Riscos abertos e conscientemente não corrigidos** (todos em `DOCUMENTACAO.md` §15, com a
-correção proposta): CRLF em assunto de e-mail no `nodemailer` 9; `esqueciSenha` propagando
-falha do `MailService` (oráculo de enumeração, fechado na prática mas frágil); e o ETL
-`migrate-legacy.ts`, que não compila nem roda.
+correção proposta): `esqueciSenha` propagando falha do `MailService` (oráculo de
+enumeração, fechado na prática mas frágil) e o ETL `migrate-legacy.ts`, que não compila
+nem roda. O CRLF em assunto de e-mail saiu da lista em 03/09/2026: todo assunto passa por
+`assuntoLimpo()` no `NotificacoesService`.
 
 Acrescente a esses um risco **de repositório**, não de código: o `DEPLOY.md` está num repo
 **público** e descreve a infraestrutura de produção — host FTP com o IP da origem
