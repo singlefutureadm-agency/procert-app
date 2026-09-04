@@ -1,0 +1,107 @@
+LICENÇA DE SOFTWARE PROPRIETÁRIO
+ProCert — plataforma de Organismo de Certificação de Produto
+
+Copyright (c) 2026 Single Future. Todos os direitos reservados.
+
+-------------------------------------------------------------------------------
+1. TITULARIDADE
+-------------------------------------------------------------------------------
+
+Este software, incluindo o código-fonte, o código objeto, o esquema de banco de
+dados, as migrations, os testes, a documentação técnica (CLAUDE.md,
+DOCUMENTACAO.md, MIGRACAO.md, DEPLOY.md, README.md), os arquivos de
+configuração, o design system e os demais materiais contidos neste repositório
+(em conjunto, o "Software"), é obra intelectual de titularidade da Single
+Future, protegida pela Lei nº 9.609/1998 (Lei do Software) e pela Lei nº
+9.610/1998 (Lei de Direitos Autorais), bem como pelos tratados internacionais
+aplicáveis.
+
+Todos os direitos são reservados. Nenhum direito é concedido por implicação,
+preclusão (estoppel) ou de qualquer outra forma que não a autorização expressa e
+por escrito da titular.
+
+-------------------------------------------------------------------------------
+2. AUSÊNCIA DE LICENÇA DE USO
+-------------------------------------------------------------------------------
+
+Este NÃO é um software livre nem de código aberto.
+
+O fato de este repositório estar hospedado em plataforma pública NÃO constitui
+licença, renúncia, doação ao domínio público ou autorização de uso. A
+visibilidade pública decorre exclusivamente da configuração da hospedagem e dos
+termos de serviço da plataforma, que permitem visualizar e bifurcar (fork) o
+conteúdo dentro da própria plataforma — e nada além disso.
+
+Sem autorização prévia, expressa e por escrito da Single Future, é vedado a
+qualquer pessoa física ou jurídica:
+
+  a) usar o Software, no todo ou em parte, para qualquer finalidade,
+     inclusive avaliação, desenvolvimento interno ou prova de conceito;
+  b) copiar, reproduzir, publicar, distribuir, comercializar, alugar,
+     emprestar, sublicenciar ou de qualquer modo disponibilizar o Software a
+     terceiros;
+  c) modificar, adaptar, traduzir ou criar obras derivadas do Software;
+  d) executar, hospedar ou operar o Software, ainda que sem fim lucrativo;
+  e) realizar engenharia reversa, descompilação ou desmontagem, ressalvadas as
+     hipóteses legalmente irrenunciáveis;
+  f) remover, alterar ou ocultar avisos de titularidade, autoria, marca ou
+     este aviso de licença.
+
+-------------------------------------------------------------------------------
+3. MATERIAIS DE TERCEIROS E RESSALVAS
+-------------------------------------------------------------------------------
+
+A reserva de direitos da Seção 1 alcança a obra da Single Future e NÃO se
+estende a materiais de terceiros incorporados a este repositório ou dele
+dependentes, cada qual regido pela sua própria licença. Estão expressamente
+RESSALVADOS deste aviso:
+
+  a) as bibliotecas de terceiros declaradas em backend/package.json e
+     frontend/package.json e suas dependências transitivas;
+  b) o conteúdo institucional, a marca, o nome, o logotipo e os documentos
+     públicos do organismo certificador — incluindo os arquivos em
+     frontend/public/documentos/ e frontend/public/img/ —, cuja titularidade é
+     do cliente ou dos respectivos terceiros, não da Single Future;
+  c) o template visual do site institucional e os ativos gráficos dele
+     derivados, regidos pela licença do respectivo fornecedor.
+
+O inventário dessas licenças, com o levantamento por dependência, está em
+THIRD-PARTY-NOTICES.md. Em caso de conflito entre este arquivo e a licença de um
+material de terceiro, prevalece a licença do terceiro quanto àquele material.
+
+-------------------------------------------------------------------------------
+4. AUTORIZAÇÕES CONCEDIDAS SEPARADAMENTE
+-------------------------------------------------------------------------------
+
+Direitos de uso, licenciamento, cessão ou custódia do código eventualmente
+concedidos ao cliente contratante são regidos pelo contrato firmado entre as
+partes, que prevalece sobre este aviso no que com ele conflitar. Este arquivo
+não amplia nem reduz o que o contrato dispuser.
+
+-------------------------------------------------------------------------------
+5. AUSÊNCIA DE GARANTIA E LIMITAÇÃO DE RESPONSABILIDADE
+-------------------------------------------------------------------------------
+
+O SOFTWARE É FORNECIDO "NO ESTADO EM QUE SE ENCONTRA", SEM GARANTIA DE QUALQUER
+NATUREZA, EXPRESSA OU IMPLÍCITA, INCLUINDO, SEM LIMITAÇÃO, AS GARANTIAS DE
+COMERCIABILIDADE, ADEQUAÇÃO A UMA FINALIDADE ESPECÍFICA E NÃO VIOLAÇÃO DE
+DIREITOS DE TERCEIROS.
+
+EM NENHUMA HIPÓTESE A SINGLE FUTURE RESPONDERÁ POR DANO DIRETO, INDIRETO,
+INCIDENTAL, ESPECIAL, PUNITIVO OU CONSEQUENTE, LUCRO CESSANTE OU PERDA DE
+DADOS, DECORRENTE DO USO OU DA IMPOSSIBILIDADE DE USO DO SOFTWARE, AINDA QUE
+ADVERTIDA DA POSSIBILIDADE DE TAIS DANOS. ESTA LIMITAÇÃO NÃO AFASTA
+RESPONSABILIDADES QUE A LEI APLICÁVEL DECLARE IRRENUNCIÁVEIS.
+
+-------------------------------------------------------------------------------
+6. LEI APLICÁVEL
+-------------------------------------------------------------------------------
+
+Este aviso é regido pelas leis da República Federativa do Brasil.
+
+-------------------------------------------------------------------------------
+7. CONTATO
+-------------------------------------------------------------------------------
+
+Pedidos de licenciamento, autorização de uso ou esclarecimento sobre
+titularidade devem ser dirigidos à Single Future — https://singlefuture.com.br/

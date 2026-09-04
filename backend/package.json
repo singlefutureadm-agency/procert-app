@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "API NestJS da plataforma ProCert (migração do sistema PHP legado)",
   "private": true,
+  "license": "UNLICENSED",
+  "author": "Single Future (https://singlefuture.com.br/)",
   "engines": {
     "node": ">=24"
   },
