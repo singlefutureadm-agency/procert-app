@@ -2,6 +2,8 @@
   "name": "procert-frontend",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
+  "author": "Single Future (https://singlefuture.com.br/)",
   "type": "module",
   "engines": {
     "node": ">=24"

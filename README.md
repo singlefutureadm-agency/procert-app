@@ -310,3 +310,25 @@ Detalhes e o porquê da escolha em `DOCUMENTACAO.md` §9 e `DEPLOY.md` §4.
   API, decisões de projeto, problemas conhecidos e postura de segurança.
 - **[MIGRACAO.md](./MIGRACAO.md)** — mapeamento arquivo PHP → módulo atual e bugs do legado
   corrigidos.
+- **[LICENSE](./LICENSE)** — licença de uso.
+- **[THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)** — inventário das licenças de
+  terceiros e dos materiais que não pertencem à Single Future.
+
+---
+
+## Licença
+
+**Copyright © 2026 Single Future. Todos os direitos reservados.**
+
+Software proprietário. **Não é código aberto**, e a visibilidade pública deste
+repositório não constitui licença: usar, copiar, modificar, distribuir ou executar o
+Software depende de autorização prévia e por escrito da titular. Os termos completos
+estão em **[LICENSE](./LICENSE)**.
+
+A reserva de direitos alcança a obra da Single Future e **não** se estende às
+dependências de terceiros, ao template visual do site institucional nem à marca, aos
+textos e aos documentos do organismo certificador — cada um regido pela sua própria
+licença ou pela titularidade do cliente. O inventário está em
+**[THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)**, que também registra as
+pendências de conformidade abertas (§4) — leia antes de publicar o site ou de trocar
+uma imagem da home.
