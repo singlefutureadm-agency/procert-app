@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { urlArquivo } from '@/lib/arquivos';
 import {
   formatarBytes,
   ImagemInvalidaError,
@@ -117,7 +118,19 @@ export function CampoImagem({
           } ${fundoAmostra ? `campo-imagem__amostra--fundo-${fundoAmostra.toLowerCase()}` : ''}`}
         >
           {url ? (
-            <img src={url} alt={`Pré-visualização: ${rotulo}`} />
+            /*
+             * `urlArquivo` porque o caminho vem relativo da API
+             * (`/uploads/aparencia/...`). Com a API em outro host — que é o
+             * caso em produção, `procert-api` e `procert-app` são projetos
+             * separados — o `<img>` pediria a imagem ao domínio do SITE, onde
+             * o catch-all da SPA devolve o `index.html` com status 200. O
+             * navegador então falha ao decodificar HTML como imagem, e a
+             * amostra fica quebrada sem 404 nenhum para acusar a causa.
+             *
+             * Este componente ficou de fora quando o resto do painel adotou
+             * `urlArquivo` — mesma omissão que o deixou fora de `CampoArquivo`.
+             */
+            <img src={urlArquivo(url, '')} alt={`Pré-visualização: ${rotulo}`} />
           ) : (
             <span className="texto-fraco texto-pequeno">Nenhuma imagem</span>
           )}
