@@ -44,7 +44,7 @@ const MENU: GrupoMenu[] = [
       },
       {
         para: '/produtos',
-        rotulo: 'Produtos',
+        rotulo: 'Processos',
         icone: 'caixa',
         filhos: [
           {
