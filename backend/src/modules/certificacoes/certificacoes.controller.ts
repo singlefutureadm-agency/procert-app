@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -29,9 +30,15 @@ import {
 import { CertificacoesService } from './certificacoes.service';
 import { DocumentosCertificacaoService } from './documentos.service';
 import { ExportacaoCertificacaoService } from './exportacao.service';
+import { QuadroService } from './quadro.service';
+import { MicroEtapasService } from './micro-etapas.service';
 import {
+  AlternarMicroEtapaDto,
+  CancelarProcessoDto,
   ExportarCertificacaoDto,
   ListarCertificacoesDto,
+  ListarQuadroDto,
+  MoverParaFaseDto,
   SalvarCertificacaoDto,
 } from './dto/certificacao.dto';
 
@@ -43,6 +50,8 @@ export class CertificacoesController {
     private readonly certificacoesService: CertificacoesService,
     private readonly documentos: DocumentosCertificacaoService,
     private readonly exportacao: ExportacaoCertificacaoService,
+    private readonly quadroService: QuadroService,
+    private readonly microEtapas: MicroEtapasService,
   ) {}
 
   /**
@@ -98,6 +107,52 @@ export class CertificacoesController {
     return this.certificacoesService.listarPainel(filtros, usuario);
   }
 
+  /**
+   * Quadro de processos por fase do pipeline.
+   *
+   * **Visão interna: o CLIENTE não alcança.** A divisão por fase e por
+   * departamento é organização da operação, na mesma linha do catálogo de
+   * trilhas — o cliente continua com `GET /certificacoes` e a timeline do
+   * próprio produto. O service repete a checagem.
+   */
+  @Get('quadro')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({
+    summary: 'Quadro de processos por fase (visão da equipe)',
+    description:
+      'Colunas na ordem do pipeline, cada uma com a contagem real e um ' +
+      'recorte de cartões. A fase é derivada da etapa atual, nunca armazenada.',
+  })
+  quadro(
+    @Query() filtros: ListarQuadroDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.quadroService.listar(filtros, usuario);
+  }
+
+  /**
+   * Marca ou desmarca um item do checklist da etapa.
+   *
+   * O `id` é da microetapa DO PRODUTO (`MicroEtapaCertificacao`), não do
+   * catálogo: o que se marca é a cópia, nunca a definição da trilha.
+   */
+  @Patch('micro-etapas/:id')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({
+    summary: 'Marca/desmarca uma microetapa; pode aprovar a etapa',
+    description:
+      'Concluir a última microetapa aprova a etapa quando o processo está em ' +
+      'aprovação automática. A resposta traz `etapaAprovada` e, quando não ' +
+      'aprovou, o `aviso` com o motivo.',
+  })
+  alternarMicroEtapa(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AlternarMicroEtapaDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.microEtapas.alternar(id, dto.concluida, usuario);
+  }
+
   @Get('produto/:produtoId')
   @ApiOperation({ summary: 'Timeline completa do produto, com histórico' })
   detalhar(
@@ -139,6 +194,57 @@ export class CertificacoesController {
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
     return this.certificacoesService.migrarParaVersaoVigente(produtoId, usuario);
+  }
+
+  /**
+   * Destino do arrastar-e-soltar no quadro. Escreve ETAPA, não posição.
+   *
+   * A coluna continua derivada: o que muda é o estado da etapa, e o cartão vai
+   * para a fase de destino porque o processo foi mesmo para lá.
+   */
+  @Post('produto/:produtoId/mover-fase')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({
+    summary: 'Move o processo para uma fase do pipeline',
+    description:
+      'Marca como EM_ANDAMENTO a primeira etapa não aprovada da fase e devolve ' +
+      'à fila as que estavam em andamento antes dela. Não aprova nada.',
+  })
+  moverParaFase(
+    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Body() dto: MoverParaFaseDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.certificacoesService.moverParaFase(produtoId, dto.fase, usuario);
+  }
+
+  /**
+   * Interrompe o processo. As etapas ficam como estão.
+   *
+   * Não é excluir nem desativar o produto: o cartão sai do fluxo e vai para a
+   * coluna CANCELADO do quadro, com motivo e autoria.
+   */
+  @Post('produto/:produtoId/cancelar')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({ summary: 'Cancela o processo, com motivo e autoria' })
+  cancelar(
+    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Body() dto: CancelarProcessoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.certificacoesService.cancelar(produtoId, dto.motivo, usuario);
+  }
+
+  @Post('produto/:produtoId/reabrir')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({
+    summary: 'Devolve ao fluxo um processo cancelado',
+    description:
+      'A coluna volta a ser derivada da etapa atual — não há "voltar para ' +
+      'onde estava", porque nunca se gravou onde estava.',
+  })
+  reabrir(@Param('produtoId', ParseIntPipe) produtoId: number) {
+    return this.certificacoesService.reabrir(produtoId);
   }
 
   @Post('produto/:produtoId/reiniciar')

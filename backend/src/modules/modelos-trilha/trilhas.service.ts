@@ -16,6 +16,7 @@ import {
   VincularCategoriasDto,
 } from './dto/trilha.dto';
 import { EtapaModeloDto } from './dto/modelo-trilha.dto';
+import { paraCriacao } from './modelos-trilha.service';
 
 /**
  * Resumo por trilha para a listagem não precisar de uma segunda consulta.
@@ -258,11 +259,21 @@ export class TrilhasService {
     const origem = dto.modeloTrilhaId
       ? await this.prisma.modeloTrilha.findFirst({
           where: { id: dto.modeloTrilhaId, trilhaId: id },
-          include: { etapas: { orderBy: { ordem: 'asc' } } },
+          include: {
+            etapas: {
+              orderBy: { ordem: 'asc' },
+              include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+            },
+          },
         })
       : await this.prisma.modeloTrilha.findFirst({
           where: { trilhaId: id, ativo: true },
-          include: { etapas: { orderBy: { ordem: 'asc' } } },
+          include: {
+            etapas: {
+              orderBy: { ordem: 'asc' },
+              include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+            },
+          },
           orderBy: { versao: 'desc' },
         });
 
@@ -385,24 +396,48 @@ export class TrilhasService {
 
 /** Numera as etapas de 1..N na ordem em que chegaram. */
 function comOrdem(etapas: EtapaModeloDto[]) {
-  return etapas.map((etapa, indice) => ({ ...etapa, ordem: indice + 1 }));
+  // `paraCriacao` é compartilhado com `ModelosTrilhaService` de propósito: as
+  // microetapas são relação aninhada, e um spread cru (`{...etapa, ordem}`)
+  // mandaria `microEtapas: string[]` direto para o Prisma.
+  return etapas.map((etapa, indice) => paraCriacao(etapa, indice));
 }
 
-/** Converte uma etapa persistida de volta para o formato de entrada. */
+/**
+ * Converte uma etapa persistida de volta para o formato de entrada.
+ *
+ * Campo novo em `ModeloEtapa` precisa entrar aqui E em
+ * `ModelosTrilhaService.criarVersao`: os dois copiam campo a campo, e o que
+ * ficar de fora some ao versionar, sem erro nenhum — a versão nova nasce com o
+ * default do schema e a trilha "perde" a configuração em silêncio.
+ */
 function paraEntrada(etapa: {
   nome: string;
   descricao: string | null;
   tipo: EtapaModeloDto['tipo'];
   obrigatoria: boolean;
-  prazoSlaDias: number | null;
+  papelResponsavel: EtapaModeloDto['papelResponsavel'] | null;
+  fase: NonNullable<EtapaModeloDto['fase']>;
+  prazoSlaHoras: number | null;
   exigeDocumento: boolean;
+  microEtapas: {
+    nome: string;
+    papelResponsavel: EtapaModeloDto['papelResponsavel'] | null;
+    prazoSlaHoras: number | null;
+  }[];
 }): EtapaModeloDto {
   return {
     nome: etapa.nome,
     descricao: etapa.descricao ?? undefined,
     tipo: etapa.tipo,
     obrigatoria: etapa.obrigatoria,
-    prazoSlaDias: etapa.prazoSlaDias ?? undefined,
+    papelResponsavel: etapa.papelResponsavel ?? undefined,
+    fase: etapa.fase,
+    prazoSlaHoras: etapa.prazoSlaHoras ?? undefined,
     exigeDocumento: etapa.exigeDocumento,
+    microEtapas: etapa.microEtapas.map((micro) => ({
+      nome: micro.nome,
+      papelResponsavel: micro.papelResponsavel ?? undefined,
+      prazoSlaHoras: micro.prazoSlaHoras ?? undefined,
+    })),
   };
 }

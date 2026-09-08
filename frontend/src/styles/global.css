@@ -1235,9 +1235,15 @@ table.tabela {
   overflow-wrap: anywhere;
 }
 
+/* O editor de microetapas entra na MESMA regra em vez de repeti-la: os campos
+   dele são os mesmos controles, só que fora de um `.campo` (o rótulo de cada um
+   é do item, não do grupo). Sem isto ficavam com o visual cru do navegador —
+   inclusive a borda vermelha do `:invalid` no campo numérico. */
 .campo input,
 .campo select,
-.campo textarea {
+.campo textarea,
+.micro-editor__campos input,
+.micro-editor__campos select {
   width: 100%;
   padding: 11px 13px;
   border-radius: var(--raio-sm);
@@ -1250,20 +1256,24 @@ table.tabela {
 }
 
 .campo input::placeholder,
-.campo textarea::placeholder {
+.campo textarea::placeholder,
+.micro-editor__campos input::placeholder {
   color: var(--texto-fraco);
 }
 
 .campo input:focus,
 .campo select:focus,
-.campo textarea:focus {
+.campo textarea:focus,
+.micro-editor__campos input:focus,
+.micro-editor__campos select:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--cor-primaria) 75%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-primaria) 22%, transparent);
 }
 
 /* O <option> nativo não aceita fundo translúcido: precisa de cor sólida. */
-.campo select option {
+.campo select option,
+.micro-editor__campos select option {
   background: var(--fundo-degrade);
   color: var(--texto);
 }
@@ -1727,6 +1737,18 @@ fieldset.secao-form legend {
   /* O modal precisa flutuar mais que o card que ficou atrás dele. Com a mesma
      sombra do `.vidro` os dois planos empatavam e só o overlay os separava. */
   box-shadow: var(--sombra-3), inset 0 1px 0 var(--vidro-realce);
+  /*
+     Rolagem própria em TODO modal, não só nos de leitura.
+     Um formulário cresce com os campos, e sem isto ele passa da altura da
+     janela: os campos de baixo e os botões de salvar ficam fora de alcance,
+     sem barra de rolagem nenhuma — a página atrás não rola porque o modal é
+     `position: fixed`. Foi o que aconteceu com o modal de etapa ao ganhar
+     fase, responsável e checklist.
+
+     `40px` é o `padding: 20px` do `.modal-fundo` nas duas pontas.
+  */
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
 }
 
 /*
@@ -2685,5 +2707,711 @@ fieldset.secao-form legend {
 @media (prefers-reduced-motion: reduce) {
   .campo-senha__alternar {
     transition: none;
+  }
+}
+
+/* ------------------------ Quadro de processos ---------------------------- */
+
+/* Alternador Lista | Quadro. Dois NavLink, não botões: são rotas de verdade. */
+.alternar-visao {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--vidro-fundo);
+  border: 1px solid var(--vidro-borda);
+}
+
+.alternar-visao__opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  /* Alvo de toque: 40px de altura efetiva com o padding. Não encolha. */
+  padding: 9px var(--espaco-4);
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--texto-suave);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--mov-rapido, 0.15s) ease,
+    color var(--mov-rapido, 0.15s) ease;
+}
+
+.alternar-visao__opcao:hover {
+  color: var(--texto);
+  background: var(--vidro-fundo-forte);
+}
+
+/* A opção ativa é marcada por `aria-current`, não por uma classe: o atributo
+   comunica ao leitor de tela E serve de seletor, então os dois nunca divergem. */
+.alternar-visao__opcao[aria-current='page'] {
+  background: color-mix(in srgb, var(--cor-primaria) 22%, transparent);
+  color: color-mix(in srgb, var(--cor-primaria) 30%, var(--texto));
+}
+
+.quadro__filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-3);
+  align-items: flex-end;
+  margin-bottom: var(--espaco-3);
+}
+
+.quadro__filtros .campo {
+  min-width: 170px;
+}
+
+.quadro__legenda {
+  margin: 0 0 var(--espaco-4);
+}
+
+/* A rolagem horizontal vive no `RegiaoRolavel`, que já cuida do tabIndex e do
+   role/rótulo. NÃO troque por um `overflow-x: auto` cru: sem ele, as colunas
+   fora da tela ficam inalcançáveis por teclado. */
+.quadro__colunas {
+  display: flex;
+  gap: var(--espaco-4);
+  align-items: flex-start;
+  padding-bottom: var(--espaco-2);
+}
+
+.quadro__coluna {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+  padding: var(--espaco-3);
+  border-radius: var(--raio);
+  background: var(--vidro-fundo);
+  border: 1px solid var(--vidro-borda);
+}
+
+.quadro__coluna-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+}
+
+.quadro__coluna-cabecalho .titulo-bloco {
+  margin: 0;
+}
+
+/* A contagem é `aria-hidden` porque já está no `aria-label` da coluna, escrita
+   por extenso ("Abertura: 3 processo(s)"). Anunciar as duas repetiria. */
+.quadro__contagem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 var(--espaco-2);
+  border-radius: 999px;
+  background: var(--vidro-fundo-forte);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--texto-suave);
+}
+
+.quadro__pilha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+}
+
+.quadro__vazio {
+  margin: 0;
+  padding: var(--espaco-3) 0;
+  text-align: center;
+}
+
+.quadro__cartao {
+  /* `button` centraliza o texto por padrão do agente de usuário. */
+  text-align: left;
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-2);
+  padding: var(--espaco-3);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo-forte);
+  border: 1px solid var(--vidro-borda);
+  color: inherit;
+  text-decoration: none;
+  /* Sem `cursor: grab`: a coluna é derivada da etapa atual e o cartão não se
+     arrasta. Um cursor de arraste prometeria uma interação que não existe. */
+  cursor: pointer;
+  transition: transform var(--mov-rapido, 0.15s) ease,
+    border-color var(--mov-rapido, 0.15s) ease;
+}
+
+.quadro__cartao:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--cor-primaria) 45%, transparent);
+}
+
+.quadro__cartao-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+}
+
+.quadro__codigo {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-largo, 0.04em);
+  color: var(--texto-suave);
+}
+
+.quadro__produto {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.quadro__cliente {
+  margin: 0;
+}
+
+.quadro__etapa {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  font-size: var(--fs-xs);
+  color: var(--texto-suave);
+}
+
+.quadro__etapa svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.quadro__rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Semáforo e tempo total. A COR NUNCA É A ÚNICA PISTA: cada marca traz o
+   número de dias e um rótulo em texto ("24d · Atrasado"), porque
+   --cor-sucesso × --cor-erro têm ΔE 5,0 sob deuteranopia — abaixo do piso. */
+.quadro__tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.quadro__tempo--verde {
+  background: color-mix(in srgb, var(--cor-sucesso) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cor-sucesso) 45%, transparent);
+  color: color-mix(in srgb, var(--cor-sucesso) 35%, var(--texto));
+}
+
+.quadro__tempo--amarelo {
+  background: color-mix(in srgb, var(--cor-alerta) 20%, transparent);
+  border-color: color-mix(in srgb, var(--cor-alerta) 50%, transparent);
+  color: color-mix(in srgb, var(--cor-alerta) 40%, var(--texto));
+}
+
+.quadro__tempo--vermelho {
+  background: color-mix(in srgb, var(--cor-erro) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cor-erro) 45%, transparent);
+  color: color-mix(in srgb, var(--cor-erro) 35%, var(--texto));
+}
+
+/* Concluído é NEUTRO de propósito: não é semáforo, é o tempo total que o
+   processo levou — outro relógio, com rótulo próprio ("Levou 24 dias"). */
+.quadro__tempo--concluido {
+  background: var(--vidro-fundo);
+  border-color: var(--vidro-borda);
+  color: var(--texto-suave);
+  font-weight: 500;
+}
+
+.quadro__sla {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding-top: var(--espaco-1);
+  border-top: 1px solid var(--vidro-borda);
+}
+
+.quadro__sla svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+}
+
+/* "Tem prazo e ninguém começou" não é o mesmo que "sem prazo": este é um
+   processo parado na fila, e some se for renderizado como o mesmo "—". */
+.quadro__sla--parado {
+  color: color-mix(in srgb, var(--cor-alerta) 40%, var(--texto));
+}
+
+.quadro__sla--em-dia {
+  color: var(--texto-suave);
+}
+
+.quadro__sla--estourado {
+  color: color-mix(in srgb, var(--cor-erro) 40%, var(--texto));
+  font-weight: 600;
+}
+
+/* Abaixo de 720px as colunas viram uma pilha de largura total: rolagem
+   horizontal num aparelho estreito esconde as fases finais do pipeline. */
+@media (max-width: 720px) {
+  .quadro__colunas {
+    flex-direction: column;
+  }
+
+  .quadro__coluna {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quadro__cartao,
+  .alternar-visao__opcao {
+    transition: none;
+  }
+
+  .quadro__cartao:hover {
+    transform: none;
+  }
+}
+
+/* ------------------- Modal do processo (checklist) ----------------------- */
+
+.processo__identificacao {
+  margin: 0 0 var(--espaco-4);
+}
+
+/* Os três estados da política de aprovação. Radio, e não checkbox: "herda" não
+   é um terceiro estado de um booleano, é uma opção própria. */
+.processo__politica {
+  margin: 0 0 var(--espaco-5);
+  padding: var(--espaco-3);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+}
+
+.processo__politica legend {
+  padding: 0 var(--espaco-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.processo__politica-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-4);
+  margin-bottom: var(--espaco-2);
+}
+
+.processo__politica-opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.processo__etapas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-4);
+}
+
+.processo__etapa {
+  padding: var(--espaco-3);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+}
+
+.processo__etapa-cabecalho {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--espaco-3);
+  margin-bottom: var(--espaco-2);
+}
+
+.processo__etapa-cabecalho .titulo-bloco {
+  margin: 0;
+}
+
+.processo__etapa-cabecalho p {
+  margin: 2px 0 0;
+}
+
+.processo__sem-checklist {
+  margin: 0;
+}
+
+.processo__checklist {
+  list-style: none;
+  margin: var(--espaco-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.processo__checklist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+}
+
+/* Alvo de toque: a linha inteira é clicável, não só a caixinha de 13px. */
+.processo__item {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  flex: 1;
+  min-height: 34px;
+  padding: 2px var(--espaco-2);
+  border-radius: var(--raio-xs, 6px);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.processo__item:hover {
+  background: var(--vidro-fundo-forte);
+}
+
+.processo__item input:disabled {
+  cursor: not-allowed;
+}
+
+/* Riscado E esmaecido: o risco sozinho some para quem tem baixa visão, e a cor
+   sozinha não distingue concluído de pendente sob daltonismo. */
+.processo__item--feito span {
+  text-decoration: line-through;
+  color: var(--texto-suave);
+}
+
+.processo__autoria {
+  white-space: nowrap;
+}
+
+.processo__link-timeline {
+  margin-top: var(--espaco-5);
+  width: 100%;
+  justify-content: center;
+}
+
+/* Progresso do checklist no cartão do quadro. */
+.quadro__checklist {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.quadro__checklist svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+/* Checklist da etapa na tabela da trilha. Os itens, não a contagem: numa versão
+   já em uso não há modal para abrir e conferir quais são. */
+.etapa__checklist {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.etapa__checklist li {
+  margin: 0;
+}
+
+/* --------------------- Editor de microetapas (trilha) -------------------- */
+
+.micro-editor {
+  margin: 0;
+  padding: var(--espaco-4);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo);
+}
+
+.micro-editor legend {
+  padding: 0 var(--espaco-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.micro-editor__dica,
+.micro-editor__vazio {
+  margin: 0 0 var(--espaco-3);
+}
+
+.micro-editor__vazio {
+  padding: var(--espaco-4);
+  border: 1px dashed var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  text-align: center;
+}
+
+.micro-editor__lista {
+  list-style: none;
+  margin: 0 0 var(--espaco-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-3);
+}
+
+/* Cada item é um cartão. Sem a moldura, três campos por linha viram uma malha
+   de caixas e não se enxerga onde um item termina e o próximo começa. */
+.micro-editor__item {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: start;
+  gap: var(--espaco-2) var(--espaco-3);
+  padding: var(--espaco-3);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+  background: var(--vidro-fundo-forte);
+  transition: border-color var(--mov-rapido, 0.15s) ease;
+}
+
+.micro-editor__item:focus-within {
+  border-color: color-mix(in srgb, var(--cor-primaria) 45%, transparent);
+}
+
+/* Numeração do item. É a ordem de execução, e por isso fica na frente do nome
+   — quem lê o checklist lê a sequência antes do conteúdo. */
+.micro-editor__ordem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cor-primaria) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cor-primaria) 40%, transparent);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: color-mix(in srgb, var(--cor-primaria) 30%, var(--texto));
+}
+
+/* Nome ocupa a linha inteira; área e prazo dividem a de baixo. Os três lado a
+   lado deixariam o nome — o que se lê primeiro — estreito demais. */
+.micro-editor__campos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 116px;
+  gap: var(--espaco-2);
+  min-width: 0;
+}
+
+.micro-editor__campos input[type='text'] {
+  grid-column: 1 / -1;
+  font-weight: 500;
+}
+
+/* Área e prazo são o detalhe do item, não o item: menores e mais discretos que
+   o nome, para a leitura cair primeiro no que precisa ser feito. */
+.micro-editor__campos select,
+.micro-editor__campos input[type='number'] {
+  padding: 8px 10px;
+  font-size: var(--fs-xs);
+  color: var(--texto-suave);
+}
+
+/* O contador do input numérico rouba largura de um campo que já é estreito, e
+   o valor aqui se digita, não se incrementa de um em um. */
+.micro-editor__campos input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.micro-editor__campos input[type='number']::-webkit-outer-spin-button,
+.micro-editor__campos input[type='number']::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.micro-editor__acoes {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* Alvo de toque menor que o `.btn--icone` de 40px: são ações auxiliares dentro
+   de uma linha densa, e 32px ainda passa do mínimo confortável num modal de
+   teclado e mouse. Não encolha mais. */
+.micro-editor__acoes .btn--icone {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.micro-editor__acoes .btn--icone svg {
+  width: 15px;
+  height: 15px;
+}
+
+.micro-editor__acoes .btn--icone:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* O ícone é a seta lateral girada: a família não tem seta vertical, e um
+   desenho novo só para isto não pagaria a manutenção de mais um SVG. */
+.micro-editor__acoes button:nth-child(1) svg,
+.micro-editor__acoes button:nth-child(2) svg {
+  transform: rotate(90deg);
+}
+
+.micro-editor__adicionar {
+  width: 100%;
+  justify-content: center;
+  border-style: dashed;
+}
+
+/* Área e prazo do item, dentro do checklist do processo. */
+.processo__item-meta {
+  display: block;
+  margin-top: 1px;
+}
+
+/* Abaixo de 560px o cartão vira uma pilha: nome, depois área, depois prazo, e
+   as ações no rodapé do item. Lado a lado nessa largura, o select de área fica
+   com três caracteres visíveis. */
+@media (max-width: 560px) {
+  .micro-editor__item {
+    grid-template-columns: 26px 1fr;
+  }
+
+  .micro-editor__campos {
+    grid-template-columns: 1fr;
+  }
+
+  .micro-editor__acoes {
+    grid-column: 2;
+    justify-content: flex-end;
+  }
+}
+
+/* ---------------- Cancelamento e atalhos do quadro ----------------------- */
+
+.quadro__acoes-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espaco-2);
+}
+
+/* Neutro, e não vermelho: cancelado é um desfecho registrado, não um erro. O
+   vermelho está reservado para NC aberta e SLA estourado, que pedem ação. */
+.quadro__tempo--cancelado {
+  background: var(--vidro-fundo);
+  border-color: var(--vidro-borda);
+  color: var(--texto-suave);
+  text-decoration: line-through;
+}
+
+.quadro__sla-data {
+  margin-left: 4px;
+}
+
+.processo__saidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+  margin-top: var(--espaco-5);
+  padding-top: var(--espaco-4);
+  border-top: 1px solid var(--vidro-borda);
+}
+
+.processo__cancelar {
+  margin-top: var(--espaco-4);
+  padding: var(--espaco-4);
+  border: 1px solid color-mix(in srgb, var(--cor-erro) 40%, transparent);
+  border-radius: var(--raio-sm);
+  background: color-mix(in srgb, var(--cor-erro) 8%, transparent);
+  display: grid;
+  gap: var(--espaco-2);
+}
+
+.processo__cancelar label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.processo__cancelar textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: var(--raio-sm);
+  border: 1px solid var(--vidro-borda);
+  background: var(--vidro-fundo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.92rem;
+  resize: vertical;
+}
+
+.processo__cancelar p {
+  margin: 0;
+}
+
+.processo__cancelar-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espaco-2);
+}
+
+/* ------------------------ Arrastar no quadro ----------------------------- */
+
+/* `grab` só nas fases: o cartão realmente se move entre elas. Cancelado não
+   arrasta (o dnd-kit o desabilita) e mantém o cursor de clique. */
+.quadro__cartao {
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.quadro__cartao:active {
+  cursor: grabbing;
+}
+
+/* O cartão sendo arrastado sai do fluxo visual, mas continua ocupando o lugar:
+   a coluna não pode colapsar embaixo do ponteiro no meio do gesto. */
+.quadro__cartao--arrastando {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Alvo de soltura. Só as colunas de FASE acendem — `Concluído` e `Cancelado`
+   não são posições, e destacá-las prometeria uma soltura que é recusada. */
+.quadro__coluna--alvo {
+  border-color: color-mix(in srgb, var(--cor-primaria) 55%, transparent);
+  background: color-mix(in srgb, var(--cor-primaria) 10%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quadro__cartao--arrastando {
+    opacity: 0.7;
   }
 }

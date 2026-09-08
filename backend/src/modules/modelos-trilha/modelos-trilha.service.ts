@@ -15,7 +15,10 @@ import {
 } from './dto/modelo-trilha.dto';
 
 const INCLUDE_MODELO = {
-  etapas: { orderBy: { ordem: 'asc' } },
+  etapas: {
+    orderBy: { ordem: 'asc' },
+    include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+  },
   _count: { select: { produtos: true } },
 } satisfies Prisma.ModeloTrilhaInclude;
 
@@ -71,19 +74,35 @@ export class ModelosTrilhaService {
 
     const vigente = await this.prisma.modeloTrilha.findFirst({
       where: { trilhaId, ativo: true },
-      include: { etapas: { orderBy: { ordem: 'asc' } } },
+      include: {
+        etapas: {
+          orderBy: { ordem: 'asc' },
+          include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+        },
+      },
       orderBy: { versao: 'desc' },
     });
 
     const etapas = dto.etapas?.length
       ? dto.etapas
-      : (vigente?.etapas.map((etapa) => ({
+      : // Cópia campo a campo, e por isso frágil: campo novo em `ModeloEtapa`
+        // que não seja acrescentado AQUI é silenciosamente perdido ao versionar
+        // — a versão nova nasce com o default e ninguém vê erro. Foi o que quase
+        // aconteceu com `papelResponsavel` e `fase`.
+        (vigente?.etapas.map((etapa) => ({
           nome: etapa.nome,
           descricao: etapa.descricao ?? undefined,
           tipo: etapa.tipo,
           obrigatoria: etapa.obrigatoria,
-          prazoSlaDias: etapa.prazoSlaDias ?? undefined,
+          papelResponsavel: etapa.papelResponsavel ?? undefined,
+          fase: etapa.fase,
+          prazoSlaHoras: etapa.prazoSlaHoras ?? undefined,
           exigeDocumento: etapa.exigeDocumento,
+          microEtapas: etapa.microEtapas.map((micro) => ({
+            nome: micro.nome,
+            papelResponsavel: micro.papelResponsavel ?? undefined,
+            prazoSlaHoras: micro.prazoSlaHoras ?? undefined,
+          })),
         })) ?? []);
 
     if (etapas.length === 0) {
@@ -111,6 +130,10 @@ export class ModelosTrilhaService {
           trilhaId,
           versao: proximaVersao,
           ativo: true,
+          // Omitido no payload, herda a política da versão vigente — o mesmo
+          // critério das etapas logo acima.
+          aprovacaoAutomatica:
+            dto.aprovacaoAutomatica ?? vigente?.aprovacaoAutomatica ?? false,
           etapas: { create: this.comOrdem(etapas) },
         },
         include: INCLUDE_MODELO,
@@ -127,17 +150,17 @@ export class ModelosTrilhaService {
   async substituirEtapas(modeloId: number, dto: SubstituirEtapasDto) {
     const modelo = await this.garantirEditavel(modeloId);
 
-    await this.prisma.$transaction([
-      this.prisma.modeloEtapa.deleteMany({
-        where: { modeloTrilhaId: modelo.id },
-      }),
-      this.prisma.modeloEtapa.createMany({
-        data: this.comOrdem(dto.etapas).map((etapa) => ({
-          ...etapa,
-          modeloTrilhaId: modelo.id,
-        })),
-      }),
-    ]);
+    // `create` numa transação, e não `createMany`: as microetapas são relação
+    // aninhada, e `createMany` as descartaria em silêncio.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.modeloEtapa.deleteMany({ where: { modeloTrilhaId: modelo.id } });
+
+      for (const [indice, etapa] of dto.etapas.entries()) {
+        await tx.modeloEtapa.create({
+          data: { ...paraCriacao(etapa, indice), modeloTrilhaId: modelo.id },
+        });
+      }
+    });
 
     return this.buscarPorId(modelo.id);
   }
@@ -283,7 +306,12 @@ export class ModelosTrilhaService {
 
     const modelo = await this.prisma.modeloTrilha.findFirst({
       where: { trilhaId: categoria.trilhaId, ativo: true },
-      include: { etapas: { orderBy: { ordem: 'asc' } } },
+      include: {
+        etapas: {
+          orderBy: { ordem: 'asc' },
+          include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+        },
+      },
       orderBy: { versao: 'desc' },
     });
 
@@ -333,7 +361,7 @@ export class ModelosTrilhaService {
 
   /** Numera as etapas de 1..N na ordem em que chegaram. */
   private comOrdem(etapas: EtapaModeloDto[]) {
-    return etapas.map((etapa, indice) => ({ ...etapa, ordem: indice + 1 }));
+    return etapas.map((etapa, indice) => paraCriacao(etapa, indice));
   }
 
   /** Marca para o frontend se a versão ainda aceita edição direta. */
@@ -345,4 +373,32 @@ export class ModelosTrilhaService {
       editavel: _count.produtos === 0,
     };
   }
+}
+
+/**
+ * Converte uma etapa do DTO para o `create` aninhado do Prisma.
+ *
+ * As microetapas chegam como lista de strings e viram linhas de
+ * `ModeloMicroEtapa` com a ordem da posição — o mesmo critério da etapa dentro
+ * da trilha. Por isso a criação NÃO pode usar `createMany`: ele não escreve
+ * relação aninhada, e as microetapas sumiriam sem erro.
+ */
+export function paraCriacao(
+  etapa: EtapaModeloDto,
+  indice: number,
+): Prisma.ModeloEtapaCreateWithoutModeloTrilhaInput {
+  const { microEtapas, ...campos } = etapa;
+
+  return {
+    ...campos,
+    ordem: indice + 1,
+    microEtapas: {
+      create: (microEtapas ?? []).map((micro, posicao) => ({
+        nome: micro.nome.trim(),
+        papelResponsavel: micro.papelResponsavel,
+        prazoSlaHoras: micro.prazoSlaHoras,
+        ordem: posicao + 1,
+      })),
+    },
+  };
 }

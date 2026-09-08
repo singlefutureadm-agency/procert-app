@@ -286,8 +286,48 @@ describe('NaoConformidadesService', () => {
       // Resolver a NC não aprova a etapa: ela volta para reavaliação.
       expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledWith({
         where: { id: 10 },
-        data: { status: StatusCertificacao.EM_ANDAMENTO },
+        data: {
+          status: StatusCertificacao.EM_ANDAMENTO,
+          concluidaEm: null,
+        },
       });
+    });
+
+    it('limpa concluidaEm e NÃO toca iniciadaEm', async () => {
+      // Os dois marcos têm naturezas opostas. `concluidaEm` é reversível: uma
+      // etapa devolvida para reavaliação não está concluída, e mantê-lo faria
+      // o quadro afirmar o contrário do que o status diz — estado que a
+      // constraint `ck_certificacao_concluida_em` recusa no banco.
+      // `iniciadaEm` é monotônico: reabrir não reinicia o relógio, senão o
+      // tempo em fila publicado pelo ciclo.service mudaria retroativamente.
+      await servico.avaliar(
+        500,
+        {
+          status: StatusNaoConformidade.RESOLVIDA,
+          parecer: 'Ação corretiva aceita',
+        },
+        admin(),
+      );
+
+      const dados = banco.tx.certificacaoProduto.update.mock.calls[0][0].data;
+      expect(dados.concluidaEm).toBeNull();
+      expect(dados).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('a limpeza sai DENTRO da transação da avaliação', async () => {
+      await servico.avaliar(
+        500,
+        {
+          status: StatusNaoConformidade.RESOLVIDA,
+          parecer: 'Ação corretiva aceita',
+        },
+        admin(),
+      );
+
+      // Fora do commit, uma falha depois deixaria a NC resolvida e a etapa
+      // ainda marcada como concluída.
+      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
+      expect(banco.prisma.certificacaoProduto.update).not.toHaveBeenCalled();
     });
 
     it('a reabertura e o encerramento da NC saem no MESMO commit, com autoria', async () => {

@@ -268,7 +268,19 @@ export class NaoConformidadesService {
 
       await tx.certificacaoProduto.update({
         where: { id: registro.certificacao.id },
-        data: { status: StatusCertificacao.EM_ANDAMENTO },
+        data: {
+          status: StatusCertificacao.EM_ANDAMENTO,
+          // Saída de APROVADO limpa a conclusão — mesma regra de
+          // `marcosDaTransicao`, e aqui ela é incondicional porque este caminho
+          // só produz EM_ANDAMENTO. Sem isto o quadro afirmaria que uma etapa
+          // devolvida para reavaliação está concluída, e a constraint
+          // `ck_certificacao_concluida_em` recusaria a linha.
+          concluidaEm: null,
+          // `iniciadaEm` NÃO é tocado: é monotônico. A etapa reaberta mantém o
+          // início original, então o SLA segue contado desde a primeira entrada
+          // — decisão registrada no schema, pendente de confirmação da
+          // Qualidade.
+        },
       });
 
       await tx.certificacaoHistorico.create({

@@ -152,6 +152,11 @@ const CertificacaoDetalhePage = lazy(() =>
     import('@/features/certificacoes/CertificacaoDetalhePage').then((m) => ({ default: m.CertificacaoDetalhePage })),
   ),
 );
+const QuadroProcessosPage = lazy(() =>
+  pagina(
+    import('@/features/certificacoes/QuadroProcessosPage').then((m) => ({ default: m.QuadroProcessosPage })),
+  ),
+);
 const NaoConformidadesPage = lazy(() =>
   pagina(
     import('@/features/nao-conformidades/NaoConformidadesPage').then((m) => ({ default: m.NaoConformidadesPage })),
@@ -290,6 +295,24 @@ export const router = createBrowserRouter([
 
       // Produtos
       { path: 'produtos', element: <ProdutosPage /> },
+      // Quadro de gestão interna dos processos.
+      //
+      // Vive sob `produtos/` — e não sob `certificacoes/` — porque o Sidebar
+      // marca o ramo ativo por PREFIXO (`naRota`): em `certificacoes/quadro`,
+      // "Acompanhamento" e "Processos" acenderiam ao mesmo tempo, e o menu
+      // passaria a dizer que a pessoa está em dois lugares. A rota da API
+      // continua sendo `GET /certificacoes/quadro`; quem se move é a tela.
+      //
+      // Visão da EQUIPE: o backend devolve 403 para CLIENTE, e este
+      // `RotaProtegida` só evita que ele chegue a uma tela que daria erro.
+      {
+        path: 'produtos/quadro',
+        element: (
+          <RotaProtegida papeis={[...EQUIPE]}>
+            <QuadroProcessosPage />
+          </RotaProtegida>
+        ),
+      },
       {
         path: 'produtos/novo',
         element: (

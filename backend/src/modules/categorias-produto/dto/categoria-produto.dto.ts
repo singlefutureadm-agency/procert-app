@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -20,6 +21,22 @@ export class CriarCategoriaProdutoDto {
   @MinLength(3)
   @MaxLength(120)
   nome!: string;
+
+  @ApiPropertyOptional({
+    example: 'EPI',
+    description:
+      'Abreviação usada no código do processo (PROCERT-<SIGLA>-<NNN>-<AA>). ' +
+      'Sem sigla, os produtos desta categoria nascem sem código de processo — ' +
+      'não é erro, é a escolha entre nenhum identificador e um inventado.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{2,8}$/, {
+    message:
+      'A sigla deve ter de 2 a 8 letras ou números, sem espaço nem pontuação: ' +
+      'ela entra no meio de um código separado por hífen.',
+  })
+  sigla?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

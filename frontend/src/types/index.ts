@@ -93,6 +93,63 @@ export type TipoEtapa =
   | 'DECISAO'
   | 'OUTRO';
 
+/**
+ * Papel FUNCIONAL na execução do processo — de quem é a etapa no fluxo.
+ *
+ * **Não confundir com `Role`.** `Role` (ADMIN/FUNCIONARIO/CLIENTE) decide o que
+ * a pessoa alcança no sistema; este decide quem executa a etapa. Nada aqui
+ * concede ou restringe acesso, e nenhuma tela deve tratá-lo como permissão.
+ */
+export type PapelFuncional =
+  | 'CLIENTE'
+  | 'TECNICO'
+  | 'QUALIDADE'
+  | 'AUDITOR'
+  | 'DIRETORIA';
+
+/** Bloco do pipeline a que a etapa pertence — as colunas do quadro. */
+export type FaseProcesso =
+  | 'ABERTURA'
+  | 'AMOSTRAGEM_AUDITORIA'
+  | 'ENSAIOS_LABORATORIO'
+  | 'ANALISE_PROCESSO'
+  | 'EMISSAO';
+
+/** Por que o processo foi aberto. */
+export type MotivoProcesso =
+  | 'INICIAL'
+  | 'RENOVACAO'
+  | 'RECERTIFICACAO'
+  | 'MANUTENCAO'
+  | 'TRANSFERENCIA'
+  | 'EXTENSAO_ESCOPO';
+
+/**
+ * Item de checklist definido na trilha. É a DEFINIÇÃO — o que se marca é a
+ * cópia que o produto recebe (`MicroEtapaCertificacao`).
+ */
+export interface ModeloMicroEtapa {
+  id: number;
+  nome: string;
+  ordem: number;
+  /** Área do ITEM. `null` = a mesma da etapa, não "ninguém". */
+  papelResponsavel: PapelFuncional | null;
+  /** Prazo do ITEM, em horas. Independente do prazo da etapa. */
+  prazoSlaHoras: number | null;
+}
+
+/** Item de checklist DE UM PRODUTO. É este que se marca. */
+export interface MicroEtapaCertificacao {
+  id: number;
+  nome: string;
+  ordem: number;
+  papelResponsavel: PapelFuncional | null;
+  prazoSlaHoras: number | null;
+  concluida: boolean;
+  concluidaEm: string | null;
+  concluidaPorNome: string | null;
+}
+
 /** Etapa prevista por uma versão de trilha. */
 export interface ModeloEtapa {
   id: number;
@@ -102,8 +159,20 @@ export interface ModeloEtapa {
   ordem: number;
   tipo: TipoEtapa;
   obrigatoria: boolean;
-  prazoSlaDias: number | null;
+  papelResponsavel: PapelFuncional | null;
+  fase: FaseProcesso;
+  /** Prazo alvo em HORAS. Exiba sempre por `formatarPrazoSla`. */
+  prazoSlaHoras: number | null;
   exigeDocumento: boolean;
+  /** Checklist previsto pela trilha. Vazio = etapa sem checklist. */
+  microEtapas: ModeloMicroEtapa[];
+}
+
+/** Um item de checklist na escrita da trilha. */
+export interface MicroEtapaEntrada {
+  nome: string;
+  papelResponsavel?: PapelFuncional;
+  prazoSlaHoras?: number;
 }
 
 /** Payload de escrita de etapa (sem id/ordem: a ordem vem da posição na lista). */
@@ -112,8 +181,12 @@ export interface EtapaModeloEntrada {
   descricao?: string;
   tipo?: TipoEtapa;
   obrigatoria?: boolean;
-  prazoSlaDias?: number;
+  papelResponsavel?: PapelFuncional;
+  fase?: FaseProcesso;
+  prazoSlaHoras?: number;
   exigeDocumento?: boolean;
+  /** Checklist da etapa, na ordem. A ordem vem da posição na lista. */
+  microEtapas?: MicroEtapaEntrada[];
 }
 
 export interface ModeloTrilha {
@@ -121,6 +194,8 @@ export interface ModeloTrilha {
   trilhaId: number;
   versao: number;
   ativo: boolean;
+  /** Padrão do processo: fechar o checklist de uma etapa a aprova sozinha. */
+  aprovacaoAutomatica: boolean;
   vigenteDe: string;
   vigenteAte: string | null;
   criadoEm: string;
@@ -148,6 +223,8 @@ export interface TrilhaVinculada {
 export interface CategoriaProduto {
   id: number;
   nome: string;
+  /** Abreviação usada no código do processo (`PROCERT-<SIGLA>-<NNN>-<AA>`). */
+  sigla: string | null;
   descricao: string | null;
   normaReferencia: string | null;
   validadeMeses: number;
@@ -255,6 +332,14 @@ export interface Produto {
   clienteId: number;
   categoriaId: number;
   modeloTrilhaId: number;
+  /** `PROCERT-EPI-012-26`. Null em produto anterior à mudança e em categoria sem sigla. */
+  codigoProcesso: string | null;
+  motivoProcesso: MotivoProcesso;
+  /**
+   * Aprovação da etapa ao fechar o checklist. `null` = HERDA a versão da
+   * trilha; `true`/`false` sobrepõem só neste processo.
+   */
+  aprovacaoAutomatica: boolean | null;
   nome: string;
   descricao: string | null;
   preco: number;
@@ -264,7 +349,17 @@ export interface Produto {
   atualizadoEm: string;
   cliente: { id: number; nome: string; fotoUrl: string | null };
   categoria: { id: number; nome: string; normaReferencia: string | null };
-  modeloTrilha: { id: number; versao: number; ativo: boolean };
+  /**
+   * A VERSÃO da trilha que o produto carrega como retrato, com a família a que
+   * ela pertence. O `trilha` já vinha do servidor e faltava aqui — sem ele não
+   * havia como linkar do processo para o modelo que o gerou.
+   */
+  modeloTrilha: {
+    id: number;
+    versao: number;
+    ativo: boolean;
+    trilha: { id: number; nome: string };
+  };
   certificacao: Array<{
     id: number;
     /** Posição na trilha do produto. */
@@ -415,7 +510,12 @@ export interface EtapaTimeline {
     tipo: TipoEtapa;
     obrigatoria: boolean;
     exigeDocumento: boolean;
+    papelResponsavel: PapelFuncional | null;
+    fase: FaseProcesso;
+    prazoSlaHoras: number | null;
   };
+  /** Checklist DESTE produto nesta etapa. É o que se marca. */
+  microEtapas: MicroEtapaCertificacao[];
   naoConformidades: NaoConformidade[];
   historico: HistoricoCertificacao[];
 }
@@ -453,6 +553,86 @@ export interface LinhaPainelCertificacao {
   totalEtapas: number;
   etapasAprovadas: number;
   progresso: number;
+}
+
+// ------------------------- Quadro de processos ----------------------------
+
+/**
+ * Semáforo de aging. `null` no cartão concluído — ausência de sinal, que é
+ * diferente de VERDE: verde afirmaria "dentro do prazo", e um processo
+ * encerrado não está dentro nem fora de prazo nenhum.
+ */
+export type SemaforoAging = 'VERDE' | 'AMARELO' | 'VERMELHO';
+
+/** Colunas do quadro: as fases do pipeline, mais a coluna derivada do fim. */
+export type ColunaQuadro = FaseProcesso | 'CONCLUIDO' | 'CANCELADO';
+
+/**
+ * Situação do prazo da etapa atual — TRÊS estados, e a tela precisa dos três.
+ *
+ * `SEM_PRAZO` e `NAO_INICIADA` não são a mesma coisa: a primeira é "não há o
+ * que cobrar", a segunda é "há prazo e ninguém começou" — processo parado na
+ * fila, que é o que o quadro existe para mostrar. Renderizá-los com o mesmo
+ * "—" faz o segundo desaparecer.
+ *
+ * Discriminada por `situacao` para o `switch` da tela ser exaustivo: estado
+ * novo no backend vira erro de type-check aqui, não um cartão em branco.
+ */
+export type SituacaoSla =
+  | { situacao: 'SEM_PRAZO' }
+  | { situacao: 'NAO_INICIADA'; prazoHoras: number }
+  | {
+      situacao: 'EM_CONTAGEM';
+      prazoHoras: number;
+      limiteEm: string;
+      /** Negativo quando o prazo já passou. */
+      horasRestantes: number;
+      estourado: boolean;
+    };
+
+export interface CartaoQuadro {
+  produtoId: number;
+  codigoProcesso: string | null;
+  produto: string;
+  motivoProcesso: MotivoProcesso;
+  cliente: { id: number; nome: string };
+  categoria: { id: number; nome: string };
+  etapaAtual: {
+    id: number;
+    nome: string;
+    status: StatusCertificacao;
+    papelResponsavel: PapelFuncional | null;
+  } | null;
+  totalEtapas: number;
+  etapasAprovadas: number;
+  progresso: number;
+  /**
+   * Dias entre a submissão e hoje — ou entre a submissão e a conclusão, se o
+   * processo terminou. **O relógio para ao concluir**, senão todo processo
+   * antigo viraria vermelho e o semáforo perderia o sentido.
+   */
+  diasEmAberto: number;
+  concluido: boolean;
+  /** Processo interrompido. `null` = em andamento. Precede a fase. */
+  cancelamento: { em: string; motivo: string | null; por: string | null } | null;
+  /** Checklist da ETAPA ATUAL. `total: 0` = etapa sem checklist. */
+  checklist: { concluidas: number; total: number };
+  semaforo: SemaforoAging | null;
+  sla: SituacaoSla;
+  naoConformidadesAbertas: number;
+}
+
+export interface ColunaDoQuadro {
+  fase: ColunaQuadro;
+  /** Contagem REAL da coluna, independente de quantos cartões vieram. */
+  total: number;
+  cartoes: CartaoQuadro[];
+}
+
+export interface QuadroProcessos {
+  colunas: ColunaDoQuadro[];
+  limitePorFase: number;
+  limiares: { amarelo: number; vermelho: number };
 }
 
 export interface MetricasDashboard {

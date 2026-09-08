@@ -60,7 +60,9 @@ export type NomeIcone =
   | 'caixa-vazia'
   | 'elo'
   | 'copiar'
-  | 'interrogacao';
+  | 'interrogacao'
+  | 'lista'
+  | 'quadro';
 
 /*
  * Todos os desenhos vivem na mesma grade 24×24 e são só traço: nenhum usa
@@ -82,6 +84,25 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
       <path d="M9 2h6a1 1 0 0 1 1 1v3H8V3a1 1 0 0 1 1-1z" />
       <path d="M8 12h8" />
       <path d="M8 16h5" />
+    </>
+  ),
+  /* Linhas empilhadas com marcador — a visão de lista das certificações. */
+  lista: (
+    <>
+      <path d="M4 6h.01" />
+      <path d="M4 12h.01" />
+      <path d="M4 18h.01" />
+      <path d="M9 6h11" />
+      <path d="M9 12h11" />
+      <path d="M9 18h11" />
+    </>
+  ),
+  /* Três colunas de alturas diferentes — o quadro por fase. */
+  quadro: (
+    <>
+      <rect x="3" y="4" width="5" height="16" rx="1.5" />
+      <rect x="10" y="4" width="5" height="10" rx="1.5" />
+      <rect x="17" y="4" width="4" height="13" rx="1.5" />
     </>
   ),
   alerta: (

@@ -19,6 +19,7 @@ import {
 } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import type { StatusCertificacao } from '@/types';
+import { AlternarVisaoCertificacoes } from './AlternarVisao';
 import { certificacoesApi, type FiltrosCertificacoes } from './api';
 import { PainelGraficosCertificacoes } from './PainelGraficos';
 
@@ -48,6 +49,8 @@ export function CertificacoesPage() {
             ? 'Situação de cada produto no processo de certificação.'
             : 'Acompanhe o andamento dos seus produtos.'
         }
+        // Só a equipe: o quadro é visão interna e o cliente receberia 403.
+        acoes={equipe ? <AlternarVisaoCertificacoes atual="lista" /> : undefined}
       />
 
       <div className="entre">

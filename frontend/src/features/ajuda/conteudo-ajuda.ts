@@ -193,6 +193,50 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     },
   },
   {
+    // Rota só da equipe (o backend devolve 403 para CLIENTE), então não há
+    // variante `cliente` aqui — e é por isso que ela não existe abaixo.
+    rota: '/produtos/quadro',
+    titulo: 'Quadro de processos',
+    resumo:
+      'Os mesmos processos da lista, organizados nas fases do fluxo: em que bloco cada um está, de quem é a etapa atual e o que está parado há tempo demais.',
+    topicos: [
+      {
+        titulo: 'A coluna é calculada, não escolhida',
+        texto:
+          'Um processo aparece na coluna da fase a que pertence a etapa atual dele. Ninguém posiciona o cartão: mudou a etapa, o cartão muda de coluna sozinho. Por isso não há como arrastar — arrastar criaria uma segunda versão da verdade, que discordaria da trilha na primeira divergência.',
+      },
+      {
+        titulo: 'Para mover um processo, avalie a etapa',
+        texto:
+          'Clicar no cartão abre a linha do tempo do produto. É lá que se aprova ou reprova uma etapa, e é isso que faz o processo avançar de fase.',
+      },
+      {
+        titulo: 'O número no topo da coluna é o total real',
+        texto:
+          'Ele conta todos os processos daquela fase, mesmo quando a coluna mostra só os primeiros. Havendo mais, o rodapé da coluna diz quantos ficaram de fora.',
+      },
+      {
+        titulo: 'A marca de tempo tem dois significados',
+        texto:
+          'Em processo aberto, ela conta os dias desde a submissão e ganha cor conforme o atraso — sempre com o rótulo escrito ao lado, nunca só pela cor. Em processo concluído, ela diz quanto tempo o processo levou no total: o relógio para quando ele termina, senão todo processo antigo apareceria como atrasado.',
+      },
+      {
+        titulo: 'Prazo da etapa: três situações diferentes',
+        texto:
+          'A etapa pode não ter prazo definido; pode ter prazo e ainda não ter começado, que é um processo parado na fila; ou pode estar com o prazo correndo, dentro ou estourado. O rodapé do cartão distingue os três, porque tratá-los igual esconderia justamente o que está parado.',
+      },
+      {
+        titulo: 'O responsável é o papel, não a pessoa',
+        texto:
+          'A etiqueta diz de quem é a etapa no fluxo — Técnico, Qualidade, Auditor, Diretoria ou Cliente. É organização do trabalho: ela não concede nem restringe acesso ao sistema, e quem cadastra isso é a trilha, na tela de Processos.',
+      },
+    ],
+    proximoPasso: {
+      texto: 'Definir fase e responsável das etapas de uma trilha',
+      para: '/trilhas',
+    },
+  },
+  {
     rota: '/certificacoes/produto/:produtoId',
     titulo: 'O processo deste produto',
     resumo:

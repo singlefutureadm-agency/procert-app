@@ -13,6 +13,9 @@ import { autenticar, prisma } from './aplicacao';
 
 export const SENHA = 'Procert@2026';
 
+/** Marco das etapas que o cenário já cria aprovadas. Fixo, para ser reproduzível. */
+const APROVADA_EM = new Date('2026-03-01T12:00:00Z');
+
 /**
  * Tabelas na ordem em que o TRUNCATE precisa acontecer.
  *
@@ -26,8 +29,10 @@ const TABELAS = [
   'nao_conformidades',
   'certificados',
   'pagamentos',
+  'micro_etapas_certificacao',
   'certificacoes_produto',
   'produtos',
+  'modelos_micro_etapa',
   'modelos_etapa',
   'modelos_trilha',
   'categorias_produto',
@@ -195,10 +200,18 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
         nome,
         preco: 1000,
         certificacao: {
+          // `APROVADO` exige `concluidaEm`: é a invariante
+          // `ck_certificacao_concluida_em`, imposta pelo banco. O fixture
+          // escreve direto no Prisma, sem passar pelo service que carimba os
+          // marcos, então eles vêm à mão — e é bom que a constraint cobre
+          // também o caminho de teste, senão a fixture provaria um estado que
+          // produção recusa.
           create: etapas.map((etapa) => ({
             etapaId: etapa.id,
             ordem: etapa.ordem,
             status: StatusCertificacao.APROVADO,
+            iniciadaEm: APROVADA_EM,
+            concluidaEm: APROVADA_EM,
           })),
         },
       },

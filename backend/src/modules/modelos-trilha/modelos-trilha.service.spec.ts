@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { TipoEtapa } from '@prisma/client';
+import { FaseProcesso, PapelFuncional, TipoEtapa } from '@prisma/client';
 
 import { ModelosTrilhaService } from './modelos-trilha.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -23,8 +23,13 @@ const etapaDoModelo = (
   descricao: null,
   tipo: TipoEtapa.DOCUMENTAL,
   obrigatoria: true,
-  prazoSlaDias: null,
+  papelResponsavel: null,
+  fase: FaseProcesso.ABERTURA,
+  prazoSlaHoras: null,
   exigeDocumento: false,
+  // O checklist do catálogo. Vem como linhas de `ModeloMicroEtapa`, e é o que
+  // a cópia para o produto lê.
+  microEtapas: [] as { id: number; nome: string; ordem: number }[],
   ordem,
   ...extra,
 });
@@ -54,7 +59,7 @@ describe('ModelosTrilhaService', () => {
         etapaDoModelo('Análise documental', 1),
         etapaDoModelo('Ensaios laboratoriais', 2, {
           exigeDocumento: true,
-          prazoSlaDias: 15,
+          prazoSlaHoras: 15,
           descricao: 'Laudo do laboratório acreditado',
         }),
       ],
@@ -90,7 +95,7 @@ describe('ModelosTrilhaService', () => {
         expect.objectContaining({
           nome: 'Ensaios laboratoriais',
           exigeDocumento: true,
-          prazoSlaDias: 15,
+          prazoSlaHoras: 15,
           descricao: 'Laudo do laboratório acreditado',
           ordem: 2,
         }),
@@ -99,6 +104,47 @@ describe('ModelosTrilhaService', () => {
       // `ModeloEtapa` próprias, e é por isso que a comparação entre versões é
       // feita por nome em `CertificacoesService`.
       expect(criadas[0]).not.toHaveProperty('id');
+    });
+
+    it('versionar preserva `papelResponsavel` e `fase` das etapas', async () => {
+      // A cópia em `criarVersao` é campo a campo, e campo que ficar de fora
+      // some SEM ERRO: a versão nova nasce com o default do schema
+      // (papel nulo, fase ABERTURA) e a trilha "perde" a configuração em
+      // silêncio. Só se descobre olhando a tela depois de publicar.
+      banco.prisma.modeloTrilha.findFirst.mockResolvedValue({
+        ...vigente,
+        etapas: [
+          etapaDoModelo('Auditoria de fábrica', 1, {
+            papelResponsavel: PapelFuncional.AUDITOR,
+            fase: FaseProcesso.AMOSTRAGEM_AUDITORIA,
+          }),
+          etapaDoModelo('Decisão de certificação', 2, {
+            papelResponsavel: PapelFuncional.DIRETORIA,
+            fase: FaseProcesso.EMISSAO,
+            prazoSlaHoras: 72,
+          }),
+        ],
+      } as never);
+
+      await servico.criarVersao(TRILHA, {});
+
+      const [{ data }] = banco.tx.modeloTrilha.create.mock.calls[0];
+      const criadas = (data.etapas as { create: Array<Record<string, unknown>> })
+        .create;
+
+      expect(criadas).toEqual([
+        expect.objectContaining({
+          nome: 'Auditoria de fábrica',
+          papelResponsavel: PapelFuncional.AUDITOR,
+          fase: FaseProcesso.AMOSTRAGEM_AUDITORIA,
+        }),
+        expect.objectContaining({
+          nome: 'Decisão de certificação',
+          papelResponsavel: PapelFuncional.DIRETORIA,
+          fase: FaseProcesso.EMISSAO,
+          prazoSlaHoras: 72,
+        }),
+      ]);
     });
 
     it('encerra a versão anterior e cria a nova NA MESMA transação', async () => {
@@ -238,7 +284,7 @@ describe('ModelosTrilhaService', () => {
       // Apagar e recriar precisa ser atômico: sem isso, uma falha no meio
       // deixaria a versão sem etapa nenhuma.
       expect(banco.transacoesAbertas).toBe(1);
-      expect(banco.prisma.modeloEtapa.deleteMany).toHaveBeenCalledWith({
+      expect(banco.tx.modeloEtapa.deleteMany).toHaveBeenCalledWith({
         where: { modeloTrilhaId: 90 },
       });
     });
@@ -330,7 +376,14 @@ describe('ModelosTrilhaService', () => {
       // só olhasse o resultado passaria sem provar nada.
       expect(banco.prisma.modeloTrilha.findFirst).toHaveBeenCalledWith({
         where: { trilhaId: TRILHA, ativo: true },
-        include: { etapas: { orderBy: { ordem: 'asc' } } },
+        include: {
+          etapas: {
+            orderBy: { ordem: 'asc' },
+            // O checklist do catálogo vem junto: é ele que é copiado para o
+            // produto na abertura da trilha.
+            include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+          },
+        },
         orderBy: { versao: 'desc' },
       });
     });

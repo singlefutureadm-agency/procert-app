@@ -28,12 +28,16 @@ import { Icone } from '@/components/Icone';
 import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro } from '@/lib/api';
-import { formatarData } from '@/lib/formatadores';
+import { formatarData, formatarPrazoSla } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import type { EtapaModeloEntrada, ModeloEtapa, ModeloTrilha } from '@/types';
 import { modelosTrilhaApi, trilhasApi } from './api';
 import { ModalEtapaModelo } from './ModalEtapaModelo';
-import { ROTULO_TIPO_ETAPA } from './rotulos';
+import {
+  ROTULO_FASE,
+  ROTULO_PAPEL_FUNCIONAL,
+  ROTULO_TIPO_ETAPA,
+} from './rotulos';
 
 function LinhaEtapa({
   etapa,
@@ -109,8 +113,49 @@ function LinhaEtapa({
       <td role="cell" data-rotulo="Tipo" className="texto-suave sem-quebra">
         {ROTULO_TIPO_ETAPA[etapa.tipo] ?? etapa.tipo}
       </td>
+      <td role="cell" data-rotulo="Fase" className="texto-suave sem-quebra">
+        {ROTULO_FASE[etapa.fase] ?? etapa.fase}
+      </td>
+      <td role="cell" data-rotulo="Responsável" className="texto-suave sem-quebra">
+        {etapa.papelResponsavel
+          ? ROTULO_PAPEL_FUNCIONAL[etapa.papelResponsavel]
+          : '—'}
+      </td>
       <td role="cell" data-rotulo="Prazo" className="texto-suave sem-quebra">
-        {etapa.prazoSlaDias ? `${etapa.prazoSlaDias} dia(s)` : '—'}
+        {formatarPrazoSla(etapa.prazoSlaHoras)}
+      </td>
+      {/*
+        Os ITENS, não a contagem. "2 item(ns)" obriga a abrir o modal para saber
+        quais são — e numa versão já em uso não há modal para abrir, porque ela
+        é imutável. A lista é curta por natureza; se fosse longa, seria etapa.
+      */}
+      <td role="cell" data-rotulo="Checklist" className="texto-suave">
+        {etapa.microEtapas.length === 0 ? (
+          '—'
+        ) : (
+          <ol className="etapa__checklist">
+            {etapa.microEtapas.map((micro) => (
+              <li key={micro.id}>
+                {micro.nome}
+                {/* Área e prazo só aparecem quando o item TEM os seus: em
+                    branco, ele segue os da etapa, e repetir isso em cada linha
+                    viraria ruído. */}
+                {(micro.papelResponsavel || micro.prazoSlaHoras) && (
+                  <span className="texto-fraco">
+                    {' — '}
+                    {[
+                      micro.papelResponsavel &&
+                        ROTULO_PAPEL_FUNCIONAL[micro.papelResponsavel],
+                      micro.prazoSlaHoras && formatarPrazoSla(micro.prazoSlaHoras),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
       </td>
       <td role="cell" data-rotulo="Regras">
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -274,14 +319,27 @@ export function TrilhaDetalhePage() {
   /** Nenhuma versão ainda: o botão cria a v1, não uma "nova versão". */
   const semVersao = !versoes.isLoading && (versoes.data?.length ?? 0) === 0;
 
+  /**
+   * Cópia campo a campo, e por isso frágil: campo novo em `ModeloEtapa` que não
+   * seja acrescentado AQUI é perdido em toda reordenação e em todo salvamento
+   * da lista — a etapa volta com o default e ninguém vê erro. É o mesmo
+   * cuidado que `criarVersao` e `paraEntrada()` exigem no backend.
+   */
   function paraEntrada(lista: ModeloEtapa[]): EtapaModeloEntrada[] {
     return lista.map((etapa) => ({
       nome: etapa.nome,
       descricao: etapa.descricao ?? undefined,
       tipo: etapa.tipo,
       obrigatoria: etapa.obrigatoria,
-      prazoSlaDias: etapa.prazoSlaDias ?? undefined,
+      papelResponsavel: etapa.papelResponsavel ?? undefined,
+      fase: etapa.fase,
+      prazoSlaHoras: etapa.prazoSlaHoras ?? undefined,
       exigeDocumento: etapa.exigeDocumento,
+      microEtapas: etapa.microEtapas.map((micro) => ({
+        nome: micro.nome,
+        papelResponsavel: micro.papelResponsavel ?? undefined,
+        prazoSlaHoras: micro.prazoSlaHoras ?? undefined,
+      })),
     }));
   }
 
@@ -537,7 +595,10 @@ export function TrilhaDetalhePage() {
                     <th role="columnheader">Ordem</th>
                     <th role="columnheader">Etapa</th>
                     <th role="columnheader">Tipo</th>
+                    <th role="columnheader">Fase</th>
+                    <th role="columnheader">Responsável</th>
                     <th role="columnheader">Prazo</th>
+                    <th role="columnheader">Checklist</th>
                     <th role="columnheader">Regras</th>
                     <th role="columnheader" className="texto-direita">
                       Ações

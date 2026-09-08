@@ -457,6 +457,62 @@ O e-mail do cliente **não entra** nos `SELECT_*` dos services: cada `avisar*`
 faz a consulta própria. Acrescentá-lo ao select mudaria o corpo devolvido por
 todos os endpoints do domínio.
 
+### Quadro de processos — fase, papel funcional e checklist
+
+Camada acrescentada em 05–08/09/2026 a partir do levantamento do quadro Trello
+que a operação usava em paralelo. Quatro conceitos novos, e três armadilhas.
+
+```
+ModeloEtapa ──1:N──► ModeloMicroEtapa        (definição, imutável com a versão)
+     │                       │
+     │ abertura da trilha    │ cópia
+     ▼                       ▼
+CertificacaoProduto ──1:N──► MicroEtapaCertificacao   (é o que se marca)
+```
+
+**`PapelFuncional` NÃO é `Role`. Nunca cruze os dois.** `Role`
+(ADMIN/FUNCIONARIO/CLIENTE) decide o que a pessoa alcança no sistema;
+`PapelFuncional` (CLIENTE/TECNICO/QUALIDADE/AUDITOR/DIRETORIA) decide de quem é
+a etapa no fluxo. São eixos independentes — o mesmo FUNCIONARIO é TECNICO num
+processo e QUALIDADE em outro. **Nenhum guard lê `papelResponsavel`**, e ligá-lo
+a autorização transformaria escala de trabalho em concessão de acesso.
+
+**A fase é DERIVADA da etapa atual, nunca gravada em `Produto`.** No Trello, a
+posição da lista e o progresso do checklist eram duas fontes mantidas à mão, e
+divergiam. A coluna do quadro sai da etapa atual pela mesma regra de
+`listarPainel` — 1ª `EM_ANDAMENTO`, senão 1ª `PENDENTE`, senão a última. Essa
+regra está em **`etapaAtualDe()`** (TS) e repetida no `DISTINCT ON` do
+`quadro.service` (SQL); eram três cópias, e a terceira já causou um defeito.
+O arrastar-e-soltar **escreve etapa**, não posição: `moverParaFase` marca a
+primeira etapa não aprovada da fase e não aprova nada.
+
+**`iniciadaEm` e `concluidaEm` são CACHE do histórico, com naturezas opostas.**
+`CertificacaoHistorico` continua a fonte — `relatorios/ciclo.service.ts` deriva
+dele e não lê essas colunas. `iniciadaEm` é **monotônico** (grava só quando
+null); `concluidaEm` é **reversível** (grava ao aprovar, limpa em toda saída de
+`APROVADO`, e é MAX, não MIN). A invariante
+`(status = 'APROVADO') = (concluida_em IS NOT NULL)` é imposta pelo banco em
+`ck_certificacao_concluida_em`.
+
+**Aprovação automática tem três estados, não dois.** `ModeloTrilha.
+aprovacaoAutomatica` é o padrão do processo; `Produto.aprovacaoAutomatica` é
+`Boolean?` e o **`null` significa "herda", não "não"**. Quem resolve os dois é
+`aprovacaoAutomaticaDoProduto()` — nenhum lugar deve ler o campo cru. Fechar o
+checklist aprova a etapa **como efeito do ATO de marcar**, nunca como estado
+derivado: derivado, uma NC resolvida (que devolve a etapa a `EM_ANDAMENTO` com
+os itens ainda marcados) se reaprovaria sozinha. E a automação **não contorna
+`exigeDocumento`**.
+
+**Cancelar não é desativar.** `Produto.canceladoEm` é desfecho do processo e o
+mantém visível na coluna própria; `status: INATIVO` é soft delete do cadastro.
+As etapas ficam como pararam.
+
+> **Ao copiar etapa, o `microEtapas` viaja junto.** `criarVersao`,
+> `paraEntrada()` (backend e frontend) e a abertura da trilha copiam campo a
+> campo — campo novo que ficar de fora some em silêncio. Já mordeu quatro vezes.
+> E **`createMany` não escreve relação aninhada**: a criação de etapa e de
+> certificação usa `create` em laço dentro da transação, de propósito.
+
 ### Certificado
 
 - Emissão exige **todas as etapas obrigatórias** aprovadas — opcionais pendentes não
@@ -1197,3 +1253,13 @@ tratado, lembre que remover num commit novo não limpa o histórico.
   Útil ao encontrar um comentário citando o legado.
 - **`README.md`** — guia de subida, incluindo como rodar o e2e. Está correto e alinhado
   com o repositório desde 19/08/2026.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

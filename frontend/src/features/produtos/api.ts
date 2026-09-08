@@ -15,6 +15,12 @@ export interface DadosProduto {
   nome: string;
   descricao?: string;
   preco?: number;
+  /**
+   * Aprovação da etapa ao fechar o checklist. `null` = HERDA a versão da
+   * trilha; `true`/`false` sobrepõem só neste processo. Os três estados são
+   * distintos: "herda" não é "manual".
+   */
+  aprovacaoAutomatica?: boolean | null;
 }
 
 /** A categoria só entra na criação: é ela que define a trilha aberta. */

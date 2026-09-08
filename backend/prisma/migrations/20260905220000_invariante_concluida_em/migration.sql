@@ -1,0 +1,54 @@
+-- A invariante de `concluida_em`, no banco.
+--
+--   status = 'APROVADO'  ⟺  concluida_em IS NOT NULL
+--
+-- ORDEM IMPORTA, e esta migration é deliberadamente a ÚLTIMA das três: ela só
+-- entra depois que os caminhos de escrita foram cobertos e estão verdes
+-- (`CertificacoesService.salvar()` e `NaoConformidadesService.avaliar()`, mais
+-- os specs de cada um). Com um caminho descoberto, isto não é uma guarda: é um
+-- 500 em produção no meio de uma avaliação técnica.
+--
+-- Se um teste falhar quando esta constraint entrar, o defeito é o CAMINHO, não
+-- a constraint. Não a afrouxe — o estado que ela recusa é o quadro afirmando
+-- que uma etapa está concluída enquanto o status diz que não está, e esse
+-- estado não gera erro em lugar nenhum: só um prazo errado na tela.
+--
+-- Os caminhos que criam linha (`produtos.service` ao abrir a trilha,
+-- `certificacoes.service` em `reiniciar` e na migração de versão) nascem
+-- PENDENTE com os dois marcos nulos, e satisfazem a invariante por construção.
+--
+-- Prisma Migrate não conhece CHECK constraints declaradas assim: elas não
+-- aparecem no `schema.prisma` e o `migrate diff` não as vê. Banco recriado do
+-- zero por `migrate deploy` reaplica esta migration normalmente — mas um
+-- `db push` a partir do schema NÃO a recria. Mesma nota que vale para o RLS,
+-- em DEPLOY.md §5.
+-- ============================================================================
+-- CORRIGIDO ANTES DO PRIMEIRO DEPLOY — leia antes de mexer.
+--
+-- Esta migration adicionava a constraint JÁ VALIDADA. Passava no banco de
+-- desenvolvimento, onde todo dado nasceu pelo app e tem histórico completo, e
+-- **quebraria o `migrate deploy` em produção**: lá existem etapas migradas do
+-- PHP legado que estão APROVADO sem nenhuma transição em
+-- `certificacoes_historico`, e para essas o backfill de 20260905210000 deixa
+-- `concluida_em` nulo. A constraint recusaria a linha, o deploy abortaria no
+-- meio, e as migrations anteriores já estariam commitadas.
+--
+-- O saneamento existe — em `20260905230000_saneia_marcos_para_a_invariante` —
+-- mas roda DEPOIS desta, pela ordem do nome. Ordem errada.
+--
+-- Reproduzido num banco descartável com uma linha no formato do legado:
+--   ERROR: check constraint "ck_certificacao_concluida_em"
+--          of relation "certificacoes_produto" is violated by some row
+--
+-- Correção: `NOT VALID`. A constraint passa a valer para toda escrita NOVA sem
+-- olhar as linhas existentes — então esta migration não pode mais falhar por
+-- causa de dado antigo. Quem sanea e depois VALIDA as linhas existentes é a
+-- 20260905230000, que já fazia as duas coisas.
+--
+-- A janela entre as duas migrations é o único momento em que uma linha legada
+-- fora da invariante sobrevive, e nesse intervalo nenhum código roda.
+-- ============================================================================
+ALTER TABLE "certificacoes_produto"
+  ADD CONSTRAINT "ck_certificacao_concluida_em"
+  CHECK (("status" = 'APROVADO') = ("concluida_em" IS NOT NULL))
+  NOT VALID;

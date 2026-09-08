@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { StatusCertificacao, TipoEtapa } from '@prisma/client';
+import { FaseProcesso, StatusCertificacao, TipoEtapa } from '@prisma/client';
 import { mockDeep } from 'jest-mock-extended';
 
 import { CertificacoesService } from './certificacoes.service';
@@ -198,6 +198,498 @@ describe('CertificacoesService', () => {
 
       expect(banco.tx.certificacaoHistorico.create).toHaveBeenCalledTimes(1);
       expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * O arrastar-e-soltar do quadro. Escreve ETAPA, não posição — a coluna
+   * continua derivada, e é isso que impede a segunda fonte de verdade que o
+   * quadro Trello tinha.
+   */
+  describe('moverParaFase — o arrastar do quadro', () => {
+    const trilha = (
+      etapas: Array<{
+        id: number;
+        ordem: number;
+        status: StatusCertificacao;
+        fase: FaseProcesso;
+        nome?: string;
+      }>,
+    ) =>
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapas.map((e) => ({
+          id: e.id,
+          ordem: e.ordem,
+          status: e.status,
+          iniciadaEm: null,
+          etapa: { nome: e.nome ?? `Etapa ${e.ordem}`, fase: e.fase },
+        })) as never,
+      );
+
+    it('marca EM_ANDAMENTO a primeira etapa não aprovada da fase', async () => {
+      trilha([
+        { id: 1, ordem: 1, status: StatusCertificacao.PENDENTE, fase: 'ABERTURA' },
+        {
+          id: 2,
+          ordem: 2,
+          status: StatusCertificacao.PENDENTE,
+          fase: FaseProcesso.ENSAIOS_LABORATORIO,
+          nome: 'Ensaios',
+        },
+      ]);
+
+      const resultado = await servico.moverParaFase(
+        1,
+        FaseProcesso.ENSAIOS_LABORATORIO,
+        admin(),
+      );
+
+      expect(resultado.movido).toBe(true);
+      const dados = banco.tx.certificacaoProduto.update.mock.calls[0][0];
+      expect(dados.where).toEqual({ id: 2 });
+      expect(dados.data.status).toBe(StatusCertificacao.EM_ANDAMENTO);
+    });
+
+    it('NÃO aprova as etapas anteriores ao pular fases', async () => {
+      // O ponto mais importante: arrastar é reposicionar trabalho, não
+      // declarar que ele foi feito. Aprovação exige evidência e autoria.
+      trilha([
+        { id: 1, ordem: 1, status: StatusCertificacao.PENDENTE, fase: 'ABERTURA' },
+        {
+          id: 2,
+          ordem: 2,
+          status: StatusCertificacao.PENDENTE,
+          fase: FaseProcesso.EMISSAO,
+        },
+      ]);
+
+      await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
+
+      const aprovacoes = banco.tx.certificacaoProduto.update.mock.calls.filter(
+        ([chamada]) => chamada.data.status === StatusCertificacao.APROVADO,
+      );
+      expect(aprovacoes).toHaveLength(0);
+    });
+
+    it('devolve à fila a etapa que estava EM_ANDAMENTO antes do destino', async () => {
+      // Sem isto a derivação continuaria escolhendo a primeira EM_ANDAMENTO e
+      // o cartão não sairia do lugar — o arrasto pareceria não ter funcionado.
+      trilha([
+        {
+          id: 1,
+          ordem: 1,
+          status: StatusCertificacao.EM_ANDAMENTO,
+          fase: 'ABERTURA',
+        },
+        {
+          id: 2,
+          ordem: 2,
+          status: StatusCertificacao.PENDENTE,
+          fase: FaseProcesso.EMISSAO,
+        },
+      ]);
+
+      await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
+
+      const devolucao = banco.tx.certificacaoProduto.update.mock.calls.find(
+        ([chamada]) => chamada.where.id === 1,
+      );
+      expect(devolucao![0].data.status).toBe(StatusCertificacao.PENDENTE);
+    });
+
+    it('não desfaz etapa APROVADA que ficou para trás', async () => {
+      // Aprovada guarda decisão tomada, com evidência e autoria. Um arrasto
+      // não pode apagar isso.
+      trilha([
+        {
+          id: 1,
+          ordem: 1,
+          status: StatusCertificacao.APROVADO,
+          fase: 'ABERTURA',
+        },
+        {
+          id: 2,
+          ordem: 2,
+          status: StatusCertificacao.PENDENTE,
+          fase: FaseProcesso.EMISSAO,
+        },
+      ]);
+
+      await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
+
+      const tocouNaAprovada =
+        banco.tx.certificacaoProduto.update.mock.calls.some(
+          ([chamada]) => chamada.where.id === 1,
+        );
+      expect(tocouNaAprovada).toBe(false);
+    });
+
+    it('recusa fase que a trilha do produto não tem', async () => {
+      trilha([
+        { id: 1, ordem: 1, status: StatusCertificacao.PENDENTE, fase: 'ABERTURA' },
+      ]);
+
+      await expect(
+        servico.moverParaFase(1, FaseProcesso.EMISSAO, admin()),
+      ).rejects.toThrow(BadRequestException);
+      expect(banco.transacoesAbertas).toBe(0);
+    });
+
+    it('recusa quando todas as etapas da fase já foram aprovadas', async () => {
+      trilha([
+        {
+          id: 1,
+          ordem: 1,
+          status: StatusCertificacao.APROVADO,
+          fase: FaseProcesso.EMISSAO,
+        },
+      ]);
+
+      await expect(
+        servico.moverParaFase(1, FaseProcesso.EMISSAO, admin()),
+      ).rejects.toThrow(/arrastar não desfaz aprovação/);
+    });
+
+    it('VOLTAR para a fase de onde se saiu funciona', async () => {
+      /*
+       * O defeito relatado, e a razão de o no-op olhar para a fase DERIVADA e
+       * não para o status da etapa de destino.
+       *
+       * Estado: duas etapas EM_ANDAMENTO — a trilha não é sequencial e
+       * `salvar()` aceita lote, então isso é legítimo. A derivação escolhe a
+       * PRIMEIRA (ordem 2), logo o cartão está em AMOSTRAGEM. Mas a etapa de
+       * destino em ENSAIOS (ordem 3) também está EM_ANDAMENTO — e a versão
+       * anterior recusava com "já está nesta fase" um processo que estava em
+       * outra.
+       */
+      trilha([
+        {
+          id: 1,
+          ordem: 1,
+          status: StatusCertificacao.APROVADO,
+          fase: 'ABERTURA',
+        },
+        {
+          id: 2,
+          ordem: 2,
+          status: StatusCertificacao.EM_ANDAMENTO,
+          fase: FaseProcesso.AMOSTRAGEM_AUDITORIA,
+        },
+        {
+          id: 3,
+          ordem: 3,
+          status: StatusCertificacao.EM_ANDAMENTO,
+          fase: FaseProcesso.ENSAIOS_LABORATORIO,
+        },
+      ]);
+
+      const resultado = await servico.moverParaFase(
+        1,
+        FaseProcesso.ENSAIOS_LABORATORIO,
+        admin(),
+      );
+
+      expect(resultado.movido).toBe(true);
+
+      // O movimento inteiro é devolver a anterior à fila: assim a primeira
+      // EM_ANDAMENTO passa a ser a de ENSAIOS e o cartão muda de coluna.
+      const devolucao = banco.tx.certificacaoProduto.update.mock.calls.find(
+        ([chamada]) => chamada.where.id === 2,
+      );
+      expect(devolucao![0].data.status).toBe(StatusCertificacao.PENDENTE);
+
+      // E a de destino NÃO é regravada: ela já estava em andamento, e uma
+      // linha de histórico ali afirmaria uma transição que não houve.
+      const regravouDestino =
+        banco.tx.certificacaoProduto.update.mock.calls.some(
+          ([chamada]) => chamada.where.id === 3,
+        );
+      expect(regravouDestino).toBe(false);
+    });
+
+    it('mover para a fase em que já está é no-op', async () => {
+      trilha([
+        {
+          id: 1,
+          ordem: 1,
+          status: StatusCertificacao.EM_ANDAMENTO,
+          fase: FaseProcesso.EMISSAO,
+        },
+      ]);
+
+      const resultado = await servico.moverParaFase(
+        1,
+        FaseProcesso.EMISSAO,
+        admin(),
+      );
+
+      expect(resultado.movido).toBe(false);
+      expect(banco.transacoesAbertas).toBe(0);
+    });
+
+    it('CLIENTE não movimenta processo', async () => {
+      await expect(
+        servico.moverParaFase(1, FaseProcesso.EMISSAO, cliente()),
+      ).rejects.toThrow(ForbiddenException);
+      expect(banco.prisma.certificacaoProduto.findMany).not.toHaveBeenCalled();
+    });
+
+    it('o movimento entra no histórico com autoria da sessão', async () => {
+      // Duas etapas: o processo está em ABERTURA (1ª PENDENTE) e vai para
+      // EMISSAO. Com uma etapa só, ele já estaria no destino e o movimento
+      // seria — corretamente — um no-op.
+      trilha([
+        { id: 1, ordem: 1, status: StatusCertificacao.PENDENTE, fase: 'ABERTURA' },
+        {
+          id: 2,
+          ordem: 2,
+          status: StatusCertificacao.PENDENTE,
+          fase: FaseProcesso.EMISSAO,
+        },
+      ]);
+
+      await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
+
+      const historico = banco.tx.certificacaoHistorico.create.mock.calls[0][0].data;
+      expect(historico.alteradoPorNome).toBe('Ana Administradora');
+      expect(historico.statusNovo).toBe(StatusCertificacao.EM_ANDAMENTO);
+    });
+  });
+
+  /**
+   * `iniciadaEm` e `concluidaEm` são cache do que o histórico já sabe, e têm
+   * naturezas OPOSTAS: o primeiro é monotônico (nunca se move), o segundo é
+   * reversível (some quando a etapa sai de APROVADO). Tratar os dois com a
+   * mesma regra quebra um deles, e nenhum dos dois defeitos lança exceção —
+   * o quadro simplesmente exibe um prazo errado.
+   */
+  describe('salvar — marcos de iniciadaEm e concluidaEm', () => {
+    const etapaEm = (
+      status: StatusCertificacao,
+      iniciadaEm: Date | null = null,
+    ) => [
+      {
+        id: 10,
+        status,
+        observacao: null,
+        iniciadaEm,
+        etapa: { nome: 'Análise documental' },
+      },
+    ];
+
+    /** Os dados do único `certificacaoProduto.update` da transação. */
+    const dadosDoUpdate = () =>
+      banco.tx.certificacaoProduto.update.mock.calls[0][0].data;
+
+    it('1ª saída de PENDENTE grava iniciadaEm', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.PENDENTE) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.EM_ANDAMENTO }] },
+        admin(),
+      );
+
+      expect(dadosDoUpdate().iniciadaEm).toBeInstanceOf(Date);
+      // Não aprovou: não há conclusão a gravar nem a limpar.
+      expect(dadosDoUpdate()).not.toHaveProperty('concluidaEm');
+    });
+
+    it('aprovar grava concluidaEm', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.EM_ANDAMENTO, new Date('2026-08-01')) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      expect(dadosDoUpdate().concluidaEm).toBeInstanceOf(Date);
+      // iniciadaEm já tinha valor: monotônico, não se toca.
+      expect(dadosDoUpdate()).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('reprovar uma etapa aprovada LIMPA concluidaEm', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.REPROVADO }] },
+        admin(),
+      );
+
+      // null explícito, não ausência: o campo precisa VOLTAR a vazio.
+      expect(dadosDoUpdate().concluidaEm).toBeNull();
+      expect(dadosDoUpdate()).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('voltar de APROVADO para EM_ANDAMENTO também limpa', async () => {
+      // O gatilho é SAIR de APROVADO, não o motivo da saída.
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.EM_ANDAMENTO }] },
+        admin(),
+      );
+
+      expect(dadosDoUpdate().concluidaEm).toBeNull();
+    });
+
+    it('2ª aprovação sobrescreve concluidaEm e não toca iniciadaEm', async () => {
+      // É o caso que obrigou o backfill a usar MAX: a conclusão vigente é a
+      // última aprovação, não a primeira.
+      const inicioOriginal = new Date('2026-07-15T10:00:00Z');
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.EM_ANDAMENTO, inicioOriginal) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      const dados = dadosDoUpdate();
+      expect(dados.concluidaEm).toBeInstanceOf(Date);
+      expect((dados.concluidaEm as Date).getTime()).toBeGreaterThan(
+        inicioOriginal.getTime(),
+      );
+      expect(dados).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('etapa reaberta mantém o início ORIGINAL ao ser retrabalhada', async () => {
+      // Monotônico: sair de PENDENTE de novo não reinicia o relógio. Se
+      // reiniciasse, o tempo em fila do ciclo.service mudaria retroativamente.
+      const inicioOriginal = new Date('2026-06-01T08:00:00Z');
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.PENDENTE, inicioOriginal) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.EM_ANDAMENTO }] },
+        admin(),
+      );
+
+      expect(dadosDoUpdate()).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('etapa EM_ANDAMENTO sem iniciadaEm se autocorrige ao ser aprovada', async () => {
+      // Estado ABSORVENTE que a primeira versão criava: a condição exigia
+      // "está saindo de PENDENTE agora", então uma etapa migrada do legado —
+      // que chegou EM_ANDAMENTO sem histórico de transição — nunca mais
+      // receberia início, e ficaria sem SLA para sempre, sem erro nenhum.
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.EM_ANDAMENTO, null) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      const dados = dadosDoUpdate();
+      expect(dados.iniciadaEm).toBeInstanceOf(Date);
+      expect(dados.concluidaEm).toBeInstanceOf(Date);
+    });
+
+    it('voltar para PENDENTE não inventa um início', async () => {
+      // A correção acima não pode virar "grava em qualquer transição": uma
+      // etapa devolvida para a fila não começou.
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.EM_ANDAMENTO, null) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.PENDENTE }] },
+        admin(),
+      );
+
+      expect(dadosDoUpdate()).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('no-op não move marco nenhum', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+    });
+
+    it('editar só a observação de etapa aprovada não empurra concluidaEm', async () => {
+      // Mesmo viés que o `statusAnterior <> statusNovo` do ciclo.service
+      // descarta: um anexo ou correção de texto posterior à aprovação não pode
+      // mover a data em que a etapa ficou pronta.
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
+      );
+
+      await servico.salvar(
+        1,
+        {
+          etapas: [
+            {
+              id: 10,
+              status: StatusCertificacao.APROVADO,
+              observacao: 'Laudo revisado',
+            },
+          ],
+        },
+        admin(),
+      );
+
+      const dados = dadosDoUpdate();
+      expect(dados).not.toHaveProperty('concluidaEm');
+      expect(dados).not.toHaveProperty('iniciadaEm');
+    });
+
+    it('aprovação direta grava os dois marcos de uma vez', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.PENDENTE) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      const dados = dadosDoUpdate();
+      expect(dados.iniciadaEm).toBeInstanceOf(Date);
+      expect(dados.concluidaEm).toBeInstanceOf(Date);
+    });
+
+    it('grava os marcos DENTRO da transação, não fora dela', async () => {
+      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+        etapaEm(StatusCertificacao.PENDENTE) as never,
+      );
+
+      await servico.salvar(
+        1,
+        { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] },
+        admin(),
+      );
+
+      // `tx` é um cliente separado no mock: assertar aqui prova o commit.
+      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
+      expect(banco.prisma.certificacaoProduto.update).not.toHaveBeenCalled();
     });
   });
 

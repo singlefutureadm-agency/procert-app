@@ -145,35 +145,168 @@ export class ProdutosService {
       dto.categoriaId,
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      const produto = await tx.produto.create({
-        data: {
-          clienteId: dto.clienteId,
-          categoriaId: dto.categoriaId,
-          modeloTrilhaId: modelo.id,
-          nome: dto.nome,
-          descricao: dto.descricao,
-          preco: dto.preco ?? 0,
-        },
-      });
+    // O código do processo é sequencial por ano e derivado do MAIOR do ano, o
+    // que abre uma corrida entre duas aberturas simultâneas: as duas leem o
+    // mesmo máximo e tentam gravar o mesmo número. Quem decide é o índice
+    // único de `codigo_processo`; aqui a perdedora tenta de novo em vez de
+    // devolver 409 para quem só estava cadastrando um produto.
+    return this.comRetryDeCodigo(async () => {
+      const codigoProcesso = await this.gerarCodigoProcesso(categoria.sigla);
 
-      await tx.certificacaoProduto.createMany({
-        data: modelo.etapas.map((etapa) => ({
-          produtoId: produto.id,
-          etapaId: etapa.id,
-          // A trilha do produto nasce com a ordem do modelo; daí em diante ela
-          // é dele, e sobrevive a mudanças de versão.
-          ordem: etapa.ordem,
-          status: StatusCertificacao.PENDENTE,
-          observacao: 'Etapa pendente',
-        })),
-      });
+      return this.prisma.$transaction(async (tx) => {
+        const produto = await tx.produto.create({
+          data: {
+            clienteId: dto.clienteId,
+            categoriaId: dto.categoriaId,
+            modeloTrilhaId: modelo.id,
+            codigoProcesso,
+            motivoProcesso: dto.motivoProcesso,
+            aprovacaoAutomatica: dto.aprovacaoAutomatica,
+            nome: dto.nome,
+            descricao: dto.descricao,
+            preco: dto.preco ?? 0,
+          },
+        });
 
-      return tx.produto.findUniqueOrThrow({
-        where: { id: produto.id },
-        include: INCLUDE_PRODUTO,
+        // `create` por etapa, não `createMany`: as microetapas são relação
+        // aninhada e o `createMany` as descartaria sem erro — o produto nasceria
+        // com a trilha certa e as checklists vazias.
+        for (const etapa of modelo.etapas) {
+          await tx.certificacaoProduto.create({
+            data: {
+              produtoId: produto.id,
+              etapaId: etapa.id,
+              // A trilha do produto nasce com a ordem do modelo; daí em diante
+              // ela é dele, e sobrevive a mudanças de versão.
+              ordem: etapa.ordem,
+              status: StatusCertificacao.PENDENTE,
+              observacao: 'Etapa pendente',
+              // Cópia do checklist do catálogo. O `nome` é copiado (e não lido
+              // por FK) para que o texto que a pessoa marcou sobreviva a
+              // qualquer mudança futura no catálogo.
+              microEtapas: {
+                create: etapa.microEtapas.map((micro) => ({
+                  modeloMicroEtapaId: micro.id,
+                  nome: micro.nome,
+                  papelResponsavel: micro.papelResponsavel,
+                  prazoSlaHoras: micro.prazoSlaHoras,
+                  ordem: micro.ordem,
+                })),
+              },
+            },
+          });
+        }
+
+        return tx.produto.findUniqueOrThrow({
+          where: { id: produto.id },
+          include: INCLUDE_PRODUTO,
+        });
       });
     });
+  }
+
+  /**
+   * Próximo código do processo: `PROCERT-<SIGLA>-<NNN>-<AA>`.
+   *
+   * Derivado do MAIOR número do ano, nunca de `COUNT`: contar linhas reemite um
+   * número já usado assim que um produto é excluído, e dois processos com o
+   * mesmo código é exatamente o que a operação não pode ter. Mesma estratégia
+   * de `NaoConformidade.codigo` e `Certificado.numero`.
+   *
+   * O sequencial é por SIGLA e por ano — `PROCERT-EPI-012-26` e
+   * `PROCERT-VOL-012-26` convivem, porque é assim que a operação já numera.
+   *
+   * **O máximo sai de `MAX(número extraído)`, não de `ORDER BY codigo DESC`.**
+   * Ordenação de texto só coincide com ordenação numérica enquanto a largura é
+   * fixa, e `padStart(3, '0')` a garante apenas até 999. Com `-1000-` na base,
+   * o maior lexicográfico volta a ser `...-999-`, o próximo código sairia
+   * `1000` de novo e colidiria com um já emitido. Por isso o `$queryRaw`: o
+   * `orderBy` do Prisma não ordena por expressão, e trocar de ferramenta é mais
+   * barato que uma colisão de identificador que circula fora do sistema.
+   *
+   * O código passou a ter largura MÍNIMA de 3 (não fixa): `001`..`999` e depois
+   * `1000` em diante, que é como um contador se comporta quando estoura a
+   * casa reservada.
+   *
+   * Categoria sem sigla devolve `null` e o produto nasce sem código, sem erro:
+   * é preferível a um processo com identificador inventado. A tela mostra "—".
+   */
+  private async gerarCodigoProcesso(
+    sigla: string | null,
+  ): Promise<string | null> {
+    if (!sigla) return null;
+
+    const ano = new Date().getFullYear();
+    const sufixo = `-${String(ano).slice(-2)}`;
+    const prefixo = `PROCERT-${sigla.toUpperCase()}-`;
+
+    // O miolo entre o prefixo e o sufixo é o sequencial. `NULLIF` +
+    // `~ '^[0-9]+$'` descartam qualquer linha cujo miolo não seja numérico —
+    // um código digitado à mão fora do padrão não pode derrubar a geração.
+    //
+    // Os `::int` nos parâmetros NÃO são decoração: o Prisma envia número de JS
+    // como `bigint`, e o Postgres não tem `substring(varchar, bigint, bigint)`
+    // — a consulta falha com 42883 em execução. O type-check não vê, e o spec
+    // com `$queryRaw` mockado também não: só rodar contra o banco pega.
+    const inicio = prefixo.length + 1;
+    const descontar = prefixo.length + sufixo.length;
+
+    const [{ maximo }] = await this.prisma.$queryRaw<
+      [{ maximo: number | null }]
+    >(Prisma.sql`
+      SELECT MAX(
+               NULLIF(
+                 SUBSTRING(
+                   codigo_processo
+                   FROM ${inicio}::int
+                   FOR  (LENGTH(codigo_processo) - ${descontar}::int)
+                 ),
+                 ''
+               )::bigint
+             )::int AS maximo
+      FROM produtos
+      WHERE codigo_processo LIKE ${prefixo + '%' + sufixo}
+        AND SUBSTRING(
+              codigo_processo
+              FROM ${inicio}::int
+              FOR  (LENGTH(codigo_processo) - ${descontar}::int)
+            ) ~ '^[0-9]+$'
+    `);
+
+    const sequencial = (maximo ?? 0) + 1;
+
+    return `${prefixo}${String(sequencial).padStart(3, '0')}${sufixo}`;
+  }
+
+  /**
+   * Repete a operação quando o índice único do código acusa uma corrida.
+   *
+   * `nao-conformidades` e `certificados` têm a MESMA corrida e NÃO têm este
+   * tratamento: lá a perdedora vira 409 genérico e a pessoa refaz à mão. Não
+   * foram corrigidos nesta entrega de propósito — são outros módulos, com
+   * specs próprios, e mudar o comportamento de erro deles é entrega própria.
+   * Registrado em DOCUMENTACAO.md §15, em "`nao-conformidades`: a corrida do
+   * sequencial não tem retry".
+   *
+   * Três tentativas: a corrida exige duas aberturas no mesmo instante, e cada
+   * repetição lê um máximo novo. Esgotadas, o P2002 sobe e o filtro global o
+   * traduz para 409 — que é o comportamento de hoje, não uma regressão.
+   */
+  private async comRetryDeCodigo<T>(operacao: () => Promise<T>): Promise<T> {
+    const TENTATIVAS = 3;
+
+    for (let tentativa = 1; ; tentativa += 1) {
+      try {
+        return await operacao();
+      } catch (erro) {
+        const colisaoDeCodigo =
+          erro instanceof Prisma.PrismaClientKnownRequestError &&
+          erro.code === 'P2002' &&
+          String(erro.meta?.target ?? '').includes('codigo_processo');
+
+        if (!colisaoDeCodigo || tentativa >= TENTATIVAS) throw erro;
+      }
+    }
   }
 
   async atualizar(id: number, dto: AtualizarProdutoDto) {

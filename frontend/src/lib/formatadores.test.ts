@@ -4,6 +4,7 @@ import {
   diasAteOPrazo,
   formatarData,
   formatarDataHora,
+  formatarPrazoSla,
   formatarTamanho,
   formatarUltimoAcesso,
   mascararDocumento,
@@ -107,6 +108,51 @@ describe('formatarTamanho', () => {
 
   it('lida com zero', () => {
     expect(formatarTamanho(0)).toBe('0 B');
+  });
+});
+
+/**
+ * O prazo de SLA passou de dias para horas em 05/09/2026, e o defeito que essa
+ * troca produz é silencioso por construção: a tela continua renderizando um
+ * número com um sufixo, e "30 dia(s)" vira "720 dia(s)" sem erro, sem stack
+ * trace e sem nada que um teste manual perceba — quem lê acredita.
+ */
+describe('formatarPrazoSla', () => {
+  it('devolve travessão para nulo e indefinido', () => {
+    expect(formatarPrazoSla(null)).toBe('—');
+    expect(formatarPrazoSla(undefined)).toBe('—');
+  });
+
+  it('usa a hora crua até 48h — é a unidade em que a operação fala', () => {
+    expect(formatarPrazoSla(8)).toBe('8h');
+    expect(formatarPrazoSla(24)).toBe('24h');
+    expect(formatarPrazoSla(48)).toBe('48h');
+  });
+
+  it('acrescenta a escala em dias acima de 48h', () => {
+    // O caso que motivou a função: 720h é verdadeiro e ilegível sozinho.
+    expect(formatarPrazoSla(72)).toBe('72h (3 dias)');
+    expect(formatarPrazoSla(720)).toBe('720h (30 dias)');
+  });
+
+  it('não escreve "30,0 dias" quando fecha em dia cheio', () => {
+    expect(formatarPrazoSla(240)).toBe('240h (10 dias)');
+  });
+
+  it('usa uma casa decimal com vírgula quando não fecha', () => {
+    // pt-BR: separador decimal é vírgula. Ponto aqui lê como milhar.
+    expect(formatarPrazoSla(60)).toBe('60h (2,5 dias)');
+  });
+
+  it('cobre as duas pontas da faixa aceita pelo backend', () => {
+    // 49h é o primeiro valor acima do corte; 8760h é o teto do DTO (um ano).
+    expect(formatarPrazoSla(49)).toBe('49h (2,0 dias)');
+    expect(formatarPrazoSla(8760)).toBe('8760h (365 dias)');
+  });
+
+  it('trata zero como ausência de prazo, não como "0h"', () => {
+    // O backend recusa 0 (@Min(1)), mas a tela não pode inventar "0h" se vier.
+    expect(formatarPrazoSla(0)).toBe('0h');
   });
 });
 

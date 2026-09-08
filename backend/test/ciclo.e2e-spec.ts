@@ -50,7 +50,14 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
      */
     await db.certificacaoProduto.update({
       where: { id: trilha[0].id },
-      data: { status: StatusCertificacao.APROVADO },
+      data: {
+        status: StatusCertificacao.APROVADO,
+        // Os marcos acompanham o histórico que vem logo abaixo. São CACHE — o
+        // ciclo continua sendo derivado de `certificacoes_historico` — mas a
+        // invariante do banco cobre o fixture como cobre o app.
+        iniciadaEm: new Date(base.getTime() + 2 * HORA),
+        concluidaEm: new Date(base.getTime() + 26 * HORA),
+      },
     });
     await db.certificacaoHistorico.createMany({
       data: [
@@ -104,7 +111,11 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
      */
     await db.certificacaoProduto.update({
       where: { id: trilha[1].id },
-      data: { status: StatusCertificacao.APROVADO },
+      data: {
+        status: StatusCertificacao.APROVADO,
+        iniciadaEm: new Date(base.getTime() + 4 * HORA),
+        concluidaEm: new Date(base.getTime() + 4 * HORA),
+      },
     });
     await db.certificacaoHistorico.create({
       data: {
@@ -119,7 +130,12 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
     // ETAPA 3 — segue PENDENTE, sem histórico nenhum: bloco "em aberto".
     await db.certificacaoProduto.update({
       where: { id: trilha[2].id },
-      data: { status: StatusCertificacao.PENDENTE },
+      data: {
+        status: StatusCertificacao.PENDENTE,
+        // Sair de APROVADO limpa `concluidaEm` — a mesma regra do service.
+        iniciadaEm: null,
+        concluidaEm: null,
+      },
     });
   });
 
