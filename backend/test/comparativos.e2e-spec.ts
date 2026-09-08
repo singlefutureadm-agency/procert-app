@@ -46,7 +46,13 @@ describe('Relatórios — comparativos (e2e)', () => {
 
     await db.certificacaoProduto.update({
       where: { id: trilha[trilha.length - 1].id },
-      data: { status: StatusCertificacao.PENDENTE },
+      // Sair de APROVADO limpa `concluidaEm` — a mesma regra do service, aqui
+      // à mão porque o fixture escreve direto no Prisma.
+      data: {
+        status: StatusCertificacao.PENDENTE,
+        iniciadaEm: null,
+        concluidaEm: null,
+      },
     });
   });
 
