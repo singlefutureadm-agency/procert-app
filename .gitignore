@@ -31,3 +31,13 @@ Thumbs.db
 
 # Vinculo local com os projetos da Vercel (contem ids da conta).
 .vercel
+
+# graphify — grafo de conhecimento gerado localmente (artefato, regenerável)
+graphify-out/
+
+# Configuração pessoal do Claude Code. O `settings.json` é do PROJETO e sobe;
+# preferência individual (plugin instalado, hook que depende de binário na
+# máquina de quem escreveu) vai aqui — versionada, ela quebraria o clone de
+# quem não tem a ferramenta, num hook que roda a cada chamada de ferramenta.
+.claude/settings.local.json
+.claude/skills/
