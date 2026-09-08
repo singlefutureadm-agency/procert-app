@@ -76,6 +76,25 @@ describe('chaves', () => {
     expect(chaves.cliente(1)).not.toEqual(chaves.produto(1));
   });
 
+  it('o quadro não colide com a lista de certificações', () => {
+    /**
+     * As duas telas leem endpoints diferentes com filtros de formatos
+     * diferentes. Chave compartilhada faria a lista servir cache ao quadro, que
+     * renderizaria colunas vazias — sem erro, sem requisição e sem pista.
+     */
+    expect(chaves.quadroProcessos({})).not.toEqual(chaves.certificacoes({}));
+    // Mas o prefixo continua sendo `certificacoes`, para uma invalidação de
+    // certificações derrubar o quadro junto: salvar uma etapa muda os dois.
+    expect(chaves.quadroProcessos()[0]).toBe('certificacoes');
+    expect(chaves.quadroProcessos()).toEqual(['certificacoes', 'quadro', {}]);
+  });
+
+  it('filtros diferentes no quadro geram chaves diferentes', () => {
+    expect(chaves.quadroProcessos({ semaforo: 'VERDE' })).not.toEqual(
+      chaves.quadroProcessos({ semaforo: 'VERMELHO' }),
+    );
+  });
+
   it('os relatórios compartilham o prefixo `relatorios`', () => {
     for (const chave of [
       chaves.relatorioEquipe(),

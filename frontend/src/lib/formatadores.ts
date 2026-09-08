@@ -81,6 +81,37 @@ export function diasAteOPrazo(prazo?: string | null): number | null {
   return Math.round(emDias(limite) - emDias(hoje));
 }
 
+/**
+ * Prazo de SLA, guardado em horas, escrito como gente lê.
+ *
+ * O campo virou horas em 05/09/2026 porque a operação fala em 8h, 12h, 24h,
+ * 72h — mas o valor cru não serve para todo caso: "720h" é verdadeiro e
+ * ilegível, e ninguém converte para 30 dias de cabeça no meio de uma tabela.
+ * Daí a régua: até 48h a hora é a unidade natural ("36h"); acima disso a hora
+ * continua na frente, porque é a unidade em que o prazo foi acordado, com os
+ * dias entre parênteses para dar a escala ("720h (30 dias)").
+ *
+ * Função única, usada nas três telas que exibem prazo de etapa (detalhe da
+ * trilha, modal de etapa e prévia da trilha no cadastro de produto). Eram três
+ * interpolações copiadas, e foi assim que as três continuaram escrevendo
+ * "dia(s)" depois que o campo passou a guardar horas — cada uma mentindo por
+ * um fator de 24, sem erro em lugar nenhum.
+ */
+export function formatarPrazoSla(horas?: number | null): string {
+  if (horas == null) return '—';
+  if (horas <= 48) return `${horas}h`;
+
+  // Sempre plural: este ramo só roda acima de 48h, então o menor valor
+  // possível já passa de dois dias. Não há caso de "1 dia" para singularizar.
+  const dias = horas / 24;
+  // Sem casa decimal quando fecha em dia cheio: "30 dias" e não "30,0 dias".
+  const escala = Number.isInteger(dias)
+    ? `${dias} dias`
+    : `${dias.toFixed(1).replace('.', ',')} dias`;
+
+  return `${horas}h (${escala})`;
+}
+
 /** Tamanho de arquivo em unidade legível (KB a partir de 1024 bytes). */
 export function formatarTamanho(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

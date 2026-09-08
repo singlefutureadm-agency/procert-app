@@ -4,9 +4,10 @@ import {
   OmitType,
   PartialType,
 } from '@nestjs/swagger';
-import { StatusRegistro } from '@prisma/client';
+import { MotivoProcesso, StatusRegistro } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -55,6 +56,28 @@ export class CriarProdutoDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   preco?: number;
+
+  @ApiPropertyOptional({
+    enum: MotivoProcesso,
+    default: MotivoProcesso.INICIAL,
+    description:
+      'Por que o processo foi aberto. Vinha no nome do card do quadro ' +
+      '(INICIAL / RENOVAÇÃO / RECERTIFICAÇÃO / MANUTENÇÃO / TRANSFERÊNCIA).',
+  })
+  @IsOptional()
+  @IsEnum(MotivoProcesso)
+  motivoProcesso?: MotivoProcesso;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Concluir todas as microetapas de uma etapa aprova a etapa sozinha. ' +
+      'OMITIDO ou `null` = herda o padrão da versão de trilha do produto; ' +
+      '`true`/`false` sobrepõem só para este processo.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  aprovacaoAutomatica?: boolean | null;
 }
 
 /**

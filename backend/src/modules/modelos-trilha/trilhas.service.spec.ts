@@ -218,16 +218,26 @@ describe('TrilhasService', () => {
           descricao: 'Laudo do laboratório',
           tipo: TipoEtapa.ENSAIO,
           obrigatoria: true,
-          prazoSlaDias: 15,
+          prazoSlaHoras: 15,
           exigeDocumento: true,
+          microEtapas: [
+            {
+              id: 1,
+              nome: 'Receber amostra',
+              ordem: 1,
+              papelResponsavel: 'QUALIDADE',
+              prazoSlaHoras: 8,
+            },
+          ],
         },
         {
           nome: 'Decisão',
           descricao: null,
           tipo: TipoEtapa.DECISAO,
           obrigatoria: true,
-          prazoSlaDias: null,
+          prazoSlaHoras: null,
           exigeDocumento: false,
+          microEtapas: [],
         },
       ],
     };
@@ -251,11 +261,31 @@ describe('TrilhasService', () => {
       expect(copiadas).toEqual([
         expect.objectContaining({
           nome: 'Ensaios',
-          prazoSlaDias: 15,
+          prazoSlaHoras: 15,
           exigeDocumento: true,
           ordem: 1,
+          // O checklist da etapa é parte da definição do processo e vai junto:
+          // duplicar sem ele produziria uma trilha que parece igual e cobra
+          // menos.
+          // Área e prazo do ITEM viajam junto: uma etapa de ensaio cruza áreas
+          // (receber amostra é da Qualidade, executar é do Técnico), e perder
+          // isso ao duplicar faria a trilha nova parecer igual e cobrar menos.
+          microEtapas: {
+            create: [
+              {
+                nome: 'Receber amostra',
+                ordem: 1,
+                papelResponsavel: 'QUALIDADE',
+                prazoSlaHoras: 8,
+              },
+            ],
+          },
         }),
-        expect.objectContaining({ nome: 'Decisão', ordem: 2 }),
+        expect.objectContaining({
+          nome: 'Decisão',
+          ordem: 2,
+          microEtapas: { create: [] },
+        }),
       ]);
       // `descricao: null` do banco vira `undefined` na entrada — passar null
       // adiante estouraria o `@IsString()` de quem reusa o DTO.

@@ -16,6 +16,7 @@ import { modelosTrilhaApi } from '@/features/trilhas/api';
 import { ROTULO_TIPO_ETAPA } from '@/features/trilhas/rotulos';
 import { clientesApi } from '@/features/clientes/api';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
+import { formatarPrazoSla } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import { produtosApi, type DadosProduto } from './api';
 
@@ -235,7 +236,9 @@ export function ProdutoFormPage() {
                   <strong>{etapa.nome}</strong>{' '}
                   <span className="texto-pequeno texto-fraco">
                     {ROTULO_TIPO_ETAPA[etapa.tipo] ?? etapa.tipo}
-                    {etapa.prazoSlaDias ? ` · ${etapa.prazoSlaDias} dia(s)` : ''}
+                    {etapa.prazoSlaHoras
+                      ? ` · ${formatarPrazoSla(etapa.prazoSlaHoras)}`
+                      : ''}
                     {etapa.obrigatoria ? '' : ' · opcional'}
                     {etapa.exigeDocumento ? ' · exige documento' : ''}
                   </span>

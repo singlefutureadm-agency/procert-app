@@ -1,6 +1,7 @@
 import { Workbook, type Worksheet } from 'exceljs';
 import {
   CriticidadeNaoConformidade,
+  FaseProcesso,
   StatusCertificacao,
   StatusNaoConformidade,
   TipoEtapa,
@@ -87,8 +88,12 @@ function etapa(
       tipo: TipoEtapa.DOCUMENTAL,
       obrigatoria: true,
       exigeDocumento: false,
+      papelResponsavel: null,
+      fase: FaseProcesso.ABERTURA,
+      prazoSlaHoras: null,
       ...modelo,
     },
+    microEtapas: [],
     naoConformidades: [],
     historico: [],
     ...resto,

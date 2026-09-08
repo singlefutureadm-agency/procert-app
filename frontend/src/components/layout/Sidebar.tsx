@@ -48,6 +48,15 @@ const MENU: GrupoMenu[] = [
         icone: 'caixa',
         filhos: [
           {
+            // O quadro por fase: onde cada processo está no fluxo interno e de
+            // quem é a etapa atual. Visão da EQUIPE — o backend devolve 403
+            // para CLIENTE, e é por isso que ele não vê este item.
+            para: '/produtos/quadro',
+            rotulo: 'Gestão de processos internos',
+            icone: 'quadro',
+            papeis: ['ADMIN', 'FUNCIONARIO'],
+          },
+          {
             para: '/relatorios/produtos',
             rotulo: 'Comparativo',
             icone: 'grafico',

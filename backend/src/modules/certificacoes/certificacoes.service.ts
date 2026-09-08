@@ -5,7 +5,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role, StatusCertificacao, StatusRegistro } from '@prisma/client';
+import {
+  FaseProcesso,
+  Prisma,
+  Role,
+  StatusCertificacao,
+  StatusRegistro,
+} from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { NaoConformidadesService } from '../nao-conformidades/nao-conformidades.service';
@@ -44,6 +50,30 @@ const ROTULO_STATUS: Record<StatusCertificacao, string> = {
 const EVENTOS_NOTIFICAVEIS: StatusCertificacao[] = [
   StatusCertificacao.REPROVADO,
 ];
+
+/**
+ * Checklist da etapa, na ordem.
+ *
+ * Declarado AQUI e não em `micro-etapas.service` de propósito: aquele service
+ * importa `marcosDaTransicao` deste, e a volta fecharia um ciclo de import. A
+ * dependência entre os dois é de mão única — micro-etapas conhece certificações,
+ * nunca o contrário.
+ */
+const INCLUDE_MICRO_ETAPAS = {
+  orderBy: { ordem: 'asc' },
+  select: {
+    id: true,
+    nome: true,
+    ordem: true,
+    // Área e prazo PRÓPRIOS do item — uma etapa de ensaio costuma cruzar áreas
+    // (receber amostra é da Qualidade, executar é do Técnico).
+    papelResponsavel: true,
+    prazoSlaHoras: true,
+    concluida: true,
+    concluidaEm: true,
+    concluidaPorNome: true,
+  },
+} satisfies Prisma.CertificacaoProduto$microEtapasArgs;
 
 @Injectable()
 export class CertificacoesService {
@@ -113,10 +143,7 @@ export class CertificacoesService {
       const aprovadas = etapas.filter(
         (e) => e.status === StatusCertificacao.APROVADO,
       ).length;
-      const atual =
-        etapas.find((e) => e.status === StatusCertificacao.EM_ANDAMENTO) ??
-        etapas.find((e) => e.status === StatusCertificacao.PENDENTE) ??
-        etapas.at(-1);
+      const atual = etapaAtualDe(etapas);
 
       return {
         produtoId: produto.id,
@@ -174,8 +201,14 @@ export class CertificacoesService {
                 tipo: true,
                 obrigatoria: true,
                 exigeDocumento: true,
+                papelResponsavel: true,
+                fase: true,
+                prazoSlaHoras: true,
               },
             },
+            // O checklist da etapa NESTE produto. É a cópia que se marca; a
+            // definição vive em `ModeloMicroEtapa` e não aparece aqui.
+            microEtapas: INCLUDE_MICRO_ETAPAS,
             naoConformidades: {
               orderBy: { id: 'desc' },
               select: {
@@ -279,6 +312,9 @@ export class CertificacoesService {
         id: true,
         status: true,
         observacao: true,
+        // `iniciadaEm` entra no select porque a regra dele é MONOTÔNICA: para
+        // não sobrescrever é preciso saber se já tem valor.
+        iniciadaEm: true,
         etapa: { select: { nome: true } },
       },
     });
@@ -350,6 +386,13 @@ export class CertificacoesService {
             data: {
               status: alteracao.status,
               observacao: alteracao.observacao ?? null,
+              // Marcos gravados NO MESMO UPDATE, dentro da transação que já
+              // existe: ou a etapa muda de status e o cache acompanha, ou nada.
+              ...marcosDaTransicao(
+                { status: atual.status, iniciadaEm: atual.iniciadaEm },
+                alteracao.status,
+                mudouStatus,
+              ),
             },
           });
 
@@ -433,7 +476,11 @@ export class CertificacoesService {
     const etapas = await this.prisma.modeloEtapa.findMany({
       where: { modeloTrilhaId: produto.modeloTrilhaId },
       orderBy: { ordem: 'asc' },
-      select: { id: true, ordem: true },
+      select: {
+        id: true,
+        ordem: true,
+        microEtapas: { orderBy: { ordem: 'asc' } },
+      },
     });
 
     if (etapas.length === 0) {
@@ -442,18 +489,34 @@ export class CertificacoesService {
       );
     }
 
-    await this.prisma.$transaction([
-      this.prisma.certificacaoProduto.deleteMany({ where: { produtoId } }),
-      this.prisma.certificacaoProduto.createMany({
-        data: etapas.map((etapa) => ({
-          produtoId,
-          etapaId: etapa.id,
-          ordem: etapa.ordem,
-          status: StatusCertificacao.PENDENTE,
-          observacao: 'Etapa pendente',
-        })),
-      }),
-    ]);
+    // `create` em laço, não `createMany`: as microetapas são relação aninhada e
+    // o `createMany` recriaria a trilha com os checklists vazios, sem erro.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.certificacaoProduto.deleteMany({ where: { produtoId } });
+
+      for (const etapa of etapas) {
+        await tx.certificacaoProduto.create({
+          data: {
+            produtoId,
+            etapaId: etapa.id,
+            ordem: etapa.ordem,
+            status: StatusCertificacao.PENDENTE,
+            observacao: 'Etapa pendente',
+            // Reiniciar zera o checklist junto: as marcações antigas
+            // sustentavam uma avaliação que deixou de existir.
+            microEtapas: {
+              create: etapa.microEtapas.map((micro) => ({
+                modeloMicroEtapaId: micro.id,
+                nome: micro.nome,
+                papelResponsavel: micro.papelResponsavel,
+                prazoSlaHoras: micro.prazoSlaHoras,
+                ordem: micro.ordem,
+              })),
+            },
+          },
+        });
+      }
+    });
 
     return { mensagem: 'Certificação reiniciada com sucesso.' };
   }
@@ -562,9 +625,27 @@ export class CertificacoesService {
     // sem elas `verificarVersaoTrilha` teria retornado no ramo acima.
     const vigente = await this.prisma.modeloTrilha.findFirstOrThrow({
       where: { trilhaId: produto.categoria.trilhaId ?? -1, ativo: true },
-      include: { etapas: { orderBy: { ordem: 'asc' } } },
+      include: {
+        etapas: {
+          orderBy: { ordem: 'asc' },
+          include: { microEtapas: { orderBy: { ordem: 'asc' } } },
+        },
+      },
       orderBy: { versao: 'desc' },
     });
+
+    /**
+     * Checklist da versão vigente, por id de etapa.
+     *
+     * `situacao.etapasAAdicionar` é uma projeção enxuta para a tela e não
+     * carrega as microetapas — buscá-las aqui, do modelo vigente que já está
+     * em memória, evita uma consulta por etapa e mantém a projeção do
+     * `verificarVersaoTrilha` como está (ela é resposta pública de uma consulta
+     * pura).
+     */
+    const microEtapasPorEtapa = new Map(
+      vigente.etapas.map((etapa) => [etapa.id, etapa.microEtapas]),
+    );
 
     /**
      * Ordem de referência do modelo vigente, por nome da etapa.
@@ -594,6 +675,18 @@ export class CertificacoesService {
             ordem: ordemVigentePorNome.get(etapa.nome) ?? FIM_DA_FILA,
             status: StatusCertificacao.PENDENTE,
             observacao: `Etapa incluída na migração para a versão ${vigente.versao} da trilha`,
+            // Etapa nova nasce com o checklist da versão nova. As etapas que o
+            // produto já tinha NÃO são tocadas: o checklist delas pertence à
+            // avaliação em curso, e trocá-lo aqui apagaria marcações feitas.
+            microEtapas: {
+              create: (microEtapasPorEtapa.get(etapa.id) ?? []).map((micro) => ({
+                modeloMicroEtapaId: micro.id,
+                nome: micro.nome,
+                papelResponsavel: micro.papelResponsavel,
+                prazoSlaHoras: micro.prazoSlaHoras,
+                ordem: micro.ordem,
+              })),
+            },
           },
         });
 
@@ -708,6 +801,250 @@ export class CertificacoesService {
     return produto;
   }
 
+  /**
+   * Leva o processo para uma fase do pipeline — o que o arrastar-e-soltar faz.
+   *
+   * ## Arrastar ESCREVE ETAPA, não posição
+   *
+   * A coluna do quadro continua sendo derivada da etapa atual. O que este
+   * método faz é mover a etapa: marca como `EM_ANDAMENTO` a primeira etapa
+   * daquela fase que ainda não foi aprovada, e devolve a `PENDENTE` qualquer
+   * etapa que estivesse `EM_ANDAMENTO` antes dela.
+   *
+   * É por isso que o cartão para na coluna certa: a regra de derivação é "1ª
+   * EM_ANDAMENTO, senão 1ª PENDENTE, senão a última", e depois deste método a
+   * 1ª EM_ANDAMENTO é justamente a etapa da fase de destino.
+   *
+   * Gravar a fase no produto seria mais simples e é exatamente o que o quadro
+   * Trello fazia de errado: a lista dizia uma coisa e o checklist dizia outra,
+   * porque eram duas fontes mantidas à mão.
+   *
+   * ## O que ele NÃO faz
+   *
+   * **Não aprova nada.** Pular para a última fase não marca as anteriores como
+   * aprovadas — aprovação é ato com evidência e autoria, e um arrasto não é
+   * isso. O processo aparece na fase nova com as etapas anteriores ainda
+   * pendentes, que é a verdade.
+   *
+   * Fases sem etapa na trilha do produto são recusadas: não há para onde mover.
+   */
+  async moverParaFase(
+    produtoId: number,
+    fase: FaseProcesso,
+    usuario: UsuarioAutenticado,
+  ) {
+    if (usuario.role === Role.CLIENTE) {
+      throw new ForbiddenException(
+        'Clientes acompanham o processo, mas não o movimentam.',
+      );
+    }
+
+    const etapas = await this.prisma.certificacaoProduto.findMany({
+      where: { produtoId },
+      orderBy: { ordem: 'asc' },
+      select: {
+        id: true,
+        ordem: true,
+        status: true,
+        iniciadaEm: true,
+        etapa: { select: { nome: true, fase: true } },
+      },
+    });
+
+    if (etapas.length === 0) {
+      throw new NotFoundException(
+        `Nenhuma certificação encontrada para o produto ${produtoId}.`,
+      );
+    }
+
+    const daFase = etapas.filter((e) => e.etapa.fase === fase);
+
+    if (daFase.length === 0) {
+      throw new BadRequestException(
+        `A trilha deste produto não tem nenhuma etapa na fase escolhida. ` +
+          'Mover para lá deixaria o cartão numa coluna sem etapa correspondente.',
+      );
+    }
+
+    const destino = daFase.find(
+      (e) => e.status !== StatusCertificacao.APROVADO,
+    );
+
+    if (!destino) {
+      throw new BadRequestException(
+        'Todas as etapas desta fase já foram aprovadas. Para retomá-las, ' +
+          'reabra a etapa na linha do tempo — arrastar não desfaz aprovação.',
+      );
+    }
+
+    /*
+     * O no-op se decide pela fase EM QUE O PROCESSO ESTÁ, não pelo status da
+     * etapa de destino.
+     *
+     * As duas perguntas parecem a mesma e divergem quando há mais de uma etapa
+     * `EM_ANDAMENTO` — o que a trilha permite, porque ela não é sequencial e
+     * `salvar()` aceita lote. Nesse caso a derivação escolhe a PRIMEIRA, e a
+     * etapa de destino pode estar em andamento sem que o cartão esteja naquela
+     * coluna. Perguntar pelo status do destino recusava justamente a volta:
+     * "já está nesta fase" para um processo que estava em outra.
+     */
+    const atual = etapaAtualDe(etapas);
+
+    if (atual && atual.etapa.fase === fase) {
+      return { mensagem: 'O processo já está nesta fase.', movido: false };
+    }
+
+    // Etapas EM_ANDAMENTO ANTES do destino voltam para PENDENTE: sem isso a
+    // derivação continuaria escolhendo a primeira delas e o cartão não sairia
+    // do lugar. Só as em andamento — aprovada e reprovada guardam decisão
+    // tomada, e desfazê-las aqui apagaria trabalho.
+    const aDevolver = etapas.filter(
+      (e) =>
+        e.ordem < destino.ordem &&
+        e.status === StatusCertificacao.EM_ANDAMENTO,
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const etapa of aDevolver) {
+        await tx.certificacaoProduto.update({
+          where: { id: etapa.id },
+          data: {
+            status: StatusCertificacao.PENDENTE,
+            ...marcosDaTransicao(
+              { status: etapa.status, iniciadaEm: etapa.iniciadaEm },
+              StatusCertificacao.PENDENTE,
+              true,
+            ),
+          },
+        });
+
+        await tx.certificacaoHistorico.create({
+          data: {
+            certificacaoId: etapa.id,
+            statusAnterior: etapa.status,
+            statusNovo: StatusCertificacao.PENDENTE,
+            observacao: `Devolvida à fila ao mover o processo para ${fase}.`,
+            alteradoPorId: usuario.id,
+            alteradoPorNome: usuario.nome,
+          },
+        });
+      }
+
+      // A etapa de destino pode JÁ estar em andamento: é o caso de voltar para
+      // a fase de onde se saiu, em que o movimento inteiro consiste em
+      // devolver à fila as anteriores. Regravar o mesmo status produziria uma
+      // linha de histórico afirmando uma transição que não houve — exatamente
+      // o ruído que o `statusAnterior <> statusNovo` do ciclo.service descarta.
+      if (destino.status === StatusCertificacao.EM_ANDAMENTO) return;
+
+      await tx.certificacaoProduto.update({
+        where: { id: destino.id },
+        data: {
+          status: StatusCertificacao.EM_ANDAMENTO,
+          ...marcosDaTransicao(
+            { status: destino.status, iniciadaEm: destino.iniciadaEm },
+            StatusCertificacao.EM_ANDAMENTO,
+            true,
+          ),
+        },
+      });
+
+      await tx.certificacaoHistorico.create({
+        data: {
+          certificacaoId: destino.id,
+          statusAnterior: destino.status,
+          statusNovo: StatusCertificacao.EM_ANDAMENTO,
+          observacao: `Processo movido para a fase ${fase} no quadro.`,
+          // Autoria da sessão: arrastar é ato de uma pessoa, e a auditoria
+          // precisa do nome dela como em qualquer outra mudança de status.
+          alteradoPorId: usuario.id,
+          alteradoPorNome: usuario.nome,
+        },
+      });
+    });
+
+    return {
+      mensagem: `Processo movido para "${destino.etapa.nome}".`,
+      movido: true,
+    };
+  }
+
+  /**
+   * Interrompe o processo. As etapas ficam como estão.
+   *
+   * Cancelar NÃO é desativar o produto (`status: INATIVO`, que é soft delete do
+   * cadastro) e NÃO mexe no estado das etapas: o processo existiu, parou onde
+   * parou, e é isso que a auditoria precisa poder afirmar. O cartão sai do
+   * fluxo e vai para a coluna CANCELADO do quadro.
+   *
+   * O motivo é obrigatório — um processo interrompido sem motivo registrado é
+   * uma pergunta sem resposta seis meses depois.
+   */
+  async cancelar(
+    produtoId: number,
+    motivo: string,
+    usuario: UsuarioAutenticado,
+  ) {
+    const produto = await this.prisma.produto.findUnique({
+      where: { id: produtoId },
+      select: { id: true, canceladoEm: true },
+    });
+
+    if (!produto) {
+      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    }
+
+    if (produto.canceladoEm) {
+      throw new BadRequestException('Este processo já está cancelado.');
+    }
+
+    await this.prisma.produto.update({
+      where: { id: produtoId },
+      data: {
+        canceladoEm: new Date(),
+        motivoCancelamento: motivo,
+        // Autoria da sessão, nunca de campo do payload.
+        canceladoPorId: usuario.id,
+        canceladoPorNome: usuario.nome,
+      },
+    });
+
+    return { mensagem: 'Processo cancelado.' };
+  }
+
+  /**
+   * Devolve o processo ao fluxo, limpando o cancelamento.
+   *
+   * A coluna do quadro volta a ser derivada da etapa atual — não há "voltar
+   * para onde estava", porque nunca se gravou onde estava.
+   */
+  async reabrir(produtoId: number) {
+    const produto = await this.prisma.produto.findUnique({
+      where: { id: produtoId },
+      select: { id: true, canceladoEm: true },
+    });
+
+    if (!produto) {
+      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    }
+
+    if (!produto.canceladoEm) {
+      throw new BadRequestException('Este processo não está cancelado.');
+    }
+
+    await this.prisma.produto.update({
+      where: { id: produtoId },
+      data: {
+        canceladoEm: null,
+        motivoCancelamento: null,
+        canceladoPorId: null,
+        canceladoPorNome: null,
+      },
+    });
+
+    return { mensagem: 'Processo reaberto.' };
+  }
+
   private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {
     if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) {
       throw new ForbiddenException(
@@ -715,4 +1052,94 @@ export class CertificacoesService {
       );
     }
   }
+}
+
+/**
+ * A etapa ATUAL de um processo: 1ª `EM_ANDAMENTO`, senão 1ª `PENDENTE`, senão
+ * a última.
+ *
+ * Ponto único da regra em TypeScript — `listarPainel` e `moverParaFase` a usam,
+ * e o `DISTINCT ON` do `quadro.service` a repete em SQL. Eram três cópias, e a
+ * divergência custou um defeito: `moverParaFase` perguntava se a etapa DE
+ * DESTINO estava `EM_ANDAMENTO` em vez de perguntar em que fase o processo
+ * estava. Com duas etapas em andamento — o que a trilha permite, porque ela não
+ * é sequencial — a resposta das duas perguntas diverge, e mover de volta para a
+ * fase de origem era recusado como "já está nesta fase".
+ *
+ * A lista precisa vir ORDENADA por `ordem` — é a ordem da trilha do produto,
+ * não a do modelo.
+ */
+export function etapaAtualDe<T extends { status: StatusCertificacao }>(
+  etapasEmOrdem: T[],
+): T | undefined {
+  return (
+    etapasEmOrdem.find((e) => e.status === StatusCertificacao.EM_ANDAMENTO) ??
+    etapasEmOrdem.find((e) => e.status === StatusCertificacao.PENDENTE) ??
+    etapasEmOrdem.at(-1)
+  );
+}
+
+/**
+ * Os marcos temporais a gravar numa transição de status.
+ *
+ * Ponto ÚNICO da regra no código — a mesma definição que o comentário de
+ * `CertificacaoProduto` no schema e que o SQL de backfill das migrations
+ * `20260905210000` e `20260905213000`. São três cópias da mesma regra em três
+ * linguagens, e nada as compara em execução: mexeu numa, mexa nas outras.
+ *
+ *   iniciadaEm  = 1ª saída de PENDENTE.  MONOTÔNICO: grava só se estiver null.
+ *   concluidaEm = aprovação VIGENTE.     REVERSÍVEL: grava ao aprovar,
+ *                                        limpa em toda saída de APROVADO.
+ *
+ * As naturezas são opostas de propósito. `iniciadaEm` é o mesmo marco que
+ * `relatorios/ciclo.service.ts` publica, e sobrescrevê-lo numa reabertura
+ * mudaria número de relatório; `concluidaEm` responde "esta etapa está pronta
+ * AGORA?", e mantê-lo após uma reprovação faria o quadro afirmar conclusão que
+ * o status nega — o banco recusa esse estado em `ck_certificacao_concluida_em`.
+ *
+ * Devolve um objeto parcial para ser espalhado no `data` do update: chave
+ * ausente é campo não tocado, que é diferente de gravar null.
+ */
+export function marcosDaTransicao(
+  atual: { status: StatusCertificacao; iniciadaEm: Date | null },
+  statusNovo: StatusCertificacao,
+  mudouStatus: boolean,
+  agora: Date = new Date(),
+): { iniciadaEm?: Date; concluidaEm?: Date | null } {
+  // Sem mudança de status não há marco a mover. Editar a observação de uma
+  // etapa aprovada não pode empurrar a data de conclusão para frente — é o
+  // mesmo viés que o `statusAnterior <> statusNovo` do ciclo.service descarta.
+  if (!mudouStatus) return {};
+
+  const marcos: { iniciadaEm?: Date; concluidaEm?: Date | null } = {};
+
+  // Monotônico E auto-corretivo: a condição é "ainda não tem início E não está
+  // voltando para PENDENTE", NÃO "está saindo de PENDENTE agora".
+  //
+  // A versão anterior exigia `atual.status === PENDENTE` e criava um estado
+  // ABSORVENTE: uma etapa hoje EM_ANDAMENTO sem `iniciadaEm` — o que acontece
+  // com dado migrado do PHP legado, que não tem histórico de transição — nunca
+  // mais receberia valor, porque nenhuma transição futura parte de PENDENTE.
+  // Ficaria sem SLA para sempre, sem erro nenhum.
+  //
+  // Continua monotônico porque só grava quando está null: uma etapa que já tem
+  // início nunca o perde, e reabrir não reinicia o relógio.
+  if (
+    atual.iniciadaEm === null &&
+    statusNovo !== StatusCertificacao.PENDENTE
+  ) {
+    marcos.iniciadaEm = agora;
+  }
+
+  if (statusNovo === StatusCertificacao.APROVADO) {
+    // Sobrescreve de propósito: numa segunda aprovação, a conclusão vigente é
+    // a nova. É a razão de o backfill usar MAX e não MIN.
+    marcos.concluidaEm = agora;
+  } else if (atual.status === StatusCertificacao.APROVADO) {
+    // Toda saída de APROVADO limpa — reprovação, volta para EM_ANDAMENTO,
+    // qualquer uma. O gatilho é sair do status, não o motivo da saída.
+    marcos.concluidaEm = null;
+  }
+
+  return marcos;
 }

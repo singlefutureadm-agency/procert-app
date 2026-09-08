@@ -334,12 +334,14 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
 ### Diagrama de relacionamentos
 
 ```
-  CategoriaProduto ──1:N──► ModeloTrilha (versão) ──1:N──► ModeloEtapa
-          │                        │                            │
-          │                        │                            │ (etapa)
-          ▼                        ▼                            ▼
-        Produto ◄──1:N── Cliente   │                   CertificacaoProduto
-          │  │  └──────── modeloTrilha (retrato da versão) ──┘  │
+       Trilha (FAMÍLIA) ──1:N──► ModeloTrilha (VERSÃO) ──1:N──► ModeloEtapa
+          ▲                              │                          │
+          │ trilhaId                     │                          │ (etapa)
+  CategoriaProduto                       ▼                          ▼
+          │                              │                  CertificacaoProduto
+          ▼                              │                          │
+        Produto ◄──1:N── Cliente         │                          │
+          │  │  └── modeloTrilhaId (retrato da VERSÃO) ─────────────┘│
           │  │                                                  ├──1:N──► CertificacaoHistorico
           │  ├──1:N──► Pagamento                                │              │
           │  └──1:N──► Certificado                              │              └──1:N──► DocumentoCertificacao
@@ -350,6 +352,17 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
     Isoladas: TokenRedefinicaoSenha (por e-mail) · MensagemContato (formulário público)
 ```
 
+**A assimetria do desenho é a regra central, não um detalhe de layout.** A
+**categoria aponta para a FAMÍLIA** (`CategoriaProduto.trilhaId → Trilha`); o
+**produto aponta para a VERSÃO** (`Produto.modeloTrilhaId → ModeloTrilha`). É ela
+que faz trocar a trilha de uma categoria, ou publicar uma versão nova, mudar a
+régua dos produtos **futuros** sem tocar em nenhuma avaliação em andamento.
+Fazer a categoria apontar para a versão devolveria exatamente o problema que o
+versionamento existe para resolver.
+
+Até 02/09/2026 a trilha pertencia à categoria (`ModeloTrilha.categoriaId`), e o
+diagrama registrado aqui ainda mostrava esse arranjo — corrigido em 05/09/2026.
+
 ### Entidades
 
 | Modelo | Tabela | Papel no domínio |
@@ -358,10 +371,11 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
 | `Cliente` | `clientes` | Quem contrata a certificação; **também é usuário** (login com `role` CLIENTE implícita). Guarda `ultimoAcessoEm` e `responsavelId` (carteira) |
 | `Funcionario` | `funcionarios` | Equipe interna; guarda `role` = `ADMIN` \| `FUNCIONARIO` e `ultimoAcessoEm` |
 | `CategoriaProduto` | `categorias_produto` | Família de produtos com processo próprio; guarda a norma e a `validadeMeses` do certificado |
-| `ModeloTrilha` | `modelos_trilha` | **Versão** da trilha de uma categoria (`versao`, `ativo`, `vigenteDe/Ate`) |
-| `ModeloEtapa` | `modelos_etapa` | Etapa prevista por uma versão (`ordem`, `tipo`, `obrigatoria`, `prazoSlaDias`, `exigeDocumento`) |
-| `Produto` | `produtos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão** |
-| `CertificacaoProduto` | `certificacoes_produto` | Uma etapa aplicada a um produto — o estado corrente, com `ordem` própria |
+| `Trilha` | `trilhas` | **Família** de processo do catálogo (nome, descrição, status); reutilizável por várias categorias |
+| `ModeloTrilha` | `modelos_trilha` | **Versão** de uma trilha do catálogo (`versao`, `ativo`, `vigenteDe/Ate`) |
+| `ModeloEtapa` | `modelos_etapa` | Etapa prevista por uma versão (`ordem`, `tipo`, `obrigatoria`, `prazoSlaHoras`, `papelResponsavel`, `fase`, `exigeDocumento`) |
+| `Produto` | `produtos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão**; guarda `codigoProcesso` e `motivoProcesso` |
+| `CertificacaoProduto` | `certificacoes_produto` | Uma etapa aplicada a um produto — o estado corrente, com `ordem` própria e os marcos `iniciadaEm`/`concluidaEm` |
 | `CertificacaoHistorico` | `certificacoes_historico` | Trilha de auditoria imutável das transições e dos anexos |
 | `DocumentoCertificacao` | `documentos_certificacao` | Evidência anexada, presa ao registro de histórico que a trouxe |
 | `NaoConformidade` | `nao_conformidades` | Achado de uma etapa reprovada: código, gravidade, prazo, resposta e parecer |
@@ -2211,6 +2225,113 @@ Corrigido em `97b16c1`, só no frontend. Junto foram dois textos que descreviam 
 impossível: "esta versão já está em uso por 0 produto(s)" sem versão nenhuma (`editavel` é
 `Boolean(modelo?.editavel)`, e sem modelo caía no ramo de imutável), e "a versão 1 será
 encerrada" antes de a versão 1 existir.
+
+### Quadro de processos: as três decisões de modelagem (05/09/2026)
+
+O quadro de gestão de processos nasceu de um levantamento do quadro Trello
+("PROCESSOS PROCERT") que a operação usava em paralelo ao sistema. Três decisões
+foram tomadas na modelagem e valem registro, porque as três têm uma alternativa
+tentadora que reintroduz um defeito conhecido.
+
+**1. A fase do processo é DERIVADA da etapa atual, nunca armazenada.** A coluna
+em que um processo aparece sai da etapa corrente, resolvida pela mesma regra de
+`listarPainel` (1ª `EM_ANDAMENTO`, senão 1ª `PENDENTE`, senão a última). Não há
+campo `fase` em `Produto`.
+
+O Trello mostrou exatamente por quê: lá, a posição do card na lista e o
+progresso do checklist eram **duas fontes de verdade mantidas à mão**, e
+divergiam — card parado na lista "Ensaios" com o checklist de ensaios todo
+marcado. Guardar a fase no produto repetiria o defeito com outro nome e exigiria
+alguém para reconciliar. É também por isso que a tela **não tem
+arrastar-e-soltar**: arrastar afirmaria que a posição é editável.
+
+O custo assumido é que a coluna só muda quando a etapa muda — não dá para
+"adiantar" um processo no quadro sem mexer na trilha. É a propriedade desejada.
+
+**2. `PapelFuncional` é separado de `Role`, e a separação é deliberada.** `Role`
+(ADMIN / FUNCIONARIO / CLIENTE) decide **o que a pessoa alcança no sistema**;
+`PapelFuncional` (CLIENTE / TECNICO / QUALIDADE / AUDITOR / DIRETORIA) decide
+**de quem é a etapa dentro do fluxo**. São eixos independentes: o mesmo
+FUNCIONARIO pode ser TECNICO num processo e QUALIDADE em outro.
+
+Unificar os dois transformaria uma escala de trabalho em concessão de acesso —
+marcar alguém como AUDITOR numa etapa passaria a ser uma decisão de segurança, e
+a matriz de autorização deixaria de ser legível num lugar só. `papelResponsavel`
+vive em `ModeloEtapa`, é **nulável** (etapa já cadastrada não tem responsável, e
+um default inventaria dado) e **não é consultado por nenhum guard**.
+
+**3. `iniciadaEm` / `concluidaEm` são CACHE; o histórico continua a fonte de
+verdade.** `CertificacaoHistorico` segue sendo quem manda: `relatorios/
+ciclo.service.ts` deriva dele e **não lê estas colunas** — trocar a fonte
+mudaria números de relatório já publicados. Os campos existem porque o quadro
+precisa do prazo de cada etapa em N processos simultâneos, e derivar isso do
+histórico por cartão é varredura.
+
+As definições são únicas e repetidas verbatim em três lugares (schema, SQL das
+migrations e `marcosDaTransicao()`):
+
+```
+iniciadaEm  = MIN(alterado_em) WHERE status_anterior = 'PENDENTE'
+                                 AND status_novo    <> 'PENDENTE'
+concluidaEm = MAX(alterado_em) WHERE status_novo = 'APROVADO'
+              -- e NULL se a etapa hoje não está APROVADO
+```
+
+**Os dois campos têm naturezas opostas, e tratá-los com a mesma regra quebra
+um.** `iniciadaEm` é **monotônico**: gravado só quando null, nunca sobrescrito —
+etapa reaberta mantém o início original. `concluidaEm` é **reversível**: gravado
+ao aprovar e limpo em toda saída de `APROVADO`, incluindo a NC resolvida que
+devolve a etapa para reavaliação.
+
+`concluidaEm` é MAX e não MIN porque uma etapa aprovada → reprovada → aprovada
+tem a conclusão vigente na **última** aprovação; a primeira versão do backfill
+usou MIN e já divergia em 2 das 7 linhas aprovadas da base de desenvolvimento.
+
+A invariante `(status = 'APROVADO') = (concluida_em IS NOT NULL)` é imposta pelo
+banco em `ck_certificacao_concluida_em`. Ela entrou **depois** dos caminhos de
+escrita estarem cobertos: com um caminho descoberto, uma CHECK constraint não é
+guarda, é 500 no meio de uma avaliação técnica.
+
+Consequência assumida, **pendente de confirmação da Qualidade**: etapa reaberta
+conta o SLA desde a entrada original e aparece estourada no quadro. É o lado
+seguro do erro — a alternativa seria um terceiro relógio ("tempo desde a
+reabertura"), que é exatamente o "tempo da etapa" genérico que o §5 recusa.
+
+### `nao-conformidades`: a corrida do sequencial não tem retry (risco aberto)
+
+`NaoConformidadesService.gerarCodigo` deriva o código do **maior do ano** e
+insere. Entre a leitura do máximo e o INSERT há uma janela: duas NCs abertas no
+mesmo instante leem o mesmo máximo e tentam gravar `NC-2026-000042` as duas.
+
+Quem impede a duplicata é o índice único de `codigo`, e isso funciona — não há
+risco de dois registros com o mesmo código. O que não existe é **tratamento**: a
+perdedora vira `P2002`, o filtro global traduz para **409 "conflito"**, e quem
+está do outro lado só queria abrir uma não conformidade. A mensagem não diz o
+que houve nem que basta tentar de novo.
+
+`Certificado.numero` tem a mesma forma e o mesmo comportamento.
+
+**Em `produtos` isso foi resolvido** (05/09/2026): `codigoProcesso` usa o mesmo
+esquema de sequencial, mas com `comRetryDeCodigo()` — três tentativas, apenas
+para `P2002` cujo `meta.target` cita `codigo_processo`, relendo o máximo a cada
+volta. Qualquer outro erro sobe na primeira.
+
+**Não replicado em `nao-conformidades` nem em `certificados` de propósito**: são
+outros módulos, com specs próprios, e mudar o comportamento de erro deles é
+entrega própria. Registrado aqui para que a diferença entre os três seja
+deliberada e não uma inconsistência que ninguém notou.
+
+Gatilho para promover: primeiro relato de 409 ao abrir NC, ou volume de
+aberturas simultâneas que torne a corrida provável. Correção: extrair
+`comRetryDeCodigo` para `common/` e aplicar nos três.
+
+Detalhe relacionado, já corrigido em `produtos`: o máximo sai de
+**`MAX(número extraído)`**, não de `ORDER BY codigo DESC`. Ordenação de texto só
+coincide com a numérica enquanto a largura é fixa — com `-1000-` na base, o
+maior lexicográfico volta a ser `-999-` e o próximo código colide com um já
+emitido. `nao-conformidades` usa `padStart(6, '0')`, então o problema equivalente
+só aparece no milionésimo registro do ano; é teórico lá, era real aqui, porque o
+código do processo usa três casas.
 
 ## 16. Postura de segurança
 

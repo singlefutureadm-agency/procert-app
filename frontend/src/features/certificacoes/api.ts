@@ -3,8 +3,12 @@ import type {
   AberturaNaoConformidade,
   CertificacaoDetalhe,
   DocumentoCertificacao,
+  FaseProcesso,
   LinhaPainelCertificacao,
+  PapelFuncional,
+  QuadroProcessos,
   RespostaPaginada,
+  SemaforoAging,
   SituacaoVersaoTrilha,
   StatusCertificacao,
 } from '@/types';
@@ -25,7 +29,53 @@ export interface EtapaAlteracao {
   naoConformidade?: AberturaNaoConformidade;
 }
 
+/** O que a marcação de uma microetapa produziu. */
+export interface ResultadoMicroEtapa {
+  etapaAprovada: boolean;
+  /** Motivo de o checklist ter fechado SEM aprovar. Mostre-o. */
+  aviso: string | null;
+  concluidas: number;
+  total: number;
+}
+
+export interface FiltrosQuadro {
+  categoriaId?: number;
+  clienteId?: number;
+  papelResponsavel?: PapelFuncional;
+  semaforo?: SemaforoAging;
+  busca?: string;
+  /** Cartões por coluna (1–100). Não afeta o `total` de cada uma. */
+  limitePorFase?: number;
+}
+
 export const certificacoesApi = {
+  /**
+   * Quadro de processos por fase. Rota da EQUIPE: cliente recebe 403.
+   *
+   * A fase de cada processo é derivada da etapa atual pelo servidor — não há
+   * como mover um cartão de coluna por aqui, e é de propósito.
+   */
+  quadro: async (filtros: FiltrosQuadro) => {
+    const { data } = await api.get<QuadroProcessos>('/certificacoes/quadro', {
+      params: filtros,
+    });
+    return data;
+  },
+
+  /**
+   * Marca ou desmarca um item do checklist.
+   *
+   * O `id` é da microetapa DO PRODUTO. Fechar o checklist pode aprovar a
+   * etapa — a resposta diz se aprovou e, quando não, por quê.
+   */
+  alternarMicroEtapa: async (id: number, concluida: boolean) => {
+    const { data } = await api.patch<ResultadoMicroEtapa>(
+      `/certificacoes/micro-etapas/${id}`,
+      { concluida },
+    );
+    return data;
+  },
+
   painel: async (filtros: FiltrosCertificacoes) => {
     const { data } = await api.get<RespostaPaginada<LinhaPainelCertificacao>>(
       '/certificacoes',
@@ -88,6 +138,37 @@ export const certificacoesApi = {
     link.download = nomeArquivo;
     link.click();
     URL.revokeObjectURL(url);
+  },
+
+  /**
+   * Leva o processo para uma fase — o destino do arrastar-e-soltar.
+   *
+   * Escreve ETAPA, não posição: marca a primeira etapa não aprovada da fase
+   * como "em andamento". A coluna continua sendo derivada disso.
+   */
+  moverParaFase: async (produtoId: number, fase: FaseProcesso) => {
+    const { data } = await api.post<{ mensagem: string; movido: boolean }>(
+      `/certificacoes/produto/${produtoId}/mover-fase`,
+      { fase },
+    );
+    return data;
+  },
+
+  /** Interrompe o processo. O motivo é obrigatório no backend. */
+  cancelar: async (produtoId: number, motivo: string) => {
+    const { data } = await api.post<{ mensagem: string }>(
+      `/certificacoes/produto/${produtoId}/cancelar`,
+      { motivo },
+    );
+    return data;
+  },
+
+  /** Devolve ao fluxo um processo cancelado. */
+  reabrir: async (produtoId: number) => {
+    const { data } = await api.post<{ mensagem: string }>(
+      `/certificacoes/produto/${produtoId}/reabrir`,
+    );
+    return data;
   },
 
   /** Aplica a migração — sempre com confirmação explícita do usuário. */

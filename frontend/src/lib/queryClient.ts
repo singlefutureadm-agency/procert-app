@@ -67,4 +67,12 @@ export const chaves = {
     ['certificacoes', 'produto', produtoId, 'versao-trilha'] as const,
   certificacoes: (filtros?: unknown) => ['certificacoes', filtros ?? {}] as const,
   certificacao: (produtoId: number) => ['certificacoes', 'produto', produtoId] as const,
+  /**
+   * Quadro de processos. Prefixo próprio (`'quadro'` no segundo segmento) para
+   * não colidir com `certificacoes(filtros)`: as duas telas leem endpoints
+   * diferentes com filtros de formatos diferentes, e uma chave compartilhada
+   * faria a lista servir cache ao quadro — que renderizaria vazio, sem erro.
+   */
+  quadroProcessos: (filtros?: unknown) =>
+    ['certificacoes', 'quadro', filtros ?? {}] as const,
 };

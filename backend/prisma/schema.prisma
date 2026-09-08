@@ -89,6 +89,53 @@ enum TipoEtapa {
   OUTRO
 }
 
+/// Papel funcional na execução do processo.
+///
+/// **NÃO é papel de autenticação.** `Role` decide o que a pessoa alcança no
+/// sistema (ADMIN, FUNCIONARIO, CLIENTE); este decide de quem é a etapa dentro
+/// do fluxo de certificação. Um mesmo FUNCIONARIO pode ser TECNICO num processo
+/// e QUALIDADE em outro — são eixos independentes, e cruzá-los transformaria
+/// uma escala de trabalho em concessão de acesso.
+///
+/// Veio do quadro Trello da operação, onde o responsável era texto livre dentro
+/// do item de checklist ("<etapa> <responsável> <SLA>").
+enum PapelFuncional {
+  CLIENTE
+  TECNICO
+  QUALIDADE
+  AUDITOR
+  DIRETORIA
+}
+
+/// Bloco do pipeline a que a etapa pertence — as "listas" do quadro Trello,
+/// com o hand-off Técnico ↔ Qualidade que a operação já pratica.
+///
+/// A fase do PROCESSO é **derivada da etapa atual, nunca gravada no produto**.
+/// No Trello a posição da lista e o progresso do checklist eram duas fontes de
+/// verdade mantidas à mão, e divergiam; guardar a fase em `Produto` repetiria
+/// exatamente esse defeito.
+enum FaseProcesso {
+  ABERTURA
+  AMOSTRAGEM_AUDITORIA
+  ENSAIOS_LABORATORIO
+  ANALISE_PROCESSO
+  EMISSAO
+}
+
+/// Por que este processo existe. Vinha no nome do card do Trello
+/// (INICIAL / RENOVAÇÃO / RECERTIFICAÇÃO / MANUTENÇÃO / TRANSFERÊNCIA).
+///
+/// É atributo do processo, não da trilha: o mesmo produto pode voltar anos
+/// depois para renovação seguindo a mesma régua técnica.
+enum MotivoProcesso {
+  INICIAL
+  RENOVACAO
+  RECERTIFICACAO
+  MANUTENCAO
+  TRANSFERENCIA
+  EXTENSAO_ESCOPO
+}
+
 // ------------------------------ MODELOS ------------------------------------
 
 /// Unidades federativas (legado: tbl_estado).
@@ -185,14 +232,16 @@ model Funcionario {
   criadoEm       DateTime       @default(now()) @map("criado_em")
   atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
 
-  estado               Estado?                 @relation(fields: [estadoId], references: [id], onDelete: SetNull)
+  estado                Estado?                  @relation(fields: [estadoId], references: [id], onDelete: SetNull)
   /// Clientes sob responsabilidade deste funcionário. Ver `Cliente.responsavelId`.
-  carteira             Cliente[]               @relation("CarteiraCliente")
-  historicoAlteracao   CertificacaoHistorico[]
-  naoConformidades     NaoConformidade[]
-  certificadosEmitidos Certificado[]
-  documentosEnviados   DocumentoCertificacao[]
-  aparenciaAtualizada  ConfiguracaoAparencia[]
+  carteira              Cliente[]                @relation("CarteiraCliente")
+  historicoAlteracao    CertificacaoHistorico[]
+  naoConformidades      NaoConformidade[]
+  certificadosEmitidos  Certificado[]
+  documentosEnviados    DocumentoCertificacao[]
+  aparenciaAtualizada   ConfiguracaoAparencia[]
+  microEtapasConcluidas MicroEtapaCertificacao[] @relation("MicroEtapaConcluida")
+  processosCancelados   Produto[]                @relation("ProcessoCancelado")
 
   @@index([role, status])
   @@map("funcionarios")
@@ -200,23 +249,72 @@ model Funcionario {
 
 /// Produto submetido à certificação (legado: tbl_produto).
 model Produto {
-  id             Int            @id @default(autoincrement())
-  clienteId      Int            @map("cliente_id")
-  categoriaId    Int            @map("categoria_id")
+  id                  Int            @id @default(autoincrement())
+  clienteId           Int            @map("cliente_id")
+  categoriaId         Int            @map("categoria_id")
   /// Versão da trilha vigente quando o produto foi submetido.
   /// É um retrato: não muda sozinha quando a categoria ganha uma versão nova.
-  modeloTrilhaId Int            @map("modelo_trilha_id")
-  nome           String         @db.VarChar(150)
-  descricao      String?        @db.Text
-  preco          Decimal        @default(0) @db.Decimal(12, 2)
-  fotoUrl        String?        @map("foto_url") @db.VarChar(255)
-  status         StatusRegistro @default(ATIVO)
-  criadoEm       DateTime       @default(now()) @map("criado_em")
-  atualizadoEm   DateTime       @updatedAt @map("atualizado_em")
+  modeloTrilhaId      Int            @map("modelo_trilha_id")
+  /// Identificador do processo no formato `PROCERT-<SIGLA>-<NNN>-<AA>`
+  /// (ex.: `PROCERT-EPI-012-26`), sequencial POR ANO. É como a operação já
+  /// chama cada processo — vinha no título do card do Trello.
+  ///
+  /// O sequencial é derivado do MAIOR código do ano, nunca de `COUNT`: contar
+  /// linhas reemite um número já usado depois de uma exclusão. Mesma razão já
+  /// registrada em `NaoConformidade.codigo` e `Certificado.numero`.
+  ///
+  /// Nulável e SEM backfill retroativo: inventar código para produto antigo
+  /// criaria identificador que nunca circulou em documento nenhum. Produto
+  /// anterior à mudança mostra "—".
+  codigoProcesso      String?        @unique @map("codigo_processo") @db.VarChar(30)
+  /// Por que este processo foi aberto. Ver `MotivoProcesso`.
+  motivoProcesso      MotivoProcesso @default(INICIAL) @map("motivo_processo")
+  /// Este processo aprova a etapa sozinho quando todas as microetapas dela são
+  /// concluídas?
+  ///
+  /// **NULÁVEL de propósito, e `null` não é "não": é "herda".** `null` faz o
+  /// produto seguir `ModeloTrilha.aprovacaoAutomatica` da versão que ele
+  /// carrega. Um `Boolean` com default `false` não distinguiria "o admin
+  /// desligou neste produto" de "o admin não opinou" — e só a segunda deve
+  /// acompanhar a trilha quando a política da trilha mudar.
+  ///
+  /// Quem resolve os dois é `aprovacaoAutomaticaDoProduto()`. Nenhum lugar deve
+  /// ler este campo cru para decidir.
+  aprovacaoAutomatica Boolean?       @map("aprovacao_automatica")
+  /// Quando o processo foi INTERROMPIDO. `null` = em andamento.
+  ///
+  /// **Não confundir com `status: INATIVO`.** São dois eixos:
+  ///  • `status` é o soft delete do cadastro — o produto some das listagens.
+  ///  • `canceladoEm` é um desfecho do PROCESSO: ele existiu, foi interrompido,
+  ///    e continua visível no quadro, em coluna própria. Some do fluxo, não do
+  ///    registro.
+  ///
+  /// É campo do produto, e não um `StatusCertificacao` novo, porque cancelar é
+  /// decisão sobre o processo INTEIRO — as etapas mantêm o estado em que
+  /// pararam, que é o que a auditoria precisa poder afirmar depois.
+  ///
+  /// A coluna CANCELADO do quadro deriva daqui. Nada é gravado sobre "em que
+  /// fase estava quando parou", pelo mesmo motivo de sempre: seria uma segunda
+  /// fonte de verdade envelhecendo ao lado da trilha.
+  canceladoEm         DateTime?      @map("cancelado_em")
+  /// Por que foi cancelado. Exigido pela ação: processo interrompido sem motivo
+  /// registrado é uma pergunta sem resposta seis meses depois.
+  motivoCancelamento  String?        @map("motivo_cancelamento") @db.Text
+  /// Autoria desnormalizada, como as demais: sobrevive à exclusão do autor.
+  canceladoPorId      Int?           @map("cancelado_por_id")
+  canceladoPorNome    String?        @map("cancelado_por_nome") @db.VarChar(150)
+  nome                String         @db.VarChar(150)
+  descricao           String?        @db.Text
+  preco               Decimal        @default(0) @db.Decimal(12, 2)
+  fotoUrl             String?        @map("foto_url") @db.VarChar(255)
+  status              StatusRegistro @default(ATIVO)
+  criadoEm            DateTime       @default(now()) @map("criado_em")
+  atualizadoEm        DateTime       @updatedAt @map("atualizado_em")
 
   cliente      Cliente               @relation(fields: [clienteId], references: [id], onDelete: Restrict)
   categoria    CategoriaProduto      @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
   modeloTrilha ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Restrict)
+  canceladoPor Funcionario?          @relation("ProcessoCancelado", fields: [canceladoPorId], references: [id], onDelete: SetNull)
   certificacao CertificacaoProduto[]
   certificados Certificado[]
   pagamentos   Pagamento[]
@@ -253,6 +351,12 @@ model EtapaCertificacao {
 model CategoriaProduto {
   id              Int            @id @default(autoincrement())
   nome            String         @unique @db.VarChar(120)
+  /// Abreviação da categoria no código do processo (`EPI`, `VOL`, `AESC`).
+  ///
+  /// Nulável: categoria sem sigla não gera código — melhor um processo sem
+  /// identificador que dois processos disputando o mesmo. Curta de propósito,
+  /// para o código caber onde a operação já o escreve à mão.
+  sigla           String?        @db.VarChar(8)
   descricao       String?        @db.Text
   normaReferencia String?        @map("norma_referencia") @db.VarChar(200)
   /// Validade do certificado emitido para produtos desta categoria, em meses.
@@ -312,13 +416,27 @@ model Trilha {
 /// versão vigente no dia da submissão. Vincular a categoria a outra trilha, ou
 /// publicar uma versão nova, não mexe em produto nenhum já em andamento.
 model ModeloTrilha {
-  id         Int       @id @default(autoincrement())
-  trilhaId   Int       @map("trilha_id")
-  versao     Int
-  ativo      Boolean   @default(true)
-  vigenteDe  DateTime  @default(now()) @map("vigente_de")
-  vigenteAte DateTime? @map("vigente_ate")
-  criadoEm   DateTime  @default(now()) @map("criado_em")
+  id                  Int       @id @default(autoincrement())
+  trilhaId            Int       @map("trilha_id")
+  versao              Int
+  ativo               Boolean   @default(true)
+  /// Padrão do processo: concluir todas as microetapas de uma etapa a aprova
+  /// sozinha?
+  ///
+  /// Fica na VERSÃO, e não na família `Trilha`, pela mesma razão que tudo mais
+  /// aqui: o produto guarda `modeloTrilhaId` como retrato, então herda a regra
+  /// vigente na submissão. Na família, virar esta chave mudaria em silêncio o
+  /// modo de aprovar de todo processo em andamento — inclusive os que já
+  /// estavam sendo avaliados sob a regra anterior.
+  ///
+  /// `Produto.aprovacaoAutomatica` sobrepõe isto caso a caso.
+  ///
+  /// Default `false`: aprovação de etapa de certificação é ato humano com
+  /// autoria, e ligar automação por omissão seria decidir isso pelo cliente.
+  aprovacaoAutomatica Boolean   @default(false) @map("aprovacao_automatica")
+  vigenteDe           DateTime  @default(now()) @map("vigente_de")
+  vigenteAte          DateTime? @map("vigente_ate")
+  criadoEm            DateTime  @default(now()) @map("criado_em")
 
   trilha   Trilha        @relation(fields: [trilhaId], references: [id], onDelete: Cascade)
   etapas   ModeloEtapa[]
@@ -331,21 +449,80 @@ model ModeloTrilha {
 
 /// Etapa prevista por uma versão de trilha.
 model ModeloEtapa {
-  id             Int       @id @default(autoincrement())
-  modeloTrilhaId Int       @map("modelo_trilha_id")
-  nome           String    @db.VarChar(120)
-  descricao      String?   @db.Text
-  ordem          Int
-  tipo           TipoEtapa @default(OUTRO)
-  obrigatoria    Boolean   @default(true)
-  prazoSlaDias   Int?      @map("prazo_sla_dias")
-  exigeDocumento Boolean   @default(false) @map("exige_documento")
+  id               Int             @id @default(autoincrement())
+  modeloTrilhaId   Int             @map("modelo_trilha_id")
+  nome             String          @db.VarChar(120)
+  descricao        String?         @db.Text
+  ordem            Int
+  tipo             TipoEtapa       @default(OUTRO)
+  obrigatoria      Boolean         @default(true)
+  /// Prazo alvo da etapa, em HORAS.
+  ///
+  /// Era `prazoSlaDias` até 05/09/2026. A operação trabalha em horas — o quadro
+  /// da Qualidade fala em 8h, 12h, 24h, 72h —, e "1 dia" não representa isso:
+  /// arredondar 8h para 1 dia e 72h para 3 dias apaga justamente a diferença
+  /// que o prazo existe para cobrar. A migration converteu o que havia
+  /// (`prazo_sla_dias * 24`) antes de derrubar a coluna antiga.
+  ///
+  /// Nulável: etapa sem prazo acordado não deve exibir prazo nenhum.
+  prazoSlaHoras    Int?            @map("prazo_sla_horas")
+  /// De quem é esta etapa no fluxo. Papel FUNCIONAL, não de acesso — ver
+  /// `PapelFuncional`.
+  ///
+  /// Nulável porque as etapas já cadastradas não têm responsável definido e
+  /// ninguém pode adivinhar qual seria. Um default aqui inventaria dado.
+  papelResponsavel PapelFuncional? @map("papel_responsavel")
+  /// Bloco do pipeline em que esta etapa aparece no quadro.
+  ///
+  /// Tem default (e não é nulável) para que a migration não trave numa base com
+  /// dados e para que nenhuma etapa fique fora do quadro: sem coluna atribuída,
+  /// o cartão simplesmente sumiria da tela em vez de aparecer no lugar errado —
+  /// um processo invisível é pior que um processo mal classificado.
+  fase             FaseProcesso    @default(ABERTURA)
+  exigeDocumento   Boolean         @default(false) @map("exige_documento")
 
   modeloTrilha  ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Cascade)
   certificacoes CertificacaoProduto[]
+  microEtapas   ModeloMicroEtapa[]
 
   @@index([modeloTrilhaId, ordem])
   @@map("modelos_etapa")
+}
+
+/// Microetapa prevista por uma etapa da versão de trilha — o item de checklist.
+///
+/// Vive na TRILHA, não no produto: é parte da definição do processo, e portanto
+/// imutável junto com a versão. O que o produto carrega é uma CÓPIA
+/// (`MicroEtapaCertificacao`), feita na abertura da trilha, exatamente como
+/// `CertificacaoProduto.ordem` é cópia de `ModeloEtapa.ordem`.
+///
+/// Sem texto próprio de "descrição": um item de checklist que precisa de
+/// parágrafo explicativo é uma etapa, não uma microetapa.
+model ModeloMicroEtapa {
+  id               Int             @id @default(autoincrement())
+  modeloEtapaId    Int             @map("modelo_etapa_id")
+  nome             String          @db.VarChar(200)
+  ordem            Int
+  /// Área responsável por ESTE item, quando difere da responsável pela etapa.
+  ///
+  /// Nulável, e o `null` significa "a mesma da etapa" — não "ninguém". Uma
+  /// etapa de ensaio pode ter o recebimento da amostra com a Qualidade e a
+  /// execução com o Técnico; quando não há essa divisão, repetir o papel da
+  /// etapa em todos os itens seria ruído.
+  papelResponsavel PapelFuncional? @map("papel_responsavel")
+  /// Prazo alvo DESTE item, em horas. Nulável: item sem prazo próprio.
+  ///
+  /// É independente do prazo da etapa e não o substitui: a etapa continua com
+  /// o SLA dela, que é o que o quadro cobra. Este aqui detalha o trabalho
+  /// interno, e a soma dos itens NÃO precisa fechar com o prazo da etapa —
+  /// forçar isso transformaria uma estimativa em restrição.
+  prazoSlaHoras    Int?            @map("prazo_sla_horas")
+
+  modeloEtapa ModeloEtapa              @relation(fields: [modeloEtapaId], references: [id], onDelete: Cascade)
+  copias      MicroEtapaCertificacao[]
+
+  @@index([modeloEtapaId, ordem])
+  @@map("modelos_micro_etapa")
 }
 
 /// Uma etapa aplicada a um produto (legado: tbl_certificacao_produto).
@@ -363,18 +540,115 @@ model CertificacaoProduto {
   ordem        Int
   status       StatusCertificacao @default(PENDENTE)
   observacao   String?            @db.Text
+  /// Quando o trabalho nesta etapa começou — 1ª saída de `PENDENTE`.
+  ///
+  /// **Cache do que `CertificacaoHistorico` já sabe. O histórico continua sendo
+  /// a fonte de verdade** (é ele que `relatorios/ciclo.service.ts` lê, e que
+  /// segue mandando em todo número publicado). Estes dois campos existem porque
+  /// o quadro precisa do prazo de cada etapa em N processos ao mesmo tempo, e
+  /// derivar isso do histórico a cada carga é varredura de tabela por cartão.
+  ///
+  /// DEFINIÇÃO — repetida verbatim no SQL das migrations de backfill e em
+  /// `CertificacoesService.salvar()`. Duas definições divergiriam para sempre,
+  /// porque nada as compararia em execução:
+  ///
+  ///   iniciadaEm = MIN(alterado_em) do histórico da etapa
+  ///                WHERE status_anterior = 'PENDENTE'
+  ///                  AND status_novo    <> 'PENDENTE'
+  ///
+  /// **MONOTÔNICO: grave apenas quando estiver null, nunca sobrescreva.** É o
+  /// mesmo marco que `ciclo.service.ts` publica como "tempo em fila"; movê-lo
+  /// mudaria número de relatório já divulgado. Etapa reaberta por não
+  /// conformidade mantém o início ORIGINAL.
+  ///
+  /// `criadoEm` NÃO serve para isto: é a entrada na FILA. A trilha nasce num
+  /// `createMany` dentro da transação do produto e, em Postgres,
+  /// `CURRENT_TIMESTAMP` é o início da transação — todas as etapas de um
+  /// produto nascem com o mesmo timestamp, igual ao do produto.
+  iniciadaEm   DateTime?          @map("iniciada_em")
+  /// Quando esta etapa foi aprovada — a aprovação VIGENTE.
+  ///
+  ///   concluidaEm = alterado_em da aprovação vigente, isto é
+  ///                 MAX(alterado_em) WHERE status_novo = 'APROVADO'
+  ///                 -- e NULL se a etapa hoje não está APROVADO
+  ///
+  /// **REVERSÍVEL, ao contrário de `iniciadaEm`: grave ao aprovar e LIMPE em
+  /// toda saída de `APROVADO`.** Os dois campos têm naturezas opostas de
+  /// propósito, e tratá-los com a mesma regra quebra um dos dois.
+  ///
+  /// É MAX, não MIN. Uma etapa aprovada → reprovada (não conformidade) →
+  /// aprovada de novo tem a conclusão vigente na ÚLTIMA aprovação; MIN
+  /// devolveria a primeira, e o backfill nasceria discordando do `salvar()`
+  /// exatamente nos casos em que a diferença importa.
+  ///
+  /// Os caminhos que saem de `APROVADO` são dois, e ambos limpam o campo dentro
+  /// da transação que já existe: `CertificacoesService.salvar()` (reprovação ou
+  /// volta para EM_ANDAMENTO) e `NaoConformidadesService.avaliar()` (NC
+  /// resolvida devolve a etapa para reavaliação). A invariante está no banco,
+  /// em `ck_certificacao_concluida_em` — se um caminho novo escapar, ele falha
+  /// na hora em vez de deixar o quadro afirmar conclusão que o status nega.
+  ///
+  /// CONSEQUÊNCIA ASSUMIDA: etapa reaberta conta o SLA desde a entrada
+  /// original, então aparece estourada no quadro. É o lado seguro do erro —
+  /// um terceiro relógio ("tempo desde a reabertura") é exatamente o "tempo da
+  /// etapa" genérico que este projeto recusa. Pendente de confirmação da
+  /// Qualidade.
+  concluidaEm  DateTime?          @map("concluida_em")
   criadoEm     DateTime           @default(now()) @map("criado_em")
   atualizadoEm DateTime           @updatedAt @map("atualizado_em")
 
-  produto          Produto                 @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  etapa            ModeloEtapa             @relation(fields: [etapaId], references: [id], onDelete: Restrict)
+  produto          Produto                  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  etapa            ModeloEtapa              @relation(fields: [etapaId], references: [id], onDelete: Restrict)
   historico        CertificacaoHistorico[]
   naoConformidades NaoConformidade[]
+  microEtapas      MicroEtapaCertificacao[]
 
   @@unique([produtoId, etapaId])
   @@index([produtoId, ordem])
   @@index([status])
   @@map("certificacoes_produto")
+}
+
+/// A microetapa aplicada a um produto — o item de checklist que se marca.
+///
+/// Cópia de `ModeloMicroEtapa`, feita na abertura da trilha e na migração de
+/// versão. O `nome` é copiado, e não lido por FK, pelo mesmo motivo das autorias
+/// desnormalizadas: o texto do checklist que a pessoa marcou precisa sobreviver
+/// a qualquer mudança de catálogo. `modeloMicroEtapaId` fica só como rastro da
+/// origem, e é `SetNull`.
+///
+/// **Marcar todas NÃO aprova a etapa por si.** A aprovação automática é um
+/// efeito do ATO de marcar a última — decidido em
+/// `MicroEtapasService.alternar` — e nunca um estado derivado. A diferença
+/// importa: derivada, uma etapa reaberta por não conformidade (que volta a
+/// EM_ANDAMENTO com todos os itens ainda marcados) se reaprovaria sozinha, e a
+/// reavaliação que a NC existe para forçar nunca aconteceria.
+model MicroEtapaCertificacao {
+  id                 Int             @id @default(autoincrement())
+  certificacaoId     Int             @map("certificacao_id")
+  /// Origem no catálogo. Só rastro: o texto exibido é o `nome` desta linha.
+  modeloMicroEtapaId Int?            @map("modelo_micro_etapa_id")
+  nome               String          @db.VarChar(200)
+  ordem              Int
+  /// Copiados do catálogo junto com o nome, pelo mesmo motivo dele: o item que
+  /// a pessoa marcou precisa preservar sob qual responsável e qual prazo foi
+  /// executado, mesmo que o catálogo mude depois.
+  papelResponsavel   PapelFuncional? @map("papel_responsavel")
+  prazoSlaHoras      Int?            @map("prazo_sla_horas")
+  concluida          Boolean         @default(false)
+  concluidaEm        DateTime?       @map("concluida_em")
+  /// Autoria vem da sessão. Desnormalizada, como as demais: sobrevive à
+  /// exclusão do colaborador.
+  concluidaPorId     Int?            @map("concluida_por_id")
+  concluidaPorNome   String?         @map("concluida_por_nome") @db.VarChar(150)
+  criadoEm           DateTime        @default(now()) @map("criado_em")
+
+  certificacao     CertificacaoProduto @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
+  modeloMicroEtapa ModeloMicroEtapa?   @relation(fields: [modeloMicroEtapaId], references: [id], onDelete: SetNull)
+  concluidaPor     Funcionario?        @relation("MicroEtapaConcluida", fields: [concluidaPorId], references: [id], onDelete: SetNull)
+
+  @@index([certificacaoId, ordem])
+  @@map("micro_etapas_certificacao")
 }
 
 /// Não conformidade levantada na avaliação de uma etapa.
