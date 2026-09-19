@@ -18,7 +18,7 @@
 export const PASTAS_PUBLICAS = [
   'clientes',
   'funcionarios',
-  'produtos',
+  'processos',
   'aparencia',
 ] as const;
 
@@ -49,7 +49,7 @@ export function ehPastaPublica(valor: string): valor is PastaPublica {
  *
  * Trabalha sobre o caminho **decodificado** de propósito. O `serve-static`
  * decodifica antes de resolver o arquivo, então olhar só o texto cru deixaria
- * `/uploads/produtos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como
+ * `/uploads/processos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como
  * se `%2e%2e%2fcertificados` fosse um nome de pasta comum. Uma decodificação
  * só, igual à do `serve-static`: caminho com dupla codificação (`%252e`) não
  * vira travessia para nenhum dos dois.
@@ -64,7 +64,7 @@ function segmentosSeguros(caminho: string): string[] | null {
   }
 
   // A barra invertida entra na separação porque no Windows ela também separa
-  // diretório: `produtos\..\certificados` seria travessia em disco.
+  // diretório: `processos\..\certificados` seria travessia em disco.
   const segmentos = decodificado.split(/[\\/]/).filter(Boolean);
 
   if (segmentos.length === 0) return null;
@@ -83,7 +83,7 @@ function segmentosSeguros(caminho: string): string[] | null {
  * Servindo do disco, o `serve-static` de cada pasta já recusa sair da própria
  * raiz, então a negação aqui é redundante. Ela existe porque é a única que
  * continua valendo se alguém remontar o diretório inteiro de uploads como
- * estático: nesse cenário `produtos/../certificados/x.pdf` cairia dentro da
+ * estático: nesse cenário `processos/../certificados/x.pdf` cairia dentro da
  * raiz do mount e voltaria a ser servido. Com armazenamento externo não há
  * `serve-static` nenhum, e esta passa a ser a única barreira.
  */
@@ -101,7 +101,7 @@ export function pastaPublicaDaRota(caminho: string): PastaPublica | null {
  *
  * Usado quando o armazenamento publica os arquivos por conta própria e o
  * `/uploads/...` vira um redirecionamento: para redirecionar é preciso saber
- * QUAL arquivo, e um caminho mais fundo (`produtos/a/b.jpg`) não corresponde a
+ * QUAL arquivo, e um caminho mais fundo (`processos/a/b.jpg`) não corresponde a
  * nada que este sistema grave — o nome é sempre um UUID no primeiro nível.
  */
 export function arquivoPublicoDaRota(

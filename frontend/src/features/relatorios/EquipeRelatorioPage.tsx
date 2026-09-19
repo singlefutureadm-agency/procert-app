@@ -222,7 +222,7 @@ export function EquipeRelatorioPage() {
               <strong>Clientes na carteira</strong> é um retrato de hoje e não
               respeita o período selecionado. As demais colunas contam apenas o
               que foi registrado dentro do período, pela autoria de cada
-              lançamento — um colaborador pode movimentar o produto de um cliente
+              lançamento — um colaborador pode movimentar o processo de um cliente
               que não está na carteira dele, e isso conta como atividade dele.
             </p>
 

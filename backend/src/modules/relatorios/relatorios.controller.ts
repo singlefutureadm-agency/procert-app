@@ -16,10 +16,10 @@ import { CicloService } from './ciclo.service';
 import { ExportacaoCicloService } from './exportacao-ciclo.service';
 import {
   ExportarComparativoClientesDto,
-  ExportarComparativoProdutosDto,
+  ExportarComparativoProcessosDto,
   ExportarRelatorioDto,
   ListarComparativoClientesDto,
-  ListarComparativoProdutosDto,
+  ListarComparativoProcessosDto,
   ListarRelatorioEquipeDto,
   ExportarTempoCicloDto,
   ListarTempoCicloDto,
@@ -72,7 +72,7 @@ export class RelatoriosController {
    * ADMIN apenas, sobrescrevendo o `@Roles` da classe (o `RolesGuard` usa
    * `getAllAndOverride`, então o handler vence). É informação de gestão sobre
    * a produtividade de colegas — não é dado operacional que todo funcionário
-   * precise para trabalhar. Os relatórios de produtos e clientes, que são
+   * precise para trabalhar. Os relatórios de processos e clientes, que são
    * operacionais, ficam com o papel da classe.
    */
   @Get('equipe')
@@ -122,46 +122,46 @@ export class RelatoriosController {
   // equipe acima. O service ainda assim aplica o escopo do CLIENTE — defesa em
   // profundidade, para relaxar este `@Roles` um dia não virar vazamento.
 
-  @Get('produtos')
+  @Get('processos')
   @ApiOperation({
-    summary: 'Comparativo de avanço por produto, paginado e ordenável',
+    summary: 'Comparativo de avanço por processo, paginado e ordenável',
   })
-  comparativoProdutos(
-    @Query() filtros: ListarComparativoProdutosDto,
+  comparativoProcessos(
+    @Query() filtros: ListarComparativoProcessosDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.comparativos.produtos(filtros, usuario);
+    return this.comparativos.processos(filtros, usuario);
   }
 
-  @Get('produtos/exportacao')
-  @ApiOperation({ summary: 'Exporta o comparativo de produtos em XLSX ou CSV' })
-  async exportarProdutos(
-    @Query() filtros: ExportarComparativoProdutosDto,
+  @Get('processos/exportacao')
+  @ApiOperation({ summary: 'Exporta o comparativo de processos em XLSX ou CSV' })
+  async exportarProcessos(
+    @Query() filtros: ExportarComparativoProcessosDto,
     @CurrentUser() usuario: UsuarioAutenticado,
     @Res() resposta: Response,
   ): Promise<void> {
-    const linhas = await this.comparativos.produtosParaExportacao(
-      filtros as ListarComparativoProdutosDto,
+    const linhas = await this.comparativos.processosParaExportacao(
+      filtros as ListarComparativoProcessosDto,
       usuario,
     );
 
     const formato = filtros.formato ?? 'xlsx';
     this.prepararDownload(
       resposta,
-      this.exportacaoComparativos.nomeArquivo('produtos', formato),
+      this.exportacaoComparativos.nomeArquivo('processos', formato),
       formato,
     );
 
     resposta.send(
       formato === 'csv'
-        ? this.exportacaoComparativos.produtosCsv(linhas, usuario.nome)
-        : await this.exportacaoComparativos.produtosXlsx(linhas, usuario.nome),
+        ? this.exportacaoComparativos.processosCsv(linhas, usuario.nome)
+        : await this.exportacaoComparativos.processosXlsx(linhas, usuario.nome),
     );
   }
 
   @Get('clientes')
   @ApiOperation({
-    summary: 'Comparativo de clientes: produtos, certificados e NCs abertas',
+    summary: 'Comparativo de clientes: processos, certificados e NCs abertas',
   })
   comparativoClientes(
     @Query() filtros: ListarComparativoClientesDto,

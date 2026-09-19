@@ -218,7 +218,7 @@ export function BarraComposicao({
 /**
  * Barras horizontais ranqueadas.
  *
- * Horizontal, e não vertical, porque o eixo de identidade traz nome de produto
+ * Horizontal, e não vertical, porque o eixo de identidade traz nome de processo
  * e de etapa — texto longo, que na vertical viraria rótulo inclinado a 45°.
  */
 export function BarrasHorizontais({

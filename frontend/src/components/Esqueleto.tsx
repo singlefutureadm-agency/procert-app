@@ -6,7 +6,7 @@
  * central ocupa cerca de 110px e some dando lugar a 400px de conteúdo — o pulo
  * de layout é certo, e a barra de paginação salta junto.
  *
- * Onde a forma depende do dado (detalhe de produto, formulário de etapa),
+ * Onde a forma depende do dado (detalhe de processo, formulário de etapa),
  * `Carregando` continua sendo o certo: um esqueleto que erra a forma informa
  * menos que um spinner honesto.
  *

@@ -40,7 +40,7 @@ const ncSalva = (extra: Record<string, unknown> = {}) => ({
     status: StatusCertificacao.REPROVADO,
     ordem: 2,
     etapa: { id: 902, nome: 'Ensaios laboratoriais' },
-    produto: {
+    processo: {
       id: 1,
       nome: 'Disjuntor DIN 25A',
       clienteId: CLIENTE_DONO,
@@ -75,7 +75,7 @@ describe('NaoConformidadesService', () => {
       [StatusCertificacao.EM_ANDAMENTO],
       [StatusCertificacao.APROVADO],
     ])('recusa NC em etapa %s', async (status) => {
-      banco.prisma.certificacaoProduto.findUnique.mockResolvedValue({
+      banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue({
         id: 10,
         status,
       } as never);
@@ -99,7 +99,7 @@ describe('NaoConformidadesService', () => {
 
     it('aceita em etapa REPROVADO', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 7, 19));
-      banco.prisma.certificacaoProduto.findUnique.mockResolvedValue({
+      banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue({
         id: 10,
         status: StatusCertificacao.REPROVADO,
       } as never);
@@ -124,7 +124,7 @@ describe('NaoConformidadesService', () => {
     });
 
     it('recusa etapa inexistente', async () => {
-      banco.prisma.certificacaoProduto.findUnique.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue(
         null as never,
       );
 
@@ -284,7 +284,7 @@ describe('NaoConformidadesService', () => {
       );
 
       // Resolver a NC não aprova a etapa: ela volta para reavaliação.
-      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledWith({
+      expect(banco.tx.certificacaoProcesso.update).toHaveBeenCalledWith({
         where: { id: 10 },
         data: {
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -309,7 +309,7 @@ describe('NaoConformidadesService', () => {
         admin(),
       );
 
-      const dados = banco.tx.certificacaoProduto.update.mock.calls[0][0].data;
+      const dados = banco.tx.certificacaoProcesso.update.mock.calls[0][0].data;
       expect(dados.concluidaEm).toBeNull();
       expect(dados).not.toHaveProperty('iniciadaEm');
     });
@@ -326,8 +326,8 @@ describe('NaoConformidadesService', () => {
 
       // Fora do commit, uma falha depois deixaria a NC resolvida e a etapa
       // ainda marcada como concluída.
-      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
-      expect(banco.prisma.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).toHaveBeenCalledTimes(1);
+      expect(banco.prisma.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('a reabertura e o encerramento da NC saem no MESMO commit, com autoria', async () => {
@@ -343,7 +343,7 @@ describe('NaoConformidadesService', () => {
       expect(banco.chamadasForaDaTransacao).toEqual([]);
       expect(banco.chamadasNaTransacao).toEqual([
         'naoConformidade.update',
-        'certificacaoProduto.update',
+        'certificacaoProcesso.update',
         'certificacaoHistorico.create',
       ]);
 
@@ -368,7 +368,7 @@ describe('NaoConformidadesService', () => {
         admin(),
       );
 
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
       expect(banco.tx.certificacaoHistorico.create).not.toHaveBeenCalled();
       const [{ data }] = banco.tx.naoConformidade.update.mock.calls[0];
       expect(data.resolvidoEm).toBeInstanceOf(Date);
@@ -457,7 +457,7 @@ describe('NaoConformidadesService', () => {
       parecer: null,
       certificacao: {
         etapa: { nome: 'Ensaios laboratoriais' },
-        produto: {
+        processo: {
           nome: 'Disjuntor DIN 25A',
           cliente: {
             nome: 'Indústria Cliente Ltda',
@@ -469,7 +469,7 @@ describe('NaoConformidadesService', () => {
     });
 
     it('abrir avulsa avisa o cliente, com código, etapa e prazo', async () => {
-      banco.prisma.certificacaoProduto.findUnique.mockResolvedValue({
+      banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue({
         id: 20,
         status: StatusCertificacao.REPROVADO,
       } as never);
@@ -489,11 +489,11 @@ describe('NaoConformidadesService', () => {
       );
 
       expect(notificacoes.naoConformidadeAberta).toHaveBeenCalledTimes(1);
-      const [para, nomeCliente, produto, nc] =
+      const [para, nomeCliente, processo, nc] =
         notificacoes.naoConformidadeAberta.mock.calls[0];
       expect(para).toBe('contato@cliente.com.br');
       expect(nomeCliente).toBe('Indústria Cliente Ltda');
-      expect(produto).toBe('Disjuntor DIN 25A');
+      expect(processo).toBe('Disjuntor DIN 25A');
       expect(nc).toMatchObject({
         codigo: 'NC-2026-000001',
         etapa: 'Ensaios laboratoriais',
@@ -504,7 +504,7 @@ describe('NaoConformidadesService', () => {
     /**
      * `RESOLVIDA` devolve a etapa para `EM_ANDAMENTO`, não para aprovada. O
      * flag chega ao texto do e-mail porque é ele que impede o cliente de ler
-     * "resolvida" e supor que o produto avançou.
+     * "resolvida" e supor que o processo avançou.
      */
     it('avaliar RESOLVIDA avisa com o desfecho e o parecer', async () => {
       banco.prisma.naoConformidade.findUnique
@@ -588,7 +588,7 @@ describe('NaoConformidadesService', () => {
         ),
       ).rejects.toThrow(
         new ForbiddenException(
-          'Você só pode acessar as não conformidades dos seus produtos.',
+          'Você só pode acessar as não conformidades dos seus processos.',
         ),
       );
       expect(banco.prisma.naoConformidade.update).not.toHaveBeenCalled();
@@ -639,16 +639,16 @@ describe('NaoConformidadesService', () => {
       banco.prisma.naoConformidade.count.mockResolvedValue(0 as never);
     });
 
-    it('CLIENTE só vê as NCs dos próprios produtos, e o filtro da URL não muda isso', async () => {
+    it('CLIENTE só vê as NCs dos próprios processos, e o filtro da URL não muda isso', async () => {
       const filtros = Object.assign(new ListarNaoConformidadesDto(), {
-        produtoId: 42,
+        processoId: 42,
       });
 
       await servico.listar(filtros, cliente(CLIENTE_DONO));
 
       const argumentos = banco.prisma.naoConformidade.findMany.mock.calls[0][0]!;
       expect(argumentos.where).toMatchObject({
-        certificacao: { produto: { id: 42, clienteId: CLIENTE_DONO } },
+        certificacao: { processo: { id: 42, clienteId: CLIENTE_DONO } },
       });
     });
 
@@ -656,10 +656,10 @@ describe('NaoConformidadesService', () => {
       await servico.listar(new ListarNaoConformidadesDto(), funcionario());
 
       const argumentos = banco.prisma.naoConformidade.findMany.mock.calls[0][0]!;
-      const produto = (
-        argumentos.where as { certificacao: { produto: Record<string, unknown> } }
-      ).certificacao.produto;
-      expect(produto).not.toHaveProperty('clienteId');
+      const processo = (
+        argumentos.where as { certificacao: { processo: Record<string, unknown> } }
+      ).certificacao.processo;
+      expect(processo).not.toHaveProperty('clienteId');
     });
 
     it('lista e conta no mesmo snapshot', async () => {

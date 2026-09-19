@@ -24,12 +24,12 @@ const COR_STATUS: Record<StatusCertificacao, string> = {
  *  • **"quem está na frente?"** — barras ranqueadas. Comparar comprimento a
  *    partir de uma origem comum é a leitura mais precisa que existe, e é o que
  *    a tabela não entrega: nela o progresso aparece linha a linha, e ordenar
- *    mentalmente oito produtos por uma barrinha em cada linha não acontece.
+ *    mentalmente oito processos por uma barrinha em cada linha não acontece.
  *  • **"a carteira está travada onde?"** — barra de composição. A pergunta é
  *    sobre parte/todo, não sobre ranking.
  *
  * A escala do ranking é fixada em 100 (`maximo`), e não no maior valor. Sem
- * isso o produto mais adiantado sempre encostaria na ponta direita, e um
+ * isso o processo mais adiantado sempre encostaria na ponta direita, e um
  * ranking em que o líder está com 30% pareceria idêntico a um em que está com
  * 95% — a barra diria "primeiro lugar" quando a informação útil é "longe do fim".
  */
@@ -47,7 +47,7 @@ export function PainelGraficosCertificacoes() {
 
   if (isError || !data) return null;
 
-  const { ranking, etapasPorStatus, totalProdutos, foraDoRanking } =
+  const { ranking, etapasPorStatus, totalProcessos, foraDoRanking } =
     data.acompanhamento;
 
   const fatiasStatus: FatiaGrafico[] = etapasPorStatus.map((linha) => ({
@@ -60,7 +60,7 @@ export function PainelGraficosCertificacoes() {
   const totalEtapas = etapasPorStatus.reduce((soma, l) => soma + l.total, 0);
 
   const fatiasRanking: FatiaGrafico[] = ranking.map((linha) => ({
-    rotulo: linha.produto,
+    rotulo: linha.processo,
     detalhe: `${linha.cliente} · ${linha.aprovadas} de ${linha.total} etapas`,
     valor: linha.progresso,
     cor:
@@ -72,21 +72,21 @@ export function PainelGraficosCertificacoes() {
   return (
     <GradeGraficos>
       <Grafico
-        titulo="Progresso por produto"
+        titulo="Progresso por processo"
         descricao="Percentual de etapas aprovadas, do mais adiantado ao mais atrasado."
-        destaque={totalProdutos}
+        destaque={totalProcessos}
         rodape={
           foraDoRanking > 0
-            ? `Mostrando os 8 primeiros de ${totalProdutos} produtos ativos. A tabela acima é filtrável; o gráfico é sempre a carteira inteira.`
-            : 'Considera todos os produtos ativos, independentemente do filtro da tabela.'
+            ? `Mostrando os 8 primeiros de ${totalProcessos} processos ativos. A tabela acima é filtrável; o gráfico é sempre a carteira inteira.`
+            : 'Considera todos os processos ativos, independentemente do filtro da tabela.'
         }
         vazio={ranking.length === 0}
-        mensagemVazio="Nenhum produto ativo em certificação."
+        mensagemVazio="Nenhum processo ativo em certificação."
       >
         <BarrasHorizontais
-          titulo="Progresso por produto"
+          titulo="Progresso por processo"
           fatias={fatiasRanking}
-          colunaIdentidade="Produto"
+          colunaIdentidade="Processo"
           colunaValor="Progresso"
           sufixo="%"
           maximo={100}
@@ -95,7 +95,7 @@ export function PainelGraficosCertificacoes() {
 
       <Grafico
         titulo="Situação das etapas"
-        descricao="Onde está cada etapa de todos os produtos, somadas."
+        descricao="Onde está cada etapa de todos os processos, somadas."
         destaque={totalEtapas}
         rodape="Reprovado aparece riscado além de vermelho — a distinção não depende de enxergar a cor."
         vazio={totalEtapas === 0}

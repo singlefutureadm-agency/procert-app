@@ -15,7 +15,7 @@ export interface ItemIcone {
 
 export const EMPRESA = {
   nome: 'ProCert',
-  chamada: 'Plataforma de certificação de produtos',
+  chamada: 'Plataforma de certificação de processos',
   endereco: 'Rua John Harrison, 299 - Lapa, São Paulo - SP, 05074-080',
   enderecoCurto: ['Rua John Harrison, 299', 'Lapa, São Paulo'],
   telefoneContato: '11 94230-7431',
@@ -23,7 +23,7 @@ export const EMPRESA = {
   email: 'comercial@procertocp.com.br',
   whatsapp: '5511914433414',
   whatsappMensagem:
-    'Olá! Gostaria de mais informações sobre a certificação de produtos.',
+    'Olá! Gostaria de mais informações sobre a certificação de processos.',
   desenvolvedor: { nome: 'Single Future', url: 'https://singlefuture.com.br/' },
   /** Embed por endereço: o legado apontava para um lugar de teste ("Trabalho Laisla"). */
   mapaUrl:
@@ -56,9 +56,9 @@ export const NAVEGACAO = [
 
 export const HERO = {
   titulo: 'Soluções Confiáveis em Certificação com a ProCert',
-  subtitulo: 'Especialistas em garantir a conformidade e a qualidade dos seus produtos',
+  subtitulo: 'Especialistas em garantir a conformidade e a qualidade dos seus processos',
   destaques: [
-    { icone: 'bi-shield-check', titulo: 'Certificação de Produtos' },
+    { icone: 'bi-shield-check', titulo: 'Certificação de Processos' },
     { icone: 'bi-clipboard-check', titulo: 'Auditorias Técnicas' },
     { icone: 'bi-archive', titulo: 'Ensaios Laboratoriais' },
     { icone: 'bi-journal-check', titulo: 'Normas e Regulamentos' },
@@ -69,7 +69,7 @@ export const HERO = {
 export const SOBRE = {
   titulo: 'Comprometidos com a Qualidade e a Conformidade',
   resumo:
-    'A ProCert é um Organismo de Certificação de Produto especializado na certificação de Equipamentos de Proteção Individual (EPIs) e Atuamos com rigor técnico, agilidade e compromisso com a conformidade.',
+    'A ProCert é um Organismo de Certificação de Processo especializado na certificação de Equipamentos de Proteção Individual (EPIs) e Atuamos com rigor técnico, agilidade e compromisso com a conformidade.',
   itens: [
     'Atuação com base nas principais normas nacionais e internacionais.',
     'Equipe técnica altamente qualificada e multidisciplinar.',
@@ -87,7 +87,7 @@ export const DIFERENCIAIS = {
       icone: 'bi-archive',
       titulo: 'Rigor Técnico e Normativo',
       texto:
-        'Seguimos padrões nacionais e internacionais com precisão para garantir conformidade completa dos produtos certificados.',
+        'Seguimos padrões nacionais e internacionais com precisão para garantir conformidade completa dos processos certificados.',
     },
     {
       icone: 'bi-shield-lock',
@@ -105,7 +105,7 @@ export const DIFERENCIAIS = {
       icone: 'bi-award',
       titulo: 'Reconhecimento de Mercado',
       texto:
-        'Certificações emitidas pela ProCert têm aceitação nacional e internacional, agregando valor ao seu produto.',
+        'Certificações emitidas pela ProCert têm aceitação nacional e internacional, agregando valor ao seu processo.',
     },
   ] satisfies ItemIcone[],
 };
@@ -122,9 +122,9 @@ export const SERVICOS = {
     },
     {
       icone: 'bi-check-circle',
-      titulo: 'Certificação de Produtos',
+      titulo: 'Certificação de Processos',
       texto:
-        'Garantimos que seus produtos atendam às normas técnicas e regulatórias exigidas pelos órgãos competentes, com credibilidade e reconhecimento.',
+        'Garantimos que seus processos atendam às normas técnicas e regulatórias exigidas pelos órgãos competentes, com credibilidade e reconhecimento.',
     },
     {
       icone: 'bi-clipboard-data',
@@ -148,20 +148,20 @@ export const SERVICOS = {
 };
 
 export const CHAMADA_ACAO = {
-  titulo: 'Precisa Certificar seu Produto?',
+  titulo: 'Precisa Certificar seu Processo?',
   texto:
-    'Entre em contato com a ProCert e conte com uma equipe especializada para garantir a conformidade, segurança e qualidade do seu produto com reconhecimento no mercado.',
+    'Entre em contato com a ProCert e conte com uma equipe especializada para garantir a conformidade, segurança e qualidade do seu processo com reconhecimento no mercado.',
   botao: 'Fale com um Especialista',
   imagem: {
     src: '/img/cta-bg.jpg',
-    alt: 'Profissional da ProCert realizando certificação de produto',
+    alt: 'Profissional da ProCert realizando certificação de processo',
   },
 };
 
 export const NUMEROS = {
   titulo: 'Resultados que Comprovam a Confiança na ProCert',
   texto:
-    'Com anos de experiência no setor, a ProCert tem sido referência na certificação de produtos, garantindo qualidade, segurança e conformidade técnica em todo o Brasil.',
+    'Com anos de experiência no setor, a ProCert tem sido referência na certificação de processos, garantindo qualidade, segurança e conformidade técnica em todo o Brasil.',
   imagem: { src: '/img/stats-img.jpg', alt: 'Equipe técnica da ProCert' },
   itens: [
     {
@@ -197,25 +197,25 @@ export const DEPOIMENTOS = [
     cargo: 'Gerente de Qualidade - Indústria Têxtil',
     foto: '/img/depoimentos/depoimento-1.jpg',
     texto:
-      'A ProCert foi essencial no processo de certificação dos nossos produtos. Atendimento ágil, equipe técnica preparada e muita transparência em todas as etapas.',
+      'A ProCert foi essencial no processo de certificação dos nossos processos. Atendimento ágil, equipe técnica preparada e muita transparência em todas as etapas.',
   },
   {
     nome: 'Bruna Lopes',
     cargo: 'Engenheira Eletricista - Setor Eletrodoméstico',
     foto: '/img/depoimentos/depoimento-2.jpg',
     texto:
-      'Graças à certificação com a ProCert, conseguimos acessar novos mercados. O selo ProCert agregou muito valor ao nosso produto.',
+      'Graças à certificação com a ProCert, conseguimos acessar novos mercados. O selo ProCert agregou muito valor ao nosso processo.',
   },
   {
     nome: 'Juliana Martins',
-    cargo: 'Diretora Comercial - Produtos Hospitalares',
+    cargo: 'Diretora Comercial - Processos Hospitalares',
     foto: '/img/depoimentos/depoimento-3.jpg',
     texto:
       'A ProCert tem um diferencial enorme no suporte técnico. Eles realmente entendem do processo e acompanham de perto até a aprovação final.',
   },
   {
     nome: 'Bruno Carvalho',
-    cargo: 'Empresário - Produtos Sustentáveis',
+    cargo: 'Empresário - Processos Sustentáveis',
     foto: '/img/depoimentos/depoimento-4.jpg',
     texto:
       'A certificação com a ProCert trouxe mais credibilidade e confiança para nossos clientes. Recomendo fortemente.',

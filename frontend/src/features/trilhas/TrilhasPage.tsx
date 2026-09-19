@@ -159,7 +159,7 @@ export function TrilhasPage() {
                   <th role="columnheader">Trilha</th>
                   <th role="columnheader">Versão vigente</th>
                   <th role="columnheader">Categorias</th>
-                  <th role="columnheader">Produtos</th>
+                  <th role="columnheader">Processos</th>
                   <th role="columnheader">Situação</th>
                   <th role="columnheader" className="texto-direita">
                     Ações
@@ -210,8 +210,8 @@ export function TrilhasPage() {
                         </span>
                       )}
                     </td>
-                    <td role="cell" data-rotulo="Produtos" className="texto-suave">
-                      {trilha.totalProdutos}
+                    <td role="cell" data-rotulo="Processos" className="texto-suave">
+                      {trilha.totalProcessos}
                     </td>
                     <td role="cell" data-rotulo="Situação">
                       <BadgeStatus status={trilha.status} />
@@ -318,7 +318,7 @@ export function TrilhasPage() {
         }
         mensagem={
           alvo?.acao === 'excluir'
-            ? `Excluir "${alvo.trilha.nome}" definitivamente, junto de todas as suas versões e etapas? A operação é recusada se houver categoria vinculada ou produto em avaliação.`
+            ? `Excluir "${alvo.trilha.nome}" definitivamente, junto de todas as suas versões e etapas? A operação é recusada se houver categoria vinculada ou processo em avaliação.`
             : alvo?.trilha.status === 'ATIVO'
               ? `Desativar "${alvo?.trilha.nome}"? Ela sai do catálogo de trilhas vinculáveis. Categorias que já a seguem precisam ser desvinculadas antes.`
               : `Reativar "${alvo?.trilha.nome}"? Ela volta a poder ser vinculada a categorias.`

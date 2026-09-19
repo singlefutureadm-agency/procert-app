@@ -8,10 +8,10 @@ import { Prisma, StatusRegistro } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginar, RespostaPaginada } from '../../common/dto/paginacao.dto';
 import {
-  AtualizarCategoriaProdutoDto,
-  CriarCategoriaProdutoDto,
-  ListarCategoriasProdutoDto,
-} from './dto/categoria-produto.dto';
+  AtualizarCategoriaProcessoDto,
+  CriarCategoriaProcessoDto,
+  ListarCategoriasProcessoDto,
+} from './dto/categoria-processo.dto';
 
 /**
  * Resumo da trilha vinculada e da versão vigente dela, para a listagem não
@@ -22,7 +22,7 @@ import {
  * outras categorias estão usando.
  */
 const INCLUDE_CATEGORIA = {
-  _count: { select: { produtos: true } },
+  _count: { select: { processos: true } },
   trilha: {
     select: {
       id: true,
@@ -37,21 +37,21 @@ const INCLUDE_CATEGORIA = {
           id: true,
           versao: true,
           vigenteDe: true,
-          _count: { select: { etapas: true, produtos: true } },
+          _count: { select: { etapas: true, processos: true } },
         },
       },
     },
   },
-} satisfies Prisma.CategoriaProdutoInclude;
+} satisfies Prisma.CategoriaProcessoInclude;
 
 @Injectable()
-export class CategoriasProdutoService {
+export class CategoriasProcessoService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listar(
-    filtros: ListarCategoriasProdutoDto,
+    filtros: ListarCategoriasProcessoDto,
   ): Promise<RespostaPaginada<unknown>> {
-    const where: Prisma.CategoriaProdutoWhereInput = {
+    const where: Prisma.CategoriaProcessoWhereInput = {
       status: filtros.status ?? StatusRegistro.ATIVO,
       ...(filtros.busca && {
         OR: [
@@ -62,14 +62,14 @@ export class CategoriasProdutoService {
     };
 
     const [registros, total] = await this.prisma.$transaction([
-      this.prisma.categoriaProduto.findMany({
+      this.prisma.categoriaProcesso.findMany({
         where,
         include: INCLUDE_CATEGORIA,
         orderBy: { nome: 'asc' },
         skip: filtros.skip,
         take: filtros.limite,
       }),
-      this.prisma.categoriaProduto.count({ where }),
+      this.prisma.categoriaProcesso.count({ where }),
     ]);
 
     return paginar(
@@ -79,9 +79,9 @@ export class CategoriasProdutoService {
     );
   }
 
-  /** Lista enxuta para selects (ex.: cadastro de produto). */
+  /** Lista enxuta para selects (ex.: cadastro de processo). */
   async listarResumido() {
-    const categorias = await this.prisma.categoriaProduto.findMany({
+    const categorias = await this.prisma.categoriaProcesso.findMany({
       where: { status: StatusRegistro.ATIVO },
       orderBy: { nome: 'asc' },
       select: {
@@ -108,7 +108,7 @@ export class CategoriasProdutoService {
     });
 
     // Sem trilha vinculada, ou sem versão vigente nela, a categoria não aceita
-    // produto — o formulário precisa saber disso antes de o usuário preencher
+    // processo — o formulário precisa saber disso antes de o usuário preencher
     // tudo. `trilha` vem junto para a mensagem dizer QUAL trilha está falhando.
     return categorias.map(({ trilha, ...categoria }) => {
       const vigente = trilha?.versoes[0];
@@ -127,7 +127,7 @@ export class CategoriasProdutoService {
   }
 
   async buscarPorId(id: number) {
-    const categoria = await this.prisma.categoriaProduto.findUnique({
+    const categoria = await this.prisma.categoriaProcesso.findUnique({
       where: { id },
       include: INCLUDE_CATEGORIA,
     });
@@ -138,23 +138,23 @@ export class CategoriasProdutoService {
     return this.comResumo(categoria);
   }
 
-  async criar(dto: CriarCategoriaProdutoDto) {
+  async criar(dto: CriarCategoriaProcessoDto) {
     await this.garantirNomeDisponivel(dto.nome);
-    const categoria = await this.prisma.categoriaProduto.create({
+    const categoria = await this.prisma.categoriaProcesso.create({
       data: dto,
       include: INCLUDE_CATEGORIA,
     });
     return this.comResumo(categoria);
   }
 
-  async atualizar(id: number, dto: AtualizarCategoriaProdutoDto) {
+  async atualizar(id: number, dto: AtualizarCategoriaProcessoDto) {
     await this.garantirExiste(id);
 
     if (dto.nome) {
       await this.garantirNomeDisponivel(dto.nome, id);
     }
 
-    const categoria = await this.prisma.categoriaProduto.update({
+    const categoria = await this.prisma.categoriaProcesso.update({
       where: { id },
       data: dto,
       include: INCLUDE_CATEGORIA,
@@ -162,10 +162,10 @@ export class CategoriasProdutoService {
     return this.comResumo(categoria);
   }
 
-  /** Soft delete / reativação — mesmo padrão de clientes e produtos. */
+  /** Soft delete / reativação — mesmo padrão de clientes e processos. */
   async alterarStatus(id: number, status: StatusRegistro) {
     await this.garantirExiste(id);
-    const categoria = await this.prisma.categoriaProduto.update({
+    const categoria = await this.prisma.categoriaProcesso.update({
       where: { id },
       data: { status },
       include: INCLUDE_CATEGORIA,
@@ -173,20 +173,20 @@ export class CategoriasProdutoService {
     return this.comResumo(categoria);
   }
 
-  /** Exclusão definitiva, bloqueada quando há produtos vinculados. */
+  /** Exclusão definitiva, bloqueada quando há processos vinculados. */
   async remover(id: number): Promise<{ mensagem: string }> {
-    const categoria = await this.prisma.categoriaProduto.findUnique({
+    const categoria = await this.prisma.categoriaProcesso.findUnique({
       where: { id },
-      include: { _count: { select: { produtos: true } } },
+      include: { _count: { select: { processos: true } } },
     });
 
     if (!categoria) {
       throw new NotFoundException(`Categoria ${id} não encontrada.`);
     }
 
-    if (categoria._count.produtos > 0) {
+    if (categoria._count.processos > 0) {
       throw new ConflictException(
-        `Esta categoria possui ${categoria._count.produtos} produto(s) vinculado(s). ` +
+        `Esta categoria possui ${categoria._count.processos} processo(s) vinculado(s). ` +
           'Use a desativação em vez da exclusão definitiva.',
       );
     }
@@ -197,7 +197,7 @@ export class CategoriasProdutoService {
      * hoje destruiria o processo alheio. Excluir a categoria apenas solta o
      * vínculo, e a FK é `Restrict` para que nunca seja o contrário.
      */
-    await this.prisma.categoriaProduto.delete({ where: { id } });
+    await this.prisma.categoriaProcesso.delete({ where: { id } });
 
     return { mensagem: 'Categoria excluída definitivamente.' };
   }
@@ -206,11 +206,11 @@ export class CategoriasProdutoService {
    * Vincula (ou desvincula, com `null`) a trilha do catálogo que esta categoria
    * segue.
    *
-   * Não mexe em produto nenhum: cada produto carrega o retrato da versão pela
-   * qual entrou (`Produto.modeloTrilhaId`), então trocar a trilha da categoria
-   * muda o processo dos produtos FUTUROS e deixa os em andamento onde estão.
-   * Quem quiser mover um produto em curso usa a migração de versão, que é
-   * explícita e por produto.
+   * Não mexe em processo nenhum: cada processo carrega o retrato da versão pela
+   * qual entrou (`Processo.modeloTrilhaId`), então trocar a trilha da categoria
+   * muda a trilha dos processos FUTUROS e deixa os em andamento onde estão.
+   * Quem quiser mover um processo em curso usa a migração de versão, que é
+   * explícita e por processo.
    */
   async vincularTrilha(id: number, trilhaId: number | null) {
     await this.garantirExiste(id);
@@ -237,7 +237,7 @@ export class CategoriasProdutoService {
       }
 
       // Vincular trilha sem versão vigente com etapas deixaria a categoria
-      // aparentemente configurada e ainda assim recusando todo produto novo.
+      // aparentemente configurada e ainda assim recusando todo processo novo.
       if (!trilha.versoes[0] || trilha.versoes[0]._count.etapas === 0) {
         throw new ConflictException(
           `A trilha "${trilha.nome}" não tem uma versão vigente com etapas. ` +
@@ -246,7 +246,7 @@ export class CategoriasProdutoService {
       }
     }
 
-    const categoria = await this.prisma.categoriaProduto.update({
+    const categoria = await this.prisma.categoriaProcesso.update({
       where: { id },
       data: { trilhaId },
       include: INCLUDE_CATEGORIA,
@@ -257,7 +257,7 @@ export class CategoriasProdutoService {
   // ---------------------------------------------------------------- privados
 
   private async garantirExiste(id: number) {
-    const categoria = await this.prisma.categoriaProduto.findUnique({
+    const categoria = await this.prisma.categoriaProcesso.findUnique({
       where: { id },
     });
     if (!categoria) {
@@ -270,7 +270,7 @@ export class CategoriasProdutoService {
     nome: string,
     ignorarId?: number,
   ): Promise<void> {
-    const existente = await this.prisma.categoriaProduto.findUnique({
+    const existente = await this.prisma.categoriaProcesso.findUnique({
       where: { nome },
     });
 
@@ -281,7 +281,7 @@ export class CategoriasProdutoService {
 
   /** Achata trilha e versão vigente para o formato consumido pelo frontend. */
   private comResumo(
-    categoria: Prisma.CategoriaProdutoGetPayload<{
+    categoria: Prisma.CategoriaProcessoGetPayload<{
       include: typeof INCLUDE_CATEGORIA;
     }>,
   ) {
@@ -290,7 +290,7 @@ export class CategoriasProdutoService {
 
     return {
       ...dados,
-      totalProdutos: _count.produtos,
+      totalProcessos: _count.processos,
       trilha: trilha
         ? { id: trilha.id, nome: trilha.nome, status: trilha.status }
         : null,
@@ -301,7 +301,7 @@ export class CategoriasProdutoService {
             versao: vigente.versao,
             vigenteDe: vigente.vigenteDe,
             totalEtapas: vigente._count.etapas,
-            totalProdutos: vigente._count.produtos,
+            totalProcessos: vigente._count.processos,
           }
         : null,
     };

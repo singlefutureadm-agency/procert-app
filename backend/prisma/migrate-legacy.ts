@@ -9,7 +9,7 @@
  *      Simulação (não grava nada): npm run migrate:legacy -- --dry-run
  *
  * Ordem de carga (respeita as chaves estrangeiras):
- *   estados → clientes → funcionários → produtos → etapas
+ *   estados → clientes → funcionários → processos → etapas
  *   → certificações → histórico → pagamentos
  *
  * SENHAS: o legado guardava senhas de clientes em TEXTO PURO e de funcionários
@@ -46,7 +46,7 @@ const mapa = {
   estado: new Map<number, number>(),
   cliente: new Map<number, number>(),
   funcionario: new Map<number, number>(),
-  produto: new Map<number, number>(),
+  processo: new Map<number, number>(),
   etapa: new Map<number, number>(),
   certificacao: new Map<number, number>(),
 };
@@ -304,7 +304,7 @@ async function migrarEtapas(legacy: mysql.Connection): Promise<void> {
   }
 }
 
-async function migrarProdutos(legacy: mysql.Connection): Promise<void> {
+async function migrarProcessos(legacy: mysql.Connection): Promise<void> {
   const [linhas] = await legacy.query<RowDataPacket[]>(
     'SELECT * FROM tbl_produto',
   );
@@ -313,16 +313,16 @@ async function migrarProdutos(legacy: mysql.Connection): Promise<void> {
     const clienteId = mapa.cliente.get(Number(linha.id_cliente));
     if (!clienteId) {
       console.warn(
-        `   ⚠ produto ${linha.id_produto} aponta para cliente inexistente — ignorado`,
+        `   ⚠ processo ${linha.id_produto} aponta para cliente inexistente — ignorado`,
       );
       continue;
     }
 
     if (!DRY_RUN) {
-      const produto = await prisma.produto.create({
+      const processo = await prisma.processo.create({
         data: {
           clienteId,
-          nome: texto(linha.nome_produto, 150) ?? 'Produto sem nome',
+          nome: texto(linha.nome_produto, 150) ?? 'Processo sem nome',
           descricao: texto(linha.descricao_produto),
           preco: decimal(linha.preco_produto),
           fotoUrl: foto(linha.foto_produto),
@@ -330,9 +330,9 @@ async function migrarProdutos(legacy: mysql.Connection): Promise<void> {
           criadoEm: data(linha.criado_em) ?? new Date(),
         },
       });
-      mapa.produto.set(Number(linha.id_produto), produto.id);
+      mapa.processo.set(Number(linha.id_produto), processo.id);
     }
-    contar('produtos');
+    contar('processos');
   }
 }
 
@@ -342,25 +342,25 @@ async function migrarCertificacoes(legacy: mysql.Connection): Promise<void> {
   );
 
   for (const linha of linhas) {
-    const produtoId = mapa.produto.get(Number(linha.id_produto));
+    const processoId = mapa.processo.get(Number(linha.id_produto));
     const etapaId = mapa.etapa.get(Number(linha.id_etapa));
-    if (!produtoId || !etapaId) {
+    if (!processoId || !etapaId) {
       console.warn(
-        `   ⚠ certificação ${linha.id_certificacao} com produto/etapa inexistente — ignorada`,
+        `   ⚠ certificação ${linha.id_certificacao} com processo/etapa inexistente — ignorada`,
       );
       continue;
     }
 
     if (!DRY_RUN) {
-      // O legado permitia duplicidade (produto, etapa); aqui há UNIQUE.
-      const certificacao = await prisma.certificacaoProduto.upsert({
-        where: { produtoId_etapaId: { produtoId, etapaId } },
+      // O legado permitia duplicidade (processo, etapa); aqui há UNIQUE.
+      const certificacao = await prisma.certificacaoProcesso.upsert({
+        where: { processoId_etapaId: { processoId, etapaId } },
         update: {
           status: statusCertificacao(linha.status),
           observacao: texto(linha.observacao_certificacao),
         },
         create: {
-          produtoId,
+          processoId,
           etapaId,
           status: statusCertificacao(linha.status),
           observacao: texto(linha.observacao_certificacao),
@@ -411,13 +411,13 @@ async function migrarPagamentos(legacy: mysql.Connection): Promise<void> {
   }
 
   for (const linha of linhas) {
-    const produtoId = mapa.produto.get(Number(linha.id_produto));
-    if (!produtoId) continue;
+    const processoId = mapa.processo.get(Number(linha.id_produto));
+    if (!processoId) continue;
 
     if (!DRY_RUN) {
       await prisma.pagamento.create({
         data: {
-          produtoId,
+          processoId,
           valor: decimal(linha.valor_pagamento ?? linha.valor),
           status: statusPagamento(linha.status_pagamento),
           dataPagamento: data(linha.data_pagamento),
@@ -468,7 +468,7 @@ async function main(): Promise<void> {
       ['clientes', () => migrarClientes(legacy)],
       ['funcionários/administradores', () => migrarFuncionarios(legacy)],
       ['etapas', () => migrarEtapas(legacy)],
-      ['produtos', () => migrarProdutos(legacy)],
+      ['processos', () => migrarProcessos(legacy)],
       ['certificações', () => migrarCertificacoes(legacy)],
       ['histórico', () => migrarHistorico(legacy)],
       ['pagamentos', () => migrarPagamentos(legacy)],

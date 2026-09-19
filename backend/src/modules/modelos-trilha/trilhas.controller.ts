@@ -25,7 +25,7 @@ import {
 
 /**
  * Catálogo de trilhas. Restrito à equipe, leitura inclusive — acompanha
- * `categorias-produto`, de onde o vínculo parte.
+ * `categorias-processo`, de onde o vínculo parte.
  *
  * Escrita é só de ADMIN: uma trilha alterada muda o processo de avaliação de
  * toda categoria vinculada a ela, o que é decisão de gestão, não de operação.
@@ -107,7 +107,7 @@ export class TrilhasController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Exclui a trilha; 409 se houver categoria vinculada ou produto em uso',
+    summary: 'Exclui a trilha; 409 se houver categoria vinculada ou processo em uso',
   })
   remover(@Param('id', ParseIntPipe) id: number) {
     return this.trilhasService.remover(id);

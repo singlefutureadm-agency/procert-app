@@ -1,14 +1,14 @@
 # ProCert — Documentação Técnica
 
-Plataforma de **certificação de conformidade de produtos**. Um organismo certificador
-(ProCert / OCP) define trilhas de certificação por categoria de produto, recebe produtos
+Plataforma de **certificação de conformidade de processos**. Um organismo certificador
+(ProCert / OCP) define trilhas de certificação por categoria de processo, recebe processos
 dos clientes e conduz cada um pelas etapas previstas — análise documental, ensaios,
 auditoria de fábrica, decisão —, registrando quem alterou o quê e quando, com as evidências
 anexadas e as não conformidades tratadas até a **emissão do certificado**. O cliente
-acompanha os próprios produtos pelo mesmo painel, com escopo restrito, e responde às
+acompanha os próprios processos pelo mesmo painel, com escopo restrito, e responde às
 pendências que lhe cabem.
 
-O produto tem duas faces na mesma aplicação: o **site institucional público** em `/`
+O processo tem duas faces na mesma aplicação: o **site institucional público** em `/`
 (apresentação, serviços, documentos do organismo e formulário de contato) e o **painel
 autenticado** a partir de `/dashboard`.
 
@@ -48,13 +48,13 @@ resumido de subida vive em [README.md](./README.md). Aqui está o porquê de cad
 O negócio gira em torno de uma máquina de estados simples, mas auditável:
 
 ```
-Categoria de produto  →  Modelo de trilha (versionado)  →  Etapas previstas
+Categoria de processo  →  Modelo de trilha (versionado)  →  Etapas previstas
         │                          │
         └──────────┬───────────────┘
                    ▼
-Cliente cadastra-se  →  submete Produto (escolhe a categoria)
+Cliente cadastra-se  →  submete Processo (escolhe a categoria)
                                    ↓
-        o produto congela a versão vigente da trilha e abre suas etapas
+        o processo congela a versão vigente da trilha e abre suas etapas
                                    ↓
       cada etapa: PENDENTE → EM_ANDAMENTO → APROVADO | REPROVADO
                                    ↓
@@ -66,13 +66,13 @@ Cliente cadastra-se  →  submete Produto (escolhe a categoria)
    todas as etapas obrigatórias APROVADO  →  Certificado emitido (PDF, validade)
 ```
 
-Seis invariantes sustentam o produto:
+Seis invariantes sustentam o processo:
 
 | Invariante | Onde é garantida |
 |---|---|
-| Um produto nasce com uma linha de certificação para **cada etapa da versão vigente** da trilha da sua categoria | `ProdutosService.criar()`, dentro de uma transação |
-| Um produto é avaliado pela versão da trilha vigente **na submissão**, mesmo que a categoria publique outra depois | `Produto.modeloTrilhaId` é um retrato; mudar de versão exige ação explícita |
-| Uma versão de trilha com produto vinculado é imutável | `ModelosTrilhaService.garantirEditavel()` responde `409` |
+| Um processo nasce com uma linha de certificação para **cada etapa da versão vigente** da trilha da sua categoria | `ProcessosService.criar()`, dentro de uma transação |
+| Um processo é avaliado pela versão da trilha vigente **na submissão**, mesmo que a categoria publique outra depois | `Processo.modeloTrilhaId` é um retrato; mudar de versão exige ação explícita |
+| Uma versão de trilha com processo vinculado é imutável | `ModelosTrilhaService.garantirEditavel()` responde `409` |
 | Nenhuma mudança de status existe sem autoria e carimbo de tempo | `CertificacoesService.salvar()` grava `CertificacaoHistorico` na mesma transação |
 | Uma etapa marcada como `exigeDocumento` não é aprovada sem evidência anexada | validação antes da transação em `salvar()` |
 | Um cliente nunca acessa dados de outro cliente | escopo forçado no servidor em cada service, nunca pelo id da URL |
@@ -82,8 +82,8 @@ Seis invariantes sustentam o produto:
 | Papel | Alcance |
 |---|---|
 | `ADMIN` | Tudo, incluindo gestão da equipe interna, exclusões definitivas e **emissão/suspensão de certificados** |
-| `FUNCIONARIO` | Clientes, produtos, categorias e trilhas, avanço das certificações e abertura/avaliação de não conformidades |
-| `CLIENTE` | Somente os próprios produtos, certificações e certificados — leitura da trilha, com uma exceção de escrita: **responder às não conformidades** |
+| `FUNCIONARIO` | Clientes, processos, categorias e trilhas, avanço das certificações e abertura/avaliação de não conformidades |
+| `CLIENTE` | Somente os próprios processos, certificações e certificados — leitura da trilha, com uma exceção de escrita: **responder às não conformidades** |
 
 ### Origem: migração de um sistema PHP legado
 
@@ -102,7 +102,7 @@ relevantes:
 | Card "Certificações aprovadas" sempre exibia 0 (chave `total_aprovados` vs. leitura de `total_certificacao_aprovada`) | agregação recalculada em `DashboardService` |
 | Etapa final fixada como `id_etapa = 4` | "concluído" = **todas** as etapas aprovadas |
 | "Desativar etapa" executava `DELETE` físico, quebrando certificações em andamento | catálogo global substituído por trilhas versionadas por categoria (ver abaixo) |
-| Produto criado fora de transação → produto órfão sem etapas | `prisma.$transaction` |
+| Processo criado fora de transação → processo órfão sem etapas | `prisma.$transaction` |
 | Erro de conexão imprimia host e usuário do banco na tela | `AllExceptionsFilter` padroniza e omite internos |
 | Constantes SMTP existiam mas nunca eram usadas; link de reset apontava para rota inexistente | `MailService` com nodemailer e link real |
 | `if ($_SESSION['id_tipo_usuario'] == '1')` espalhado por 30+ arquivos | `<RotaProtegida papeis={...}>` declarativo, revalidado no backend |
@@ -115,7 +115,7 @@ resumo:
 
 | Incremento | O que resolve |
 |---|---|
-| **Categoria de produto + trilha versionada** | O legado tinha um catálogo único de etapas aplicado a todo produto. Famílias diferentes (EPI, brinquedo, eletrodoméstico) exigem normas e ensaios diferentes — e uma trilha muda com o tempo sem poder alterar a régua de quem já está em avaliação. |
+| **Categoria de processo + trilha versionada** | O legado tinha um catálogo único de etapas aplicado a todo processo. Famílias diferentes (EPI, brinquedo, eletrodoméstico) exigem normas e ensaios diferentes — e uma trilha muda com o tempo sem poder alterar a régua de quem já está em avaliação. |
 | **Não conformidade estruturada** | Reprovar era um status com observação em texto livre. Agora a reprovação vira um registro com código, gravidade, prazo, resposta do cliente e parecer — e a resolução reabre a etapa. |
 | **Certificado formal** | O processo terminava sem produzir nada. Agora emite um documento numerado, com validade, PDF e ciclo próprio (suspender, cancelar, vencer). |
 | **Evidências por etapa e notificação** | A avaliação não guardava prova nem avisava o cliente. Agora cada etapa aceita anexos (obrigatórios quando o modelo exige) e cada mudança de status dispara e-mail. |
@@ -177,7 +177,7 @@ existe uma requisição HTTP. O `@CurrentUser()` entra no service como um objeto
 ### Fluxo de uma requisição autenticada
 
 ```
-PUT /api/certificacoes/produto/1
+PUT /api/certificacoes/processo/1
   1. helmet aplica cabeçalhos de segurança
   2. CORS valida a origem (CORS_ORIGINS)
   3. JwtAuthGuard        → rota não é @Public(); valida assinatura e expiração do JWT
@@ -185,7 +185,7 @@ PUT /api/certificacoes/produto/1
   4. RolesGuard          → @Roles(ADMIN, FUNCIONARIO); CLIENTE recebe 403
   5. ThrottlerGuard      → 120 req/min por padrão
   6. ValidationPipe      → SalvarCertificacaoDto: whitelist + forbidNonWhitelisted
-  7. Controller          → delega ao service com (produtoId, dto, usuario)
+  7. Controller          → delega ao service com (processoId, dto, usuario)
   8. Service             → transação: UPDATE das etapas + INSERT do histórico
   9. Resposta            → timeline recalculada
      Erro em qualquer ponto → AllExceptionsFilter → corpo padronizado
@@ -281,9 +281,9 @@ procert-app/
 │           ├── auth/             login, /me, esqueci/redefinir/alterar senha, JwtStrategy
 │           ├── clientes/         CRUD + foto + soft delete
 │           ├── funcionarios/     ADMIN e FUNCIONARIO no mesmo módulo
-│           ├── categorias-produto/ CRUD de categorias (famílias de produto)
+│           ├── categorias-processo/ CRUD de categorias (famílias de processo)
 │           ├── modelos-trilha/   versões da trilha: criar, editar, reordenar
-│           ├── produtos/         CRUD + abertura da trilha na versão vigente
+│           ├── processos/         CRUD + abertura da trilha na versão vigente
 │           ├── certificacoes/    painel, timeline, salvar lote, versão da trilha,
 │           │                     reiniciar + documentos.service (evidências)
 │           ├── nao-conformidades/ abertura, resposta do cliente, avaliação
@@ -308,10 +308,10 @@ procert-app/
         ├── components/           Layout, Sidebar, Campo, Badge, Paginacao, Modal, EstadoVazio…
         ├── features/
         │   ├── home/             Site institucional: conteudo.ts, hooks.ts, home.css, secoes/
-        │   ├── categorias-produto/ Listagem, modal, detalhe com versões e editor de etapas
+        │   ├── categorias-processo/ Listagem, modal, detalhe com versões e editor de etapas
         │   ├── certificacoes/    Painel, timeline, DocumentosEtapa
         │   ├── nao-conformidades/ Página do cliente/equipe + CartaoNaoConformidade
-        │   ├── certificados/     Página de certificados + painel dentro do produto
+        │   ├── certificados/     Página de certificados + painel dentro do processo
         │   └── <domínio>/        api.ts (chamadas tipadas) + páginas do domínio
         ├── pages/                Login, EsqueciSenha, RedefinirSenha, SemPermissao, 404
         ├── styles/global.css     Design tokens + tema liquid glass do painel
@@ -337,10 +337,10 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
        Trilha (FAMÍLIA) ──1:N──► ModeloTrilha (VERSÃO) ──1:N──► ModeloEtapa
           ▲                              │                          │
           │ trilhaId                     │                          │ (etapa)
-  CategoriaProduto                       ▼                          ▼
-          │                              │                  CertificacaoProduto
+  CategoriaProcesso                       ▼                          ▼
+          │                              │                  CertificacaoProcesso
           ▼                              │                          │
-        Produto ◄──1:N── Cliente         │                          │
+        Processo ◄──1:N── Cliente         │                          │
           │  │  └── modeloTrilhaId (retrato da VERSÃO) ─────────────┘│
           │  │                                                  ├──1:N──► CertificacaoHistorico
           │  ├──1:N──► Pagamento                                │              │
@@ -353,10 +353,10 @@ código, tabelas e colunas em `snake_case` no banco (`@@map` / `@map`), timestam
 ```
 
 **A assimetria do desenho é a regra central, não um detalhe de layout.** A
-**categoria aponta para a FAMÍLIA** (`CategoriaProduto.trilhaId → Trilha`); o
-**produto aponta para a VERSÃO** (`Produto.modeloTrilhaId → ModeloTrilha`). É ela
+**categoria aponta para a FAMÍLIA** (`CategoriaProcesso.trilhaId → Trilha`); o
+**processo aponta para a VERSÃO** (`Processo.modeloTrilhaId → ModeloTrilha`). É ela
 que faz trocar a trilha de uma categoria, ou publicar uma versão nova, mudar a
-régua dos produtos **futuros** sem tocar em nenhuma avaliação em andamento.
+régua dos processos **futuros** sem tocar em nenhuma avaliação em andamento.
 Fazer a categoria apontar para a versão devolveria exatamente o problema que o
 versionamento existe para resolver.
 
@@ -370,12 +370,12 @@ diagrama registrado aqui ainda mostrava esse arranjo — corrigido em 05/09/2026
 | `Estado` | `estados` | 27 UFs; referência de endereço |
 | `Cliente` | `clientes` | Quem contrata a certificação; **também é usuário** (login com `role` CLIENTE implícita). Guarda `ultimoAcessoEm` e `responsavelId` (carteira) |
 | `Funcionario` | `funcionarios` | Equipe interna; guarda `role` = `ADMIN` \| `FUNCIONARIO` e `ultimoAcessoEm` |
-| `CategoriaProduto` | `categorias_produto` | Família de produtos com processo próprio; guarda a norma e a `validadeMeses` do certificado |
+| `CategoriaProcesso` | `categorias_processo` | Família de processos com processo próprio; guarda a norma e a `validadeMeses` do certificado |
 | `Trilha` | `trilhas` | **Família** de processo do catálogo (nome, descrição, status); reutilizável por várias categorias |
 | `ModeloTrilha` | `modelos_trilha` | **Versão** de uma trilha do catálogo (`versao`, `ativo`, `vigenteDe/Ate`) |
 | `ModeloEtapa` | `modelos_etapa` | Etapa prevista por uma versão (`ordem`, `tipo`, `obrigatoria`, `prazoSlaHoras`, `papelResponsavel`, `fase`, `exigeDocumento`) |
-| `Produto` | `produtos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão**; guarda `codigoProcesso` e `motivoProcesso` |
-| `CertificacaoProduto` | `certificacoes_produto` | Uma etapa aplicada a um produto — o estado corrente, com `ordem` própria e os marcos `iniciadaEm`/`concluidaEm` |
+| `Processo` | `processos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão**; guarda `codigoProcesso` e `motivoProcesso` |
+| `CertificacaoProcesso` | `certificacoes_processo` | Uma etapa aplicada a um processo — o estado corrente, com `ordem` própria e os marcos `iniciadaEm`/`concluidaEm` |
 | `CertificacaoHistorico` | `certificacoes_historico` | Trilha de auditoria imutável das transições e dos anexos |
 | `DocumentoCertificacao` | `documentos_certificacao` | Evidência anexada, presa ao registro de histórico que a trouxe |
 | `NaoConformidade` | `nao_conformidades` | Achado de uma etapa reprovada: código, gravidade, prazo, resposta e parecer |
@@ -419,9 +419,9 @@ na tela, na chave da API e no cabeçalho da planilha:
 
 | Rótulo | De | Até |
 |---|---|---|
-| **Lead time da trilha** | `Produto.criadoEm` | aprovação da última etapa **obrigatória** |
+| **Lead time da trilha** | `Processo.criadoEm` | aprovação da última etapa **obrigatória** |
 | **Tempo de tratamento da etapa** | 1ª saída de `PENDENTE` | aprovação |
-| **Tempo em fila** | `CertificacaoProduto.criadoEm` | 1ª saída de `PENDENTE` |
+| **Tempo em fila** | `CertificacaoProcesso.criadoEm` | 1ª saída de `PENDENTE` |
 
 Mais duas contagens: **Aprovação direta** (etapas que foram de `PENDENTE` a `APROVADO` sem
 tratamento registrado) e **Etapas em aberto** (não aprovadas, medidas até hoje).
@@ -432,11 +432,11 @@ relatório.
 
 Dois fatos do schema que determinam esses marcos:
 
-1. **`CertificacaoProduto.criadoEm` é a entrada na FILA, não o início do trabalho.** A
+1. **`CertificacaoProcesso.criadoEm` é a entrada na FILA, não o início do trabalho.** A
    coluna é `DEFAULT CURRENT_TIMESTAMP` e a trilha nasce num único `createMany` dentro da
-   transação que cria o produto — em Postgres `CURRENT_TIMESTAMP` é o início da transação,
-   então **todas as etapas de um produto nascem com o mesmo timestamp**, igual a
-   `Produto.criadoEm`. Usá-lo como início do tratamento mediria o produto, não a etapa.
+   transação que cria o processo — em Postgres `CURRENT_TIMESTAMP` é o início da transação,
+   então **todas as etapas de um processo nascem com o mesmo timestamp**, igual a
+   `Processo.criadoEm`. Usá-lo como início do tratamento mediria o processo, não a etapa.
 2. **A trilha não é sequencial.** `CertificacoesService.salvar()` recebe um lote e não impõe
    ordem: qualquer etapa pode ser aprovada a qualquer momento, várias no mesmo instante.
    Logo "início da etapa = aprovação da anterior" é inválido, e `PENDENTE → APROVADO` direto
@@ -452,7 +452,7 @@ Recortes que evitam número mentiroso:
 - **O fim é o último `alteradoEm` com `statusNovo = APROVADO` e `statusAnterior <>
   statusNovo`.** O `<>` descarta as linhas de anexo — sem ele, um documento enviado depois
   da aprovação empurra o fim para frente e quase dobra o tempo medido.
-- **Mediana, nunca média**: um produto abandonado há dois anos destrói qualquer média.
+- **Mediana, nunca média**: um processo abandonado há dois anos destrói qualquer média.
 - **Agrupamento por trilha usa categoria + versão.** Juntar v1 e v3 compara réguas
   diferentes.
 - **Base vazia devolve `null`, nunca `0`.** Zero afirmaria "levou zero dia"; `null` diz "não
@@ -477,22 +477,22 @@ Recortes que evitam número mentiroso:
 | Restrição | Efeito |
 |---|---|
 | `@@unique([categoriaId, versao])` em `ModeloTrilha` | Duas versões com o mesmo número são impossíveis |
-| `@@unique([produtoId, etapaId])` em `CertificacaoProduto` | Impossível duplicar uma etapa no mesmo produto — a migração de versão fica idempotente por construção |
+| `@@unique([processoId, etapaId])` em `CertificacaoProcesso` | Impossível duplicar uma etapa no mesmo processo — a migração de versão fica idempotente por construção |
 | `codigo @unique` (NC) e `numero @unique` (certificado) | Guardas contra emissões simultâneas com o mesmo sequencial; o filtro traduz para `409` |
 | `email @unique` em `Cliente` **e** em `Funcionario` | Unicidade por tabela; a unicidade **cross-tabela** é verificada em código (`garantirEmailDisponivel`), pois o banco não a expressa |
-| `Produto.cliente` / `.categoria` / `.modeloTrilha` `onDelete: Restrict` | Cliente, categoria ou versão em uso não podem ser apagados — force o soft delete |
+| `Processo.cliente` / `.categoria` / `.modeloTrilha` `onDelete: Restrict` | Cliente, categoria ou versão em uso não podem ser apagados — force o soft delete |
 | `ModeloEtapa.modeloTrilha` `onDelete: Cascade` | Apagar uma versão limpa suas etapas |
-| `CertificacaoProduto.produto` `onDelete: Cascade` | Apagar produto limpa trilha, histórico, evidências e NCs |
-| `CertificacaoProduto.etapa` `onDelete: Restrict` | Etapa de modelo em uso não pode ser apagada |
+| `CertificacaoProcesso.processo` `onDelete: Cascade` | Apagar processo limpa trilha, histórico, evidências e NCs |
+| `CertificacaoProcesso.etapa` `onDelete: Restrict` | Etapa de modelo em uso não pode ser apagada |
 | `DocumentoCertificacao.historico` `onDelete: Cascade` | Evidência não sobrevive ao registro que a datou |
-| `Certificado.produto` `onDelete: Restrict` | Produto com certificado emitido não pode ser apagado |
+| `Certificado.processo` `onDelete: Restrict` | Processo com certificado emitido não pode ser apagado |
 | Autorias `alteradoPor` / `abertoPor` / `emitidoPor` / `enviadoPor` `onDelete: SetNull` | Excluir um colaborador **não apaga a auditoria**: o nome desnormalizado permanece |
 | `TokenRedefinicaoSenha.tokenHash @unique` | Só o hash SHA-256 é persistido; vazamento do banco não revela tokens usáveis |
-| Índices em `[produtoId, ordem]`, `[categoriaId, ativo]`, `[status, prazoResposta]`, `[status, dataValidade]`, `[certificacaoId, alteradoEm]` | Suportam a timeline, a fila de NCs por prazo e a rotina de expiração sem varredura |
+| Índices em `[processoId, ordem]`, `[categoriaId, ativo]`, `[status, prazoResposta]`, `[status, dataValidade]`, `[certificacaoId, alteradoEm]` | Suportam a timeline, a fila de NCs por prazo e a rotina de expiração sem varredura |
 
 **Decisão de modelagem — dois modelos de usuário.** `Cliente` e `Funcionario` são tabelas
 separadas em vez de uma tabela `Usuario` com discriminador. Motivo: herança do legado
-(`tbl_cliente`/`tbl_funcionario`) e ciclos de vida distintos (cliente tem produtos e
+(`tbl_cliente`/`tbl_funcionario`) e ciclos de vida distintos (cliente tem processos e
 faturamento; funcionário tem autoria de auditoria). Custo assumido: o login consulta as duas
 tabelas e a unicidade de e-mail é validada em código. Se um dia houver um quarto papel,
 vale unificar.
@@ -502,19 +502,19 @@ vale unificar.
 exclusão do autor.
 
 **Decisão de modelagem — trilha versionada em vez de editável.** Uma versão de trilha com
-produto vinculado nunca é alterada; mudar o processo cria a versão seguinte e encerra a
+processo vinculado nunca é alterada; mudar o processo cria a versão seguinte e encerra a
 anterior (`vigenteAte`, `ativo = false`). Isso mantém uma propriedade que um organismo
-certificador precisa poder afirmar: *este produto foi avaliado por estas regras, nesta
-redação*. O custo é uma tabela a mais e a necessidade de migrar produtos entre versões
+certificador precisa poder afirmar: *este processo foi avaliado por estas regras, nesta
+redação*. O custo é uma tabela a mais e a necessidade de migrar processos entre versões
 conscientemente (§7, `certificacoes`).
 
-**Decisão de modelagem — `ordem` na trilha do produto.** `CertificacaoProduto.ordem` é
-copiado de `ModeloEtapa.ordem` na abertura, mas vive por conta própria. Um produto migrado
+**Decisão de modelagem — `ordem` na trilha do processo.** `CertificacaoProcesso.ordem` é
+copiado de `ModeloEtapa.ordem` na abertura, mas vive por conta própria. Um processo migrado
 entre versões carrega etapas de modelos diferentes, cujas ordens colidem; só um campo no
-nível do produto descreve a sequência real. Toda ordenação de timeline usa esse campo.
+nível do processo descreve a sequência real. Toda ordenação de timeline usa esse campo.
 
 **Decisão de modelagem — evidência presa ao histórico.** `DocumentoCertificacao` aponta
-para `CertificacaoHistorico`, não para `CertificacaoProduto`, para registrar *em que ponto
+para `CertificacaoHistorico`, não para `CertificacaoProcesso`, para registrar *em que ponto
 da trilha* cada arquivo entrou. Como consequência, anexar cria um registro de histórico
 próprio (com `statusAnterior === statusNovo`) — uma marcação de trilha, não uma transição.
 A interface reconhece esse caso e mostra "Documento anexado".
@@ -579,15 +579,15 @@ if (usuario.role === Role.CLIENTE) throw new ForbiddenException('Clientes podem 
 ```
 
 Consequência: um cliente **pode** ler e editar o próprio cadastro (`GET`/`PATCH
-/clientes/:id` com `id` igual ao seu), ler os próprios produtos, trilhas, certificados e
+/clientes/:id` com `id` igual ao seu), ler os próprios processos, trilhas, certificados e
 evidências, e **responder às próprias não conformidades** — a única escrita de domínio que
 lhe cabe. Não consegue listar clientes, ver o catálogo de categorias e trilhas, avançar
 certificações, avaliar NCs nem emitir ou suspender certificados.
 
 O catálogo de categorias e modelos de trilha é **integralmente restrito à equipe, leitura
 inclusive**: é configuração interna do organismo, e as normas e prazos de cada família não
-são informação do cliente. Ele continua vendo a categoria do próprio produto, que vem
-embutida no payload de `/produtos`.
+são informação do cliente. Ele continua vendo a categoria do próprio processo, que vem
+embutida no payload de `/processos`.
 
 No dashboard, `totalClientes` devolve a constante `1` para um CLIENTE — não é a contagem
 real da base. É proposital, para o card não vazar o tamanho da carteira.
@@ -628,7 +628,7 @@ Login unificado (cliente ou equipe), perfil da sessão, recuperação e troca de
 ### `clientes`
 CRUD com paginação e busca por nome/e-mail/CPF/CNPJ. `SELECT_CLIENTE` é uma allowlist de
 campos — **`senhaHash` nunca sai do service**, nem por acidente em um `include`. Soft delete
-via `status`; hard delete só `ADMIN` e bloqueado com `409` se houver produtos vinculados.
+via `status`; hard delete só `ADMIN` e bloqueado com `409` se houver processos vinculados.
 `GET /clientes/resumo` devolve a lista enxuta para popular selects.
 
 ### `funcionarios`
@@ -636,58 +636,58 @@ via `status`; hard delete só `ADMIN` e bloqueado com `409` se houver produtos v
 quase idênticos). Duas salvaguardas operacionais: ninguém desativa ou exclui o próprio
 cadastro, e o sistema **impede ficar sem nenhum ADMIN ativo** (`garantirOutroAdminAtivo`).
 
-### `categorias-produto`
-CRUD das famílias de produto, com a norma de referência e a `validadeMeses` usada no cálculo
+### `categorias-processo`
+CRUD das famílias de processo, com a norma de referência e a `validadeMeses` usada no cálculo
 do vencimento do certificado. Soft delete via `status`; hard delete só `ADMIN` e bloqueado
-com `409` se houver produtos vinculados (as versões de trilha caem junto, em transação).
-`GET /categorias-produto/resumo` devolve a lista para selects **já com o modelo vigente**,
-para o formulário de produto saber, antes de o usuário preencher tudo, que a categoria não
+com `409` se houver processos vinculados (as versões de trilha caem junto, em transação).
+`GET /categorias-processo/resumo` devolve a lista para selects **já com o modelo vigente**,
+para o formulário de processo saber, antes de o usuário preencher tudo, que a categoria não
 aceita submissão. Módulo inteiro restrito a `ADMIN`/`FUNCIONARIO`, leitura inclusive.
 
 ### `modelos-trilha`
 Versões da trilha de uma categoria. A regra central é a imutabilidade:
 
-- `POST /categorias-produto/:id/modelos-trilha` — cria a próxima versão. Sem `etapas` no
+- `POST /categorias-processo/:id/modelos-trilha` — cria a próxima versão. Sem `etapas` no
   corpo, **copia as da vigente** (o caso comum é partir do processo atual e ajustar).
   Encerra a anterior (`vigenteAte`, `ativo = false`) na mesma transação, de modo que a
   categoria nunca tenha duas versões vigentes.
 - `PATCH /modelos-trilha/:id/etapas` — substitui a lista inteira; `409` se a versão já tem
-  produto, com a mensagem orientando versionar.
+  processo, com a mensagem orientando versionar.
 - `PATCH /modelos-trilha/:id/etapas/ordem` — persiste o drag-and-drop em transação.
 
-`resolverVigente()` é exposto para o `ProdutosService` não duplicar a regra de qual versão
+`resolverVigente()` é exposto para o `ProcessosService` não duplicar a regra de qual versão
 vale no momento da submissão.
 
-### `produtos`
+### `processos`
 CRUD + upload de foto. Na criação exige `categoriaId`, resolve a versão vigente da trilha
 daquela categoria e abre uma linha de certificação para cada etapa dela — tudo na **mesma
 transação**. Sem modelo vigente, responde `400` orientando cadastrar a trilha primeiro; com
-categoria inativa, `400`. O `AtualizarProdutoDto` **omite `categoriaId`**: trocar a
-categoria depois da submissão mudaria a régua de um produto em avaliação, o que é
+categoria inativa, `400`. O `AtualizarProcessoDto` **omite `categoriaId`**: trocar a
+categoria depois da submissão mudaria a régua de um processo em avaliação, o que é
 reabertura de processo, não edição de cadastro. Todo payload vem enriquecido com
 `resumoCertificacao` e o último pagamento, evitando N+1 no frontend. `Decimal` do Prisma é
 convertido para `number` na borda.
 
 ### `certificacoes`
-O coração do produto.
+O coração do processo.
 
-- `GET /certificacoes` — painel consolidado: uma linha por produto com etapa atual,
+- `GET /certificacoes` — painel consolidado: uma linha por processo com etapa atual,
   status e progresso. Substitui as subqueries correlacionadas do legado.
-- `GET /certificacoes/produto/:id` — timeline completa: etapas na ordem do produto, cada
+- `GET /certificacoes/processo/:id` — timeline completa: etapas na ordem do processo, cada
   uma com evidências, não conformidades e histórico decrescente, mais um `resumo` agregado
   (inclui `obrigatoriasAprovadas`, que habilita a emissão do certificado).
-- `PUT /certificacoes/produto/:id` — **salvamento em lote**. Valida que toda etapa enviada
-  pertence ao produto, recusa aprovar etapa que exige evidência sem anexo, recusa NC fora de
+- `PUT /certificacoes/processo/:id` — **salvamento em lote**. Valida que toda etapa enviada
+  pertence ao processo, recusa aprovar etapa que exige evidência sem anexo, recusa NC fora de
   reprovação, ignora as que não mudaram e, para cada mudança, grava `UPDATE` + `INSERT` de
   histórico (+ NC quando enviada) na mesma transação. Autoria vem da sessão, nunca de campo
   editável. Depois do commit, dispara a notificação por e-mail sem bloquear a resposta.
-- `GET .../versao-trilha` — consulta pura: diz se o produto ficou preso a uma versão antiga
+- `GET .../versao-trilha` — consulta pura: diz se o processo ficou preso a uma versão antiga
   e **o que a migração faria**, sem efeito colateral.
 - `POST .../migrar-versao-trilha` — migra para a versão vigente adicionando só as etapas
   ausentes (comparadas por nome, já que cada versão tem `ModeloEtapa` próprias), grava
   histórico com autoria e **renumera a trilha inteira** conforme a ordem do modelo vigente.
   Etapas que a versão nova não prevê vão para o fim, preservando a sequência relativa.
-- `POST .../reiniciar` — só `ADMIN`: recria a trilha do zero pela versão que o produto
+- `POST .../reiniciar` — só `ADMIN`: recria a trilha do zero pela versão que o processo
   carrega (trocar de versão é decisão à parte), apagando o histórico em cascata.
 - `POST .../etapas/:etapaId/documento` e `GET /certificacoes/documentos/:id/arquivo` —
   evidências, em `documentos.service.ts`.
@@ -712,7 +712,7 @@ reprovação.
 
 ### `certificados`
 Emissão formal. Exige todas as etapas **obrigatórias** aprovadas (opcionais pendentes não
-bloqueiam) e recusa com `409` se o produto já tem certificado vigente. Número sequencial por
+bloqueiam) e recusa com `409` se o processo já tem certificado vigente. Número sequencial por
 ano (`PROCERT-2026-000001`), validade de `categoria.validadeMeses` salvo data explícita.
 
 O PDF é gerado **depois do commit**, de propósito: escrita em disco não participa de
@@ -728,7 +728,7 @@ reativar fora da validade e mexer em cancelado.
 Buffer, para que o layout possa mudar sem tocar no domínio.
 
 ### `dashboard`
-`GET /dashboard/metricas`: total de clientes e produtos, contagem por situação
+`GET /dashboard/metricas`: total de clientes e processos, contagem por situação
 (concluídas/em andamento/pendentes), percentual de pendentes e as 8 últimas movimentações.
 A classificação é calculada em memória sobre um único `findMany` enxuto
 (`select: {id, certificacao: {status}}`) — mais previsível que quatro `count` com filtros
@@ -753,7 +753,7 @@ Quatro serviços:
   ignora. Vêm de origens diferentes e a resposta traz dois grupos nomeados, sem nenhum
   campo que combine os dois. Único endpoint do módulo restrito a **ADMIN** (sobrescreve o
   `@Roles` da classe): é informação sobre a produtividade de colegas, não dado operacional.
-- **`comparativos.service.ts`** — avanço por produto e volume por cliente. Distingue
+- **`comparativos.service.ts`** — avanço por processo e volume por cliente. Distingue
   **"obrigatórias pendentes"** de **"pendentes"**: só a etapa obrigatória trava a emissão do
   certificado. Traz `diasParado` porque progresso sozinho engana — 60% parado há 90 dias é
   pior que 30% mexido ontem.
@@ -782,7 +782,7 @@ propagadas.
 
 Dois templates: redefinição de senha e **atualização da certificação** (nome da etapa, novo
 status e link para o painel), este agrupando todas as etapas alteradas em uma mensagem só.
-Nome de produto e de etapa vêm do banco e entram no corpo HTML, então passam por escape.
+Nome de processo e de etapa vêm do banco e entram no corpo HTML, então passam por escape.
 
 ### `uploads`
 `@Global()`, injetado nos módulos que gravam arquivo. Três caminhos, com allowlists
@@ -790,7 +790,7 @@ distintos:
 
 | Método | Allowlist | Uso |
 |---|---|---|
-| `salvarImagem` | `jpeg`/`png`/`webp`/`gif` | Fotos de cliente, colaborador e produto |
+| `salvarImagem` | `jpeg`/`png`/`webp`/`gif` | Fotos de cliente, colaborador e processo |
 | `salvarDocumento` | imagens + PDF, Word e Excel | Evidências de etapa |
 | `salvarArquivoGerado` | — (conteúdo é do próprio sistema) | PDF de certificado |
 
@@ -829,7 +829,7 @@ autoriza.
 | PATCH | `/:id` | Autenticado (CLIENTE só o próprio) | Atualiza; senha só se enviada |
 | PATCH | `/:id/status` | ADMIN, FUNCIONARIO | Ativa/desativa (soft delete) |
 | POST | `/:id/foto` | Autenticado (CLIENTE só o próprio) | `multipart/form-data`, campo `foto` |
-| DELETE | `/:id` | ADMIN | Exclusão definitiva; `409` se houver produtos |
+| DELETE | `/:id` | ADMIN | Exclusão definitiva; `409` se houver processos |
 
 ### Funcionários — `/funcionarios`
 
@@ -843,7 +843,7 @@ autoriza.
 | POST | `/:id/foto` | ADMIN, FUNCIONARIO | Foto do integrante |
 | DELETE | `/:id` | ADMIN | Exclusão definitiva; preserva a auditoria |
 
-### Produtos — `/produtos`
+### Processos — `/processos`
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
@@ -852,39 +852,39 @@ autoriza.
 | POST | `/` | ADMIN, FUNCIONARIO | Cadastra (exige `categoriaId`) **e abre a trilha na versão vigente** |
 | PATCH | `/:id` | ADMIN, FUNCIONARIO | Atualiza; `categoriaId` não é aceito |
 | PATCH | `/:id/status` | ADMIN, FUNCIONARIO | Ativa/desativa |
-| POST | `/:id/foto` | ADMIN, FUNCIONARIO | Foto do produto |
+| POST | `/:id/foto` | ADMIN, FUNCIONARIO | Foto do processo |
 | DELETE | `/:id` | ADMIN | Exclusão definitiva (cascata na trilha) |
-| GET | `/:id/certificados` | Autenticado (CLIENTE só os seus) | Certificados do produto |
+| GET | `/:id/certificados` | Autenticado (CLIENTE só os seus) | Certificados do processo |
 | POST | `/:id/certificados` | ADMIN | **Emite** o certificado |
 
 ### Categorias e trilhas *(módulos inteiros: ADMIN, FUNCIONARIO — leitura inclusive)*
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/categorias-produto` | Equipe | Lista paginada, com a versão vigente resumida |
-| GET | `/categorias-produto/resumo` | Equipe | Lista para selects, com o modelo vigente |
-| GET | `/categorias-produto/:id` | Equipe | Detalhe |
-| POST | `/categorias-produto` | Equipe | Cadastra (nome, norma, `validadeMeses`) |
-| PATCH | `/categorias-produto/:id` | Equipe | Atualiza |
-| PATCH | `/categorias-produto/:id/status` | Equipe | Ativa/desativa (soft delete) |
-| DELETE | `/categorias-produto/:id` | ADMIN | Exclusão; `409` se houver produtos |
-| GET | `/categorias-produto/:id/modelos-trilha` | Equipe | Versões da trilha, com etapas |
-| POST | `/categorias-produto/:id/modelos-trilha` | Equipe | **Nova versão**; copia a vigente e a encerra |
+| GET | `/categorias-processo` | Equipe | Lista paginada, com a versão vigente resumida |
+| GET | `/categorias-processo/resumo` | Equipe | Lista para selects, com o modelo vigente |
+| GET | `/categorias-processo/:id` | Equipe | Detalhe |
+| POST | `/categorias-processo` | Equipe | Cadastra (nome, norma, `validadeMeses`) |
+| PATCH | `/categorias-processo/:id` | Equipe | Atualiza |
+| PATCH | `/categorias-processo/:id/status` | Equipe | Ativa/desativa (soft delete) |
+| DELETE | `/categorias-processo/:id` | ADMIN | Exclusão; `409` se houver processos |
+| GET | `/categorias-processo/:id/modelos-trilha` | Equipe | Versões da trilha, com etapas |
+| POST | `/categorias-processo/:id/modelos-trilha` | Equipe | **Nova versão**; copia a vigente e a encerra |
 | GET | `/modelos-trilha/:id` | Equipe | Detalhe de uma versão |
-| PATCH | `/modelos-trilha/:id/etapas` | Equipe | Substitui as etapas; `409` se já tem produtos |
+| PATCH | `/modelos-trilha/:id/etapas` | Equipe | Substitui as etapas; `409` se já tem processos |
 | PATCH | `/modelos-trilha/:id/etapas/ordem` | Equipe | Reordena (drag-and-drop) |
 
 ### Certificações — `/certificacoes`
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/` | Autenticado (CLIENTE escopado) | Painel: uma linha por produto, com progresso |
-| GET | `/produto/:produtoId` | Autenticado (CLIENTE só os seus) | Timeline: etapas, evidências, NCs e histórico |
-| PUT | `/produto/:produtoId` | ADMIN, FUNCIONARIO | Salva o lote, grava auditoria, abre NC e notifica |
-| GET | `/produto/:produtoId/versao-trilha` | ADMIN, FUNCIONARIO | Diz se há versão mais nova e o que mudaria |
-| POST | `/produto/:produtoId/migrar-versao-trilha` | ADMIN, FUNCIONARIO | Migra e renumera a trilha |
-| POST | `/produto/:produtoId/reiniciar` | ADMIN | Recria a trilha do zero |
-| POST | `/produto/:produtoId/etapas/:etapaId/documento` | ADMIN, FUNCIONARIO | Anexa evidência (`multipart`, campo `documento`) |
+| GET | `/` | Autenticado (CLIENTE escopado) | Painel: uma linha por processo, com progresso |
+| GET | `/processo/:processoId` | Autenticado (CLIENTE só os seus) | Timeline: etapas, evidências, NCs e histórico |
+| PUT | `/processo/:processoId` | ADMIN, FUNCIONARIO | Salva o lote, grava auditoria, abre NC e notifica |
+| GET | `/processo/:processoId/versao-trilha` | ADMIN, FUNCIONARIO | Diz se há versão mais nova e o que mudaria |
+| POST | `/processo/:processoId/migrar-versao-trilha` | ADMIN, FUNCIONARIO | Migra e renumera a trilha |
+| POST | `/processo/:processoId/reiniciar` | ADMIN | Recria a trilha do zero |
+| POST | `/processo/:processoId/etapas/:etapaId/documento` | ADMIN, FUNCIONARIO | Anexa evidência (`multipart`, campo `documento`) |
 | GET | `/certificacoes/documentos/:id/arquivo` | Autenticado (CLIENTE só os seus) | Baixa a evidência |
 
 ### Não conformidades
@@ -892,7 +892,7 @@ autoriza.
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | POST | `/certificacoes/:certificacaoId/nao-conformidades` | ADMIN, FUNCIONARIO | Abre NC em etapa **reprovada** |
-| GET | `/nao-conformidades` | Autenticado (CLIENTE escopado) | Lista ordenada por prazo; filtros `status`, `criticidade`, `produtoId`, `pendentes` |
+| GET | `/nao-conformidades` | Autenticado (CLIENTE escopado) | Lista ordenada por prazo; filtros `status`, `criticidade`, `processoId`, `pendentes` |
 | GET | `/nao-conformidades/:id` | Autenticado (CLIENTE só as suas) | Detalhe |
 | PATCH | `/nao-conformidades/:id/resposta` | **CLIENTE** | Registra a correção; NC vai a `EM_TRATATIVA` |
 | PATCH | `/nao-conformidades/:id/status` | ADMIN, FUNCIONARIO | Avalia; `RESOLVIDA` reabre a etapa |
@@ -901,7 +901,7 @@ autoriza.
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/` | Autenticado (CLIENTE escopado) | Lista; filtros `status`, `produtoId`, `clienteId`, `busca` |
+| GET | `/` | Autenticado (CLIENTE escopado) | Lista; filtros `status`, `processoId`, `clienteId`, `busca` |
 | GET | `/:id` | Autenticado (CLIENTE só os seus) | Detalhe |
 | GET | `/:id/pdf` | Autenticado (CLIENTE só os seus) | PDF; gerado sob demanda se faltar |
 | PATCH | `/:id/status` | ADMIN | Suspende, cancela ou reativa; motivo obrigatório ao encerrar |
@@ -916,9 +916,9 @@ para ADMIN.
 |---|---|---|---|
 | GET | `/relatorios/equipe` | **ADMIN** | Desempenho por autoria. O período recorta a ATIVIDADE; a carteira é retrato de agora |
 | GET | `/relatorios/equipe/exportacao` | **ADMIN** | XLSX/CSV. Período obrigatório, janela ≤ 12 meses, teto de linhas |
-| GET | `/relatorios/produtos` | ADMIN, FUNCIONARIO | Comparativo de avanço, paginado e ordenável |
-| GET | `/relatorios/produtos/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV com o mesmo recorte da tela |
-| GET | `/relatorios/clientes` | ADMIN, FUNCIONARIO | Produtos, concluídos, certificados vigentes, NCs, último acesso |
+| GET | `/relatorios/processos` | ADMIN, FUNCIONARIO | Comparativo de avanço, paginado e ordenável |
+| GET | `/relatorios/processos/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV com o mesmo recorte da tela |
+| GET | `/relatorios/clientes` | ADMIN, FUNCIONARIO | Processos, concluídos, certificados vigentes, NCs, último acesso |
 | GET | `/relatorios/clientes/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV |
 | GET | `/relatorios/tempo-ciclo` | ADMIN, FUNCIONARIO | `agrupamento=trilha\|etapa`. Três medidas distintas — ver §5 |
 | GET | `/relatorios/tempo-ciclo/exportacao` | ADMIN, FUNCIONARIO | XLSX/CSV |
@@ -967,7 +967,7 @@ Query params comuns: `pagina` (≥1, padrão 1), `limite` (1–100, padrão 20),
 }
 ```
 
-**Salvar certificação** (`PUT /certificacoes/produto/:id`) — a não conformidade é opcional e
+**Salvar certificação** (`PUT /certificacoes/processo/:id`) — a não conformidade é opcional e
 só aceita quando a etapa vai como `REPROVADO`:
 
 ```json
@@ -988,7 +988,7 @@ só aceita quando a etapa vai como `REPROVADO`:
 }
 ```
 
-**Nova versão de trilha** (`POST /categorias-produto/:id/modelos-trilha`) — corpo vazio
+**Nova versão de trilha** (`POST /categorias-processo/:id/modelos-trilha`) — corpo vazio
 (`{}`) copia as etapas da versão vigente:
 
 ```json
@@ -1000,7 +1000,7 @@ só aceita quando a etapa vai como `REPROVADO`:
 }
 ```
 
-**Emitir certificado** (`POST /produtos/:id/certificados`) — `dataValidade` sobrescreve a
+**Emitir certificado** (`POST /processos/:id/certificados`) — `dataValidade` sobrescreve a
 validade padrão da categoria:
 
 ```json
@@ -1074,13 +1074,13 @@ A divisão entre o que é servido como estático e o que não é vive em
 
 | Constante | Pastas | Servida em `/uploads/…` |
 |---|---|---|
-| `PASTAS_PUBLICAS` | `clientes`, `funcionarios`, `produtos`, `aparencia` | ✅ um `useStaticAssets` por pasta, com `prefix` próprio e `index: false` |
+| `PASTAS_PUBLICAS` | `clientes`, `funcionarios`, `processos`, `aparencia` | ✅ um `useStaticAssets` por pasta, com `prefix` próprio e `index: false` |
 | `PASTAS_PRIVADAS` | `certificados`, `certificacoes` | ❌ nunca — só pelas rotas autenticadas |
 
 `aparencia` é pública por necessidade: o logo aparece no cabeçalho do site institucional e
 na tela de login, ambos antes de existir sessão, e o papel de parede entra como
 `background-image` — não há como exigir `Bearer` em `<img src>` nem em `url()` de CSS. O
-mesmo vale para as fotos de cliente, funcionário e produto.
+mesmo vale para as fotos de cliente, funcionário e processo.
 
 Antes dos mounts, um middleware em `/uploads` **nega qualquer pasta fora de
 `PASTAS_PUBLICAS`** com o mesmo corpo de erro 404 do resto da API. Não montar as pastas
@@ -1201,8 +1201,8 @@ Os filhos declaram caminhos absolutos, com proteções adicionais por papel nas 
 
 | Rota | Quem vê |
 |---|---|
-| `dashboard`, `certificacoes`, `certificacoes/produto/:id`, `produtos`, `nao-conformidades`, `certificados` | Autenticados (o backend escopa o CLIENTE) |
-| `produtos/novo`, `produtos/:id/editar`, `clientes/*`, `categorias`, `categorias/:id` | Equipe |
+| `dashboard`, `certificacoes`, `certificacoes/processo/:id`, `processos`, `nao-conformidades`, `certificados` | Autenticados (o backend escopa o CLIENTE) |
+| `processos/novo`, `processos/:id/editar`, `clientes/*`, `categorias`, `categorias/:id` | Equipe |
 | `equipe/*` | Só `ADMIN` |
 
 `*` cai em `NaoEncontradaPage`.
@@ -1211,13 +1211,13 @@ Os filhos declaram caminhos absolutos, com proteções adicionais por papel nas 
 
 | Tela | O que faz |
 |---|---|
-| `categorias-produto/CategoriasPage` | Lista com a versão vigente destacada e alerta de categoria **sem trilha** (que não aceita produto) |
-| `categorias-produto/CategoriaDetalhePage` | Versões da trilha e editor de etapas com drag-and-drop, bloqueado quando a versão já tem produtos; botão "Nova versão" com confirmação |
+| `categorias-processo/CategoriasPage` | Lista com a versão vigente destacada e alerta de categoria **sem trilha** (que não aceita processo) |
+| `categorias-processo/CategoriaDetalhePage` | Versões da trilha e editor de etapas com drag-and-drop, bloqueado quando a versão já tem processos; botão "Nova versão" com confirmação |
 | `certificacoes/CertificacaoDetalhePage` | Timeline com status, evidências, NCs, aviso de versão defasada, painel do certificado e histórico |
 | `certificacoes/DocumentosEtapa` | Evidências da etapa: lista com tamanho, download e anexo; marca "obrigatória para aprovar" |
-| `nao-conformidades/NaoConformidadesPage` | Para o cliente abre em "Aguardando ação" com resposta inline; para a equipe, a mesma lista com cliente e produto |
+| `nao-conformidades/NaoConformidadesPage` | Para o cliente abre em "Aguardando ação" com resposta inline; para a equipe, a mesma lista com cliente e processo |
 | `certificados/CertificadosPage` | Filtros por situação, download do PDF e ações de suspender/cancelar/reativar (ADMIN) |
-| `certificados/PainelCertificadoProduto` | Emissão dentro da tela do produto — o desfecho da trilha fica onde a trilha está |
+| `certificados/PainelCertificadoProcesso` | Emissão dentro da tela do processo — o desfecho da trilha fica onde a trilha está |
 
 Downloads autenticados (PDF de certificado e evidências) passam pelo axios como **blob**:
 um link direto não serve, porque a rota exige o `Authorization` que só o interceptor injeta.
@@ -1529,7 +1529,7 @@ Em produção: `prisma migrate deploy`. Nunca editar uma migration já aplicada 
 ### ETL do legado
 
 `prisma/migrate-legacy.ts` (~500 linhas) carrega na ordem das FKs:
-`estados → clientes → funcionários → produtos → etapas → certificações → histórico →
+`estados → clientes → funcionários → processos → etapas → certificações → histórico →
 pagamentos`, mantendo mapas de `id` antigo → novo. Tratamento de senhas: texto puro é
 re-hasheado com bcrypt (o usuário continua entrando com a mesma senha), hash `$2y$` do PHP
 é aproveitado, e ausência de senha recebe `LEGACY_DEFAULT_PASSWORD`. Sempre rode primeiro
@@ -1543,8 +1543,8 @@ com `--dry-run`.
 
 `prisma/migrate-categorias.ts` move uma base do catálogo global para o modelo versionado:
 cria a categoria "Geral", a versão 1 da sua trilha, copia cada etapa do catálogo (inclusive
-as inativas que ainda estejam em uso, como não obrigatórias), aponta os produtos existentes
-e remapeia `certificacoes_produto.etapa_id`. É idempotente e aceita `-- --dry-run`.
+as inativas que ainda estejam em uso, como não obrigatórias), aponta os processos existentes
+e remapeia `certificacoes_processo.etapa_id`. É idempotente e aceita `-- --dry-run`.
 
 A transição foi feita em **três passos**, porque a FK antiga impedia o remapeamento:
 
@@ -1636,7 +1636,7 @@ desempate derivava cada tentativa do nome já sufixado, em vez da base:
    corte era fixo em 28. O exceljs truncava de volta para 31 e comia o parêntese de
    fechamento, deixando `(10`.
 
-Nenhum dos dois é alcançável hoje, porque `CertificacaoProduto.ordem` é única por produto
+Nenhum dos dois é alcançável hoje, porque `CertificacaoProcesso.ordem` é única por processo
 e o prefixo já separa as abas — o desempate é defensivo. Corrigidos assim mesmo, junto com
 um comentário do service que estava errado: ele dizia que nome inválido só apareceria ao
 abrir o arquivo, quando o exceljs 4.4.0 **lança** em caractere proibido, nome vazio e
@@ -1738,7 +1738,7 @@ exceção — são bugs que passam em revisão de código e em teste manual de q
    router, `QueryClientProvider`, `AuthProvider` e mock de rede para provar pouco além do
    que o `tsc -b` já garante. As telas de trilha (drag-and-drop, renumeração) são o
    candidato mais forte caso isso mude — é onde há mais regra por linha.
-3. Services ainda sem unitário: `ProdutosService.criar` (abertura da trilha),
+3. Services ainda sem unitário: `ProcessosService.criar` (abertura da trilha),
    `FuncionariosService` (proteção do último ADMIN), `DashboardService` (classificação e
    escopo), `AparenciaService` (allowlist de tokens), `UploadsService`,
    `ExportacaoService` (`nomeAba`, data como `Date`) e `GraficosService` (faixas de
@@ -1781,7 +1781,7 @@ uma rota de refresh.
 
 ### `Pagamento` modelado sem módulo de escrita
 
-A tabela existe, os produtos expõem `ultimoPagamento`, mas não há controller/service de
+A tabela existe, os processos expõem `ultimoPagamento`, mas não há controller/service de
 pagamentos. É uma extensão prevista, não um bug — só não deve ser confundida com
 funcionalidade entregue.
 
@@ -1800,7 +1800,7 @@ registrado antes dos mounts, que devolve 404 para qualquer outra pasta. Detalhe 
 Duas decisões que valem registro:
 
 - **`aparencia` entrou nas públicas**, embora a correção prevista falasse só em
-  `produtos|clientes|funcionarios`. O logo e o papel de parede do painel são consumidos por
+  `processos|clientes|funcionarios`. O logo e o papel de parede do painel são consumidos por
   `<img src>` e por `url()` de CSS, inclusive no site institucional e na tela de login,
   antes de existir sessão — fechá-los quebraria a marca do painel sem ganho de segurança:
   são arquivos que o próprio ADMIN publica para exibição pública.
@@ -1810,7 +1810,7 @@ Duas decisões que valem registro:
 
 Verificado com a API no ar: PDF de certificado e evidência em `/uploads/…` respondem 404
 com o arquivo presente em disco (o mesmo arquivo respondia 200 antes da mudança), foto de
-produto segue em 200, e as rotas autenticadas continuam devolvendo 401 sem token, 200 para
+processo segue em 200, e as rotas autenticadas continuam devolvendo 401 sem token, 200 para
 o cliente dono e 403 para cliente alheio.
 
 #### Reauditoria em 19/08/2026: o middleware não cobria travessia
@@ -1828,11 +1828,11 @@ travessia passar** e quem negava era a confinação de raiz do `serve-static` de
 
 Isso invalidava a razão de existir do middleware. Ele lia a pasta com
 `req.path.split('/')[0]`, sobre o texto **cru** da URL: em
-`/uploads/produtos/%2e%2e%2fcertificados/x.pdf` a primeira pasta é `produtos`, está na
+`/uploads/processos/%2e%2e%2fcertificados/x.pdf` a primeira pasta é `processos`, está na
 allowlist, e ele chamava `next()`. No arranjo atual — um mount por pasta — o
-`serve-static` de `produtos/` recusa sair da própria raiz e o resultado final é 404. Mas no
+`serve-static` de `processos/` recusa sair da própria raiz e o resultado final é 404. Mas no
 cenário exato contra o qual o middleware foi escrito (alguém remontar o diretório inteiro
-de uploads como estático), `produtos/../certificados/x.pdf` cairia **dentro** da raiz do
+de uploads como estático), `processos/../certificados/x.pdf` cairia **dentro** da raiz do
 mount e voltaria a ser servido com 200.
 
 Correção: `pastaPublicaDaRota()` em `uploads.constantes.ts` substitui a leitura crua. Ela
@@ -1848,13 +1848,13 @@ respondem 404 com `"Arquivo não encontrado."` — a negação passou a ser do m
 
 | Requisição | Antes | Depois |
 |---|---|---|
-| `--path-as-is …/produtos/../certificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
-| `…/produtos/%2e%2e%2fcertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
-| `…/produtos/..%2fcertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
-| `--path-as-is …/produtos/%2e%2e/%2e%2e/certificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
-| `--path-as-is …/produtos/..%5ccertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
-| `--path-as-is …/produtos/%ZZ/x.png` | 404 | 404 `Arquivo não encontrado.` |
-| `…/produtos/<uuid>.png` (controle) | 200 | 200 |
+| `--path-as-is …/processos/../certificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `…/processos/%2e%2e%2fcertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `…/processos/..%2fcertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `--path-as-is …/processos/%2e%2e/%2e%2e/certificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `--path-as-is …/processos/..%5ccertificados/<uuid>.pdf` | 404 `Cannot GET` | 404 `Arquivo não encontrado.` |
+| `--path-as-is …/processos/%ZZ/x.png` | 404 | 404 `Arquivo não encontrado.` |
+| `…/processos/<uuid>.png` (controle) | 200 | 200 |
 | `…/certificados/<uuid>.pdf` (controle) | 404 | 404 |
 
 Nota sobre o quarto caso: sem `--path-as-is` o próprio `curl` decodifica `%2e%2e` e
@@ -1868,11 +1868,11 @@ listas. E `aparencia` grava por `salvarImagem` (`aparencia.service.ts:134`, allo
 imagem), não por `salvarDocumento`: PDF ou planilha ali seriam publicação irrestrita, já
 que é a única pasta pública onde um ADMIN publica arquivo que qualquer um baixa sem token.
 
-### Produtos migrados não têm `exigeDocumento`
+### Processos migrados não têm `exigeDocumento`
 
 O script de transposição copiou as etapas do catálogo global, que não tinha esse conceito —
-todas nasceram com `exigeDocumento: false`. Para passar a exigir evidência nesses produtos é
-preciso criar uma versão nova da trilha da categoria e migrar cada produto, já que a versão
+todas nasceram com `exigeDocumento: false`. Para passar a exigir evidência nesses processos é
+preciso criar uma versão nova da trilha da categoria e migrar cada processo, já que a versão
 em uso é imutável por construção.
 
 ### Vulnerabilidades do `npm audit` (backend) — ✅ RESOLVIDO no que tem correção (17/08/2026 `ed279ee`), remedido o número em 19/08/2026 (`a4a4585`)
@@ -2004,9 +2004,9 @@ e o script `npm run typecheck:scripts` o executa. Saída atual:
 ```
 $ npm run typecheck:scripts
 prisma/migrate-legacy.ts(323,9): error TS2322: … Type '{ clienteId … }' is missing the
-  following properties from type 'ProdutoUncheckedCreateInput': categoriaId, modeloTrilhaId
+  following properties from type 'ProcessoUncheckedCreateInput': categoriaId, modeloTrilhaId
 prisma/migrate-legacy.ts(362,9): error TS2322: … Property 'ordem' is missing in type
-  '{ produtoId … }' but required in type 'CertificacaoProdutoUncheckedCreateInput'
+  '{ processoId … }' but required in type 'CertificacaoProcessoUncheckedCreateInput'
 ```
 
 Não é só tipagem: `categoriaId`, `modeloTrilhaId` e `ordem` são colunas `NOT NULL`, então o
@@ -2014,9 +2014,9 @@ script falharia em execução também. `seed.ts` e `migrate-categorias.ts` passa
 dois erros estão só no ETL.
 
 **Não corrigido de propósito.** Consertar exige decidir como o ETL resolve categoria e
-versão de trilha para cada produto migrado (uma categoria "Geral" para todos? inferida do
+versão de trilha para cada processo migrado (uma categoria "Geral" para todos? inferida do
 legado? a versão vigente no momento da importação?) e como numera a `ordem` de cada etapa
-do produto. Isso é decisão de projeto, não ajuste de linha.
+do processo. Isso é decisão de projeto, não ajuste de linha.
 
 Por isso `typecheck:scripts` **fica fora de qualquer pipeline obrigatório** enquanto o ETL
 não for arrumado — entrar agora deixaria o CI vermelho por dívida conhecida. É um comando
@@ -2027,14 +2027,14 @@ dados migrados; o script só volta a importar se houver reimportação.
 
 Gatilho para promover: plano de reimportação do legado.
 
-### `nodemailer` 9: nome de produto com CRLF no assunto (resolvido)
+### `nodemailer` 9: nome de processo com CRLF no assunto (resolvido)
 
 Registrado em 19/08/2026 como risco aberto; **fechado em 03/09/2026**, quando o gatilho
 previsto — configurar SMTP real — finalmente ocorreu.
 
 O upgrade 6 → 9 fechou a injeção de cabeçalho por CRLF, mas as versões novas **rejeitam**
 o header malformado lançando exceção, onde as antigas saneavam e seguiam. O ponto exposto
-era `enviarAtualizacaoCertificacao`, que montava o assunto com o nome do produto vindo do
+era `enviarAtualizacaoCertificacao`, que montava o assunto com o nome do processo vindo do
 banco: um nome com `
 ` — colado de uma planilha, por exemplo — produzia um assunto com
 quebra de linha, o `sendMail` lançava, e o `try/catch` de `MailService.enviar` engolia a
@@ -2058,17 +2058,17 @@ quando o saneamento existisse.
 
 ### Ordenação após migração de versão (resolvido)
 
-Um produto migrado carrega etapas de modelos diferentes, cujos `ordem` colidem. A primeira
+Um processo migrado carrega etapas de modelos diferentes, cujos `ordem` colidem. A primeira
 implementação ordenava pela `ordem` do modelo com desempate por id, o que produzia sequências
 plausíveis mas erradas (uma etapa nova inserida no meio aparecia no fim). Resolvido com
-`CertificacaoProduto.ordem`: campo próprio do produto, copiado do modelo na abertura e
+`CertificacaoProcesso.ordem`: campo próprio do processo, copiado do modelo na abertura e
 **renumerado 1..N dentro da transação de migração**, posicionando as etapas novas conforme o
 modelo vigente. Toda ordenação de timeline passou a usá-lo.
 
 ### `DashboardService` calcula em memória
 
 `findMany` enxuto + agregação em JavaScript. Correto e legível na escala atual; com dezenas
-de milhares de produtos, migre para agregação SQL.
+de milhares de processos, migre para agregação SQL.
 
 ### Peso dos assets da home
 
@@ -2216,13 +2216,13 @@ campo `comment` dentro de `rewrites[]` derruba o deploy na validação, antes de
 ### Categoria criada pelo painel não aceitava trilha — ✅ RESOLVIDO (24/08/2026)
 
 Encontrado ao percorrer o fluxo do admin em produção. `POST
-/categorias-produto/:id/modelos-trilha` sem `etapas` copia as da versão vigente; numa
+/categorias-processo/:id/modelos-trilha` sem `etapas` copia as da versão vigente; numa
 categoria nova não há vigente, e o servidor recusa corretamente. A tela chamava sempre sem
 etapas e o modal era só uma confirmação — **não havia caminho para criar a primeira
-trilha**, e sem trilha a categoria não aceita produto.
+trilha**, e sem trilha a categoria não aceita processo.
 
 Corrigido em `97b16c1`, só no frontend. Junto foram dois textos que descreviam um estado
-impossível: "esta versão já está em uso por 0 produto(s)" sem versão nenhuma (`editavel` é
+impossível: "esta versão já está em uso por 0 processo(s)" sem versão nenhuma (`editavel` é
 `Boolean(modelo?.editavel)`, e sem modelo caía no ramo de imutável), e "a versão 1 será
 encerrada" antes de a versão 1 existir.
 
@@ -2236,12 +2236,12 @@ tentadora que reintroduz um defeito conhecido.
 **1. A fase do processo é DERIVADA da etapa atual, nunca armazenada.** A coluna
 em que um processo aparece sai da etapa corrente, resolvida pela mesma regra de
 `listarPainel` (1ª `EM_ANDAMENTO`, senão 1ª `PENDENTE`, senão a última). Não há
-campo `fase` em `Produto`.
+campo `fase` em `Processo`.
 
 O Trello mostrou exatamente por quê: lá, a posição do card na lista e o
 progresso do checklist eram **duas fontes de verdade mantidas à mão**, e
 divergiam — card parado na lista "Ensaios" com o checklist de ensaios todo
-marcado. Guardar a fase no produto repetiria o defeito com outro nome e exigiria
+marcado. Guardar a fase no processo repetiria o defeito com outro nome e exigiria
 alguém para reconciliar. É também por isso que a tela **não tem
 arrastar-e-soltar**: arrastar afirmaria que a posição é editável.
 
@@ -2311,7 +2311,7 @@ que houve nem que basta tentar de novo.
 
 `Certificado.numero` tem a mesma forma e o mesmo comportamento.
 
-**Em `produtos` isso foi resolvido** (05/09/2026): `codigoProcesso` usa o mesmo
+**Em `processos` isso foi resolvido** (05/09/2026): `codigoProcesso` usa o mesmo
 esquema de sequencial, mas com `comRetryDeCodigo()` — três tentativas, apenas
 para `P2002` cujo `meta.target` cita `codigo_processo`, relendo o máximo a cada
 volta. Qualquer outro erro sobe na primeira.
@@ -2325,7 +2325,7 @@ Gatilho para promover: primeiro relato de 409 ao abrir NC, ou volume de
 aberturas simultâneas que torne a corrida provável. Correção: extrair
 `comRetryDeCodigo` para `common/` e aplicar nos três.
 
-Detalhe relacionado, já corrigido em `produtos`: o máximo sai de
+Detalhe relacionado, já corrigido em `processos`: o máximo sai de
 **`MAX(número extraído)`**, não de `ORDER BY codigo DESC`. Ordenação de texto só
 coincide com a numérica enquanto a largura é fixa — com `-1000-` na base, o
 maior lexicográfico volta a ser `-999-` e o próximo código colide com um já
@@ -2344,11 +2344,11 @@ código do processo usa três casas.
 | Autorização | Guards globais; acesso é opt-out via `@Public()`, nunca opt-in |
 | Multi-tenant | Escopo do CLIENTE derivado do token; verificação de posse em detalhes e uploads. Nos comparativos o filtro existe mesmo com o `@Roles` barrando CLIENTE — defesa em profundidade, para relaxar o papel um dia não virar vazamento |
 | Mass assignment | `whitelist` + `forbidNonWhitelisted` → `{"role":"ADMIN"}` recebe `400` |
-| SQL injection | Prisma parametriza tudo. Onde há `$queryRaw` (módulo `relatorios`), valores vão por placeholder e **`ORDER BY`/`GROUP BY` saem de allowlist fechada** — a cláusula não aceita placeholder, e nome de coluna vindo da query string seria injeção que os parâmetros não protegem. Coberto por e2e que envia `nome; DROP TABLE produtos` e espera 400 |
+| SQL injection | Prisma parametriza tudo. Onde há `$queryRaw` (módulo `relatorios`), valores vão por placeholder e **`ORDER BY`/`GROUP BY` saem de allowlist fechada** — a cláusula não aceita placeholder, e nome de coluna vindo da query string seria injeção que os parâmetros não protegem. Coberto por e2e que envia `nome; DROP TABLE processos` e espera 400 |
 | Upload | Allowlists de MIME por finalidade (imagem × documento), extensão derivada do MIME, nome `randomUUID()`, limite de tamanho, guarda de path traversal |
 | Estático de `/uploads` | Allowlist de pastas (`PASTAS_PUBLICAS`), um mount por pasta + middleware que nega o resto com 404; `certificados/` e `certificacoes/` nunca são servidos como estático |
 | Download de evidência e de PDF | Rota autenticada com verificação de posse; `Content-Disposition: attachment` na evidência para não executar SVG/HTML no domínio da API |
-| Injeção em e-mail | Nome de produto e etapa escapados antes de entrar no corpo HTML |
+| Injeção em e-mail | Nome de processo e etapa escapados antes de entrar no corpo HTML |
 | Imutabilidade de processo | Versão de trilha em uso não pode ser editada; certificado cancelado não muda de estado; NC encerrada não é reaberta |
 | Força bruta | Throttle 10/min no login, 5/min em senha e contato, 120/min global |
 | Enumeração de contas | Mensagem e tempo de resposta uniformes no login; resposta neutra em `esqueci-senha`; falha de SMTP não propaga |
@@ -2408,7 +2408,7 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~Carteira de clientes por responsável~~ | `#17` |
 | ~~Relatório de desempenho da equipe~~ | `#18` |
 | ~~`baseUrl` obsoleto no tsconfig~~ | `#19` |
-| ~~Comparativos de produtos e de clientes~~ | `#20` |
+| ~~Comparativos de processos e de clientes~~ | `#20` |
 | ~~Tempo de ciclo~~ | `#23` |
 | ~~**Teste no frontend**~~ | este PR |
 
@@ -2443,7 +2443,7 @@ aparece para quem abre a tela da NC. *Gatilho: a primeira NC que estourar o praz
 ninguém notar.*
 
 **4b. Restrição de acesso por carteira.** `Cliente.responsavelId` existe desde `#17` mas é
-**informativo**: todo funcionário vê todos os clientes. Fechar isso toca produtos,
+**informativo**: todo funcionário vê todos os clientes. Fechar isso toca processos,
 certificações, NCs, certificados, dashboard, gráficos e exportações, e acrescenta uma
 dimensão à matriz de e2e (funcionário A × cliente de B). Antes é preciso decidir **quem
 cobre férias** e **o que acontece ao desativar um responsável** — hoje o `SetNull` soltaria
@@ -2458,7 +2458,7 @@ converter para WebP/AVIF e redimensionar deve dar ~90% de redução. O `bootstra
 completo (~106 KB de fonte) é carregado por ~28 ícones — cabe um subset. *Gatilho: medição
 de Core Web Vitals do site público, ou reclamação de carregamento em conexão móvel.*
 
-**6. Módulo de pagamentos.** A tabela `Pagamento` existe e `produtos` já expõe
+**6. Módulo de pagamentos.** A tabela `Pagamento` existe e `processos` já expõe
 `ultimoPagamento`, mas não há controller nem service. *Gatilho: o OCP passar a cobrar pelo
 sistema em vez de por fora.*
 
@@ -2480,11 +2480,11 @@ no banco já cobre conta desativada, mas não invalida token vazado antes de exp
 alto e o risco atual é aceitável para um sistema interno.*
 
 **10. Corrigir o ETL `migrate-legacy.ts`** (§15). Exige decidir como o script resolve
-categoria e versão de trilha para cada produto migrado. *Gatilho: plano de reimportação. O
+categoria e versão de trilha para cada processo migrado. *Gatilho: plano de reimportação. O
 cutover já aconteceu; sem reimportação, o script é código morto.*
 
 **11. `DashboardService` com agregação SQL.** Hoje agrega em memória (`findMany` enxuto +
-JavaScript), correto na escala atual. *Gatilho: dezenas de milhares de produtos.*
+JavaScript), correto na escala atual. *Gatilho: dezenas de milhares de processos.*
 
 **12. Dados de contato divergentes no site.** O legado exibia **três telefones diferentes**
 (contato, rodapé e link do WhatsApp), preservados como estavam em

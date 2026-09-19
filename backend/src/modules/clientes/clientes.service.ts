@@ -86,7 +86,7 @@ export class ClientesService {
     return paginar(dados, total, filtros);
   }
 
-  /** Lista enxuta para popular selects (ex.: cadastro de produto). */
+  /** Lista enxuta para popular selects (ex.: cadastro de processo). */
   async listarResumido() {
     return this.prisma.cliente.findMany({
       where: { status: StatusRegistro.ATIVO },
@@ -167,20 +167,20 @@ export class ClientesService {
     });
   }
 
-  /** Exclusão definitiva, bloqueada quando existem produtos vinculados. */
+  /** Exclusão definitiva, bloqueada quando existem processos vinculados. */
   async remover(id: number): Promise<{ mensagem: string }> {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id },
-      include: { _count: { select: { produtos: true } } },
+      include: { _count: { select: { processos: true } } },
     });
 
     if (!cliente) {
       throw new NotFoundException(`Cliente ${id} não encontrado.`);
     }
 
-    if (cliente._count.produtos > 0) {
+    if (cliente._count.processos > 0) {
       throw new ConflictException(
-        `Este cliente possui ${cliente._count.produtos} produto(s) cadastrado(s). ` +
+        `Este cliente possui ${cliente._count.processos} processo(s) cadastrado(s). ` +
           'Use a desativação em vez da exclusão definitiva.',
       );
     }

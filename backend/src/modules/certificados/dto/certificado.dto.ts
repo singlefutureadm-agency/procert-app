@@ -96,11 +96,11 @@ export class ListarCertificadosDto extends PaginacaoDto {
   @IsEnum(StatusCertificado)
   status?: StatusCertificado;
 
-  @ApiPropertyOptional({ description: 'Filtra por produto' })
+  @ApiPropertyOptional({ description: 'Filtra por processo' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  produtoId?: number;
+  processoId?: number;
 
   @ApiPropertyOptional({ description: 'Filtra por cliente (ignorado para CLIENTE)' })
   @IsOptional()

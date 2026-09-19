@@ -43,7 +43,7 @@ const SELECT_NC = {
       status: true,
       ordem: true,
       etapa: { select: { id: true, nome: true } },
-      produto: {
+      processo: {
         select: {
           id: true,
           nome: true,
@@ -71,7 +71,7 @@ export class NaoConformidadesService {
   ) {}
 
   /**
-   * Lista com escopo por papel: o cliente vê apenas as NCs dos seus produtos.
+   * Lista com escopo por papel: o cliente vê apenas as NCs dos seus processos.
    * A ordenação prioriza o que vence antes — prazo nulo vai para o fim.
    */
   async listar(filtros: ListarNaoConformidadesDto, usuario: UsuarioAutenticado) {
@@ -80,8 +80,8 @@ export class NaoConformidadesService {
       ...(filtros.criticidade && { criticidade: filtros.criticidade }),
       ...(filtros.pendentes && { status: { in: EM_ABERTO } }),
       certificacao: {
-        produto: {
-          ...(filtros.produtoId && { id: filtros.produtoId }),
+        processo: {
+          ...(filtros.processoId && { id: filtros.processoId }),
           // Escopo vindo do token, nunca de parâmetro de URL.
           ...(usuario.role === Role.CLIENTE && { clienteId: usuario.id }),
         },
@@ -117,7 +117,7 @@ export class NaoConformidadesService {
     if (!registro) {
       throw new NotFoundException(`Não conformidade ${id} não encontrada.`);
     }
-    this.garantirAcesso(registro.certificacao.produto.clienteId, usuario);
+    this.garantirAcesso(registro.certificacao.processo.clienteId, usuario);
 
     return registro;
   }
@@ -128,7 +128,7 @@ export class NaoConformidadesService {
     dto: AbrirNaoConformidadeDto,
     usuario: UsuarioAutenticado,
   ) {
-    const certificacao = await this.prisma.certificacaoProduto.findUnique({
+    const certificacao = await this.prisma.certificacaoProcesso.findUnique({
       where: { id: certificacaoId },
       select: { id: true, status: true },
     });
@@ -187,7 +187,7 @@ export class NaoConformidadesService {
     });
   }
 
-  /** Resposta do cliente — só nas NCs dos próprios produtos e ainda em aberto. */
+  /** Resposta do cliente — só nas NCs dos próprios processos e ainda em aberto. */
   async responder(
     id: number,
     dto: ResponderNaoConformidadeDto,
@@ -266,7 +266,7 @@ export class NaoConformidadesService {
 
       if (!resolvida) return;
 
-      await tx.certificacaoProduto.update({
+      await tx.certificacaoProcesso.update({
         where: { id: registro.certificacao.id },
         data: {
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -321,7 +321,7 @@ export class NaoConformidadesService {
         certificacao: {
           select: {
             etapa: { select: { nome: true } },
-            produto: {
+            processo: {
               select: {
                 nome: true,
                 cliente: { select: { nome: true, email: true } },
@@ -338,11 +338,11 @@ export class NaoConformidadesService {
       const nc = await this.carregarParaAviso(id);
       if (!nc) return;
 
-      const { produto } = nc.certificacao;
+      const { processo } = nc.certificacao;
       await this.notificacoes.naoConformidadeAberta(
-        produto.cliente.email,
-        produto.cliente.nome,
-        produto.nome,
+        processo.cliente.email,
+        processo.cliente.nome,
+        processo.nome,
         {
           codigo: nc.codigo,
           etapa: nc.certificacao.etapa.nome,
@@ -363,11 +363,11 @@ export class NaoConformidadesService {
       const nc = await this.carregarParaAviso(id);
       if (!nc) return;
 
-      const { produto } = nc.certificacao;
+      const { processo } = nc.certificacao;
       await this.notificacoes.naoConformidadeAvaliada(
-        produto.cliente.email,
-        produto.cliente.nome,
-        produto.nome,
+        processo.cliente.email,
+        processo.cliente.nome,
+        processo.nome,
         {
           codigo: nc.codigo,
           etapa: nc.certificacao.etapa.nome,
@@ -407,7 +407,7 @@ export class NaoConformidadesService {
   private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {
     if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) {
       throw new ForbiddenException(
-        'Você só pode acessar as não conformidades dos seus produtos.',
+        'Você só pode acessar as não conformidades dos seus processos.',
       );
     }
   }

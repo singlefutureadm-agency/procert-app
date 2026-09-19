@@ -150,7 +150,7 @@ export function CertificadosEmRiscoPage() {
                 aviso={<SeloUrgencia dias={certificado.diasRestantes} />}
                 contexto={
                   <>
-                    {certificado.produto.nome} · {certificado.produto.cliente.nome}
+                    {certificado.processo.nome} · {certificado.processo.cliente.nome}
                     {' · válido até '}
                     {formatarData(certificado.dataValidade)}
                   </>
@@ -159,7 +159,7 @@ export function CertificadosEmRiscoPage() {
                   <>
                     <Link
                       className="btn btn--pequeno"
-                      to={`/certificacoes/produto/${certificado.produtoId}`}
+                      to={`/certificacoes/processo/${certificado.processoId}`}
                     >
                       <Icone nome="prancheta" tamanho={16} />
                       Abrir trilha

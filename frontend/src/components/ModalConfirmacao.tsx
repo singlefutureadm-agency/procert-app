@@ -40,7 +40,7 @@ export function ModalConfirmacao({
    *
    * O modal abre por um clique e fecha no Escape, então o dedo costuma estar
    * sobre Enter/Espaço quando ele aparece: com o foco no confirmar, uma tecla a
-   * mais desativava o produto sem que ninguém tivesse lido a mensagem. Focar a
+   * mais desativava o processo sem que ninguém tivesse lido a mensagem. Focar a
    * saída torna o gesto reflexo inofensivo e obriga um Tab deliberado para
    * destruir.
    *

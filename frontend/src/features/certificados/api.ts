@@ -12,7 +12,7 @@ export interface FiltrosCertificados {
   limite?: number;
   busca?: string;
   status?: StatusCertificado;
-  produtoId?: number;
+  processoId?: number;
   clienteId?: number;
 }
 
@@ -37,16 +37,16 @@ export const certificadosApi = {
     return data;
   },
 
-  listarPorProduto: async (produtoId: number) => {
+  listarPorProcesso: async (processoId: number) => {
     const { data } = await api.get<Certificado[]>(
-      `/produtos/${produtoId}/certificados`,
+      `/processos/${processoId}/certificados`,
     );
     return data;
   },
 
-  emitir: async (produtoId: number, dados: EmissaoCertificado) => {
+  emitir: async (processoId: number, dados: EmissaoCertificado) => {
     const { data } = await api.post<Certificado>(
-      `/produtos/${produtoId}/certificados`,
+      `/processos/${processoId}/certificados`,
       dados,
     );
     return data;

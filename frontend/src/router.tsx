@@ -14,7 +14,7 @@ import { LoginPage } from '@/pages/LoginPage';
  * `lazy`, baixado quando a rota é aberta.
  *
  * O motivo é medido, não estético: o pacote inicial tinha 512 KB porque levava
- * junto o painel inteiro — dashboard, certificações, produtos, clientes,
+ * junto o painel inteiro — dashboard, certificações, processos, clientes,
  * categorias, equipe e a tela de aparência, com dnd-kit atrás. Quem chegava
  * pela busca para ler a página de serviços baixava tudo isso antes de ver a
  * primeira linha de texto, e tempo de carregamento é sinal de ranqueamento.
@@ -172,14 +172,14 @@ const CertificadosEmRiscoPage = lazy(() =>
     import('@/features/certificados/CertificadosEmRiscoPage').then((m) => ({ default: m.CertificadosEmRiscoPage })),
   ),
 );
-const ProdutosPage = lazy(() =>
+const ProcessosPage = lazy(() =>
   pagina(
-    import('@/features/produtos/ProdutosPage').then((m) => ({ default: m.ProdutosPage })),
+    import('@/features/processos/ProcessosPage').then((m) => ({ default: m.ProcessosPage })),
   ),
 );
-const ProdutoFormPage = lazy(() =>
+const ProcessoFormPage = lazy(() =>
   pagina(
-    import('@/features/produtos/ProdutoFormPage').then((m) => ({ default: m.ProdutoFormPage })),
+    import('@/features/processos/ProcessoFormPage').then((m) => ({ default: m.ProcessoFormPage })),
   ),
 );
 const ClientesPage = lazy(() =>
@@ -194,12 +194,12 @@ const ClienteFormPage = lazy(() =>
 );
 const CategoriasPage = lazy(() =>
   pagina(
-    import('@/features/categorias-produto/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
+    import('@/features/categorias-processo/CategoriasPage').then((m) => ({ default: m.CategoriasPage })),
   ),
 );
 const CategoriaDetalhePage = lazy(() =>
   pagina(
-    import('@/features/categorias-produto/CategoriaDetalhePage').then((m) => ({ default: m.CategoriaDetalhePage })),
+    import('@/features/categorias-processo/CategoriaDetalhePage').then((m) => ({ default: m.CategoriaDetalhePage })),
   ),
 );
 const TrilhasPage = lazy(() =>
@@ -227,9 +227,9 @@ const EquipeRelatorioPage = lazy(() =>
     import('@/features/relatorios/EquipeRelatorioPage').then((m) => ({ default: m.EquipeRelatorioPage })),
   ),
 );
-const ComparativoProdutosPage = lazy(() =>
+const ComparativoProcessosPage = lazy(() =>
   pagina(
-    import('@/features/relatorios/ComparativoProdutosPage').then((m) => ({ default: m.ComparativoProdutosPage })),
+    import('@/features/relatorios/ComparativoProcessosPage').then((m) => ({ default: m.ComparativoProcessosPage })),
   ),
 );
 const ComparativoClientesPage = lazy(() =>
@@ -286,18 +286,18 @@ export const router = createBrowserRouter([
 
       // Certificações — equipe e cliente (o backend restringe o escopo).
       { path: 'certificacoes', element: <CertificacoesPage /> },
-      { path: 'certificacoes/produto/:produtoId', element: <CertificacaoDetalhePage /> },
+      { path: 'certificacoes/processo/:processoId', element: <CertificacaoDetalhePage /> },
       { path: 'nao-conformidades', element: <NaoConformidadesPage /> },
       { path: 'certificados', element: <CertificadosPage /> },
       // Vencimentos: o backend aplica o escopo, então o CLIENTE também pode
       // abrir e ver só os seus.
       { path: 'certificacoes/em-risco', element: <CertificadosEmRiscoPage /> },
 
-      // Produtos
-      { path: 'produtos', element: <ProdutosPage /> },
+      // Processos
+      { path: 'processos', element: <ProcessosPage /> },
       // Quadro de gestão interna dos processos.
       //
-      // Vive sob `produtos/` — e não sob `certificacoes/` — porque o Sidebar
+      // Vive sob `processos/` — e não sob `certificacoes/` — porque o Sidebar
       // marca o ramo ativo por PREFIXO (`naRota`): em `certificacoes/quadro`,
       // "Acompanhamento" e "Processos" acenderiam ao mesmo tempo, e o menu
       // passaria a dizer que a pessoa está em dois lugares. A rota da API
@@ -306,7 +306,7 @@ export const router = createBrowserRouter([
       // Visão da EQUIPE: o backend devolve 403 para CLIENTE, e este
       // `RotaProtegida` só evita que ele chegue a uma tela que daria erro.
       {
-        path: 'produtos/quadro',
+        path: 'processos/quadro',
         element: (
           <RotaProtegida papeis={[...EQUIPE]}>
             <QuadroProcessosPage />
@@ -314,18 +314,18 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: 'produtos/novo',
+        path: 'processos/novo',
         element: (
           <RotaProtegida papeis={[...EQUIPE]}>
-            <ProdutoFormPage />
+            <ProcessoFormPage />
           </RotaProtegida>
         ),
       },
       {
-        path: 'produtos/:id/editar',
+        path: 'processos/:id/editar',
         element: (
           <RotaProtegida papeis={[...EQUIPE]}>
-            <ProdutoFormPage />
+            <ProcessoFormPage />
           </RotaProtegida>
         ),
       },
@@ -375,7 +375,7 @@ export const router = createBrowserRouter([
         ),
       },
 
-      // Categorias de produto e a trilha que cada uma segue
+      // Categorias de processo e a trilha que cada uma segue
       {
         path: 'categorias',
         element: (
@@ -405,10 +405,10 @@ export const router = createBrowserRouter([
       // Comparativos: ADMIN e FUNCIONARIO, como o backend. São dados
       // operacionais, diferente do desempenho da equipe logo abaixo.
       {
-        path: 'relatorios/produtos',
+        path: 'relatorios/processos',
         element: (
           <RotaProtegida papeis={['ADMIN', 'FUNCIONARIO']}>
-            <ComparativoProdutosPage />
+            <ComparativoProcessosPage />
           </RotaProtegida>
         ),
       },

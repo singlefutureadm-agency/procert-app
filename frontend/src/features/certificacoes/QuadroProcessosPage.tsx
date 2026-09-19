@@ -20,7 +20,7 @@ import { EstadoVazio } from '@/components/EstadoVazio';
 import { Icone } from '@/components/Icone';
 import { Progresso } from '@/components/Progresso';
 import { RegiaoRolavel } from '@/components/RegiaoRolavel';
-import { categoriasApi } from '@/features/categorias-produto/api';
+import { categoriasApi } from '@/features/categorias-processo/api';
 import {
   ROTULO_FASE,
   ROTULO_MOTIVO_PROCESSO,
@@ -66,13 +66,13 @@ const ROTULO_SEMAFORO: Record<SemaforoAging, string> = {
  * ## O arrastar-e-soltar move a ETAPA, não o cartão
  *
  * A coluna continua DERIVADA da etapa atual: nada de posição é gravado no
- * produto. Soltar um cartão em "Ensaios de laboratório" chama
+ * processo. Soltar um cartão em "Ensaios de laboratório" chama
  * `POST /mover-fase`, que marca como `EM_ANDAMENTO` a primeira etapa não
  * aprovada daquela fase e devolve à fila as que estavam em andamento antes —
  * com histórico e autoria, como qualquer mudança de status.
  *
  * O cartão para na coluna certa porque o processo foi mesmo para lá. Guardar a
- * fase no produto seria mais simples e é exatamente o que o quadro Trello fazia
+ * fase no processo seria mais simples e é exatamente o que o quadro Trello fazia
  * de errado: a lista dizia uma coisa e o checklist dizia outra.
  *
  * **Arrastar não aprova nada.** Pular para a última fase não marca as
@@ -119,13 +119,13 @@ export function QuadroProcessosPage() {
   );
 
   const mover = useMutation({
-    mutationFn: ({ produtoId, fase }: { produtoId: number; fase: FaseProcesso }) =>
-      certificacoesApi.moverParaFase(produtoId, fase),
+    mutationFn: ({ processoId, fase }: { processoId: number; fase: FaseProcesso }) =>
+      certificacoesApi.moverParaFase(processoId, fase),
     onSuccess: (resposta) => {
       toast.success(resposta.mensagem);
       clienteQuery.invalidateQueries({ queryKey: ['certificacoes'] });
     },
-    // A recusa é informativa: "a trilha deste produto não tem etapa nessa
+    // A recusa é informativa: "a trilha deste processo não tem etapa nessa
     // fase" é a resposta certa, e engoli-la deixaria o cartão voltando ao
     // lugar sem explicação.
     onError: (erro) =>
@@ -140,7 +140,7 @@ export function QuadroProcessosPage() {
     if (!destino || !cartao) return;
     if (COLUNAS_TERMINAIS.includes(destino as string)) return;
 
-    mover.mutate({ produtoId: cartao.produtoId, fase: destino as FaseProcesso });
+    mover.mutate({ processoId: cartao.processoId, fase: destino as FaseProcesso });
   }
 
   return (
@@ -159,7 +159,7 @@ export function QuadroProcessosPage() {
               <Icone nome="bussola" />
               Trilhas
             </Link>
-            <Link to="/produtos/novo" className="btn btn--primario">
+            <Link to="/processos/novo" className="btn btn--primario">
               Novo processo
             </Link>
             <AlternarVisaoCertificacoes atual="quadro" />
@@ -170,7 +170,7 @@ export function QuadroProcessosPage() {
       <div className="quadro__filtros">
         <CampoBusca
           valor={filtros.busca ?? ''}
-          placeholder="Buscar por processo, produto ou cliente"
+          placeholder="Buscar por processo, processo ou cliente"
           aoMudar={(busca) => alterar('busca', busca)}
         />
 
@@ -333,7 +333,7 @@ function ColunaQuadroProcessos({
         )}
 
         {coluna.cartoes.map((cartao) => (
-          <Cartao key={cartao.produtoId} cartao={cartao} aoAbrir={aoAbrir} />
+          <Cartao key={cartao.processoId} cartao={cartao} aoAbrir={aoAbrir} />
         ))}
 
         {ocultos > 0 && (
@@ -377,7 +377,7 @@ function Cartao({
    */
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
-      id: cartao.produtoId,
+      id: cartao.processoId,
       data: { cartao },
       disabled: Boolean(cartao.cancelamento),
     });
@@ -388,7 +388,7 @@ function Cartao({
       ref={setNodeRef}
       onClick={() => aoAbrir(cartao)}
       className={`quadro__cartao ${isDragging ? 'quadro__cartao--arrastando' : ''}`}
-      aria-label={`Abrir o processo ${cartao.produto}`}
+      aria-label={`Abrir o processo ${cartao.processo}`}
       style={
         transform
           ? {
@@ -405,7 +405,7 @@ function Cartao({
         <MarcaDeSituacao cartao={cartao} />
       </div>
 
-      <h3 className="quadro__produto">{cartao.produto}</h3>
+      <h3 className="quadro__processo">{cartao.processo}</h3>
       <p className="quadro__cliente texto-pequeno texto-suave">
         {cartao.cliente.nome}
       </p>

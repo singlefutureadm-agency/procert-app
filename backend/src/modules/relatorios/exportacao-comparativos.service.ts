@@ -12,18 +12,18 @@ import {
   titulo,
   vazio,
 } from '../../common/planilha/planilha.util';
-import type { LinhaCliente, LinhaProduto } from './comparativos.service';
+import type { LinhaCliente, LinhaProcesso } from './comparativos.service';
 
 /**
- * Planilhas dos comparativos de produtos e de clientes.
+ * Planilhas dos comparativos de processos e de clientes.
  *
  * Reaproveita `common/planilha`, como as demais exportações: data como `Date`
  * com `numFmt`, BOM de UTF-8, separador `;` e saneamento de nome de aba não são
  * reescritos aqui.
  */
 
-const CABECALHOS_PRODUTO = [
-  'Produto',
+const CABECALHOS_PROCESSO = [
+  'Processo',
   'Cliente',
   'Categoria',
   'Versão da trilha',
@@ -43,8 +43,8 @@ const CABECALHOS_CLIENTE = [
   'Cliente',
   'E-mail',
   'Responsável pela carteira',
-  'Produtos',
-  'Produtos concluídos',
+  'Processos',
+  'Processos concluídos',
   'Certificados vigentes',
   'NCs abertas',
   'Última movimentação',
@@ -53,8 +53,8 @@ const CABECALHOS_CLIENTE = [
 
 @Injectable()
 export class ExportacaoComparativosService {
-  async produtosXlsx(
-    linhas: LinhaProduto[],
+  async processosXlsx(
+    linhas: LinhaProcesso[],
     geradoPor: string,
   ): Promise<Buffer> {
     const livro = new Workbook();
@@ -62,12 +62,12 @@ export class ExportacaoComparativosService {
     livro.created = new Date();
 
     const aba = livro.addWorksheet(
-      nomeAbaSeguro('Comparativo de produtos', new Set()),
+      nomeAbaSeguro('Comparativo de processos', new Set()),
     );
 
-    titulo(aba, 'COMPARATIVO DE PRODUTOS');
+    titulo(aba, 'COMPARATIVO DE PROCESSOS');
     blocoChaveValor(aba, [
-      ['Produtos no recorte', linhas.length],
+      ['Processos no recorte', linhas.length],
       ['Gerado por', geradoPor],
       ['Gerado em', new Date()],
     ]);
@@ -81,11 +81,11 @@ export class ExportacaoComparativosService {
     aba.addRow([]);
 
     if (linhas.length === 0) {
-      vazio(aba, 'Nenhum produto no recorte.');
+      vazio(aba, 'Nenhum processo no recorte.');
     } else {
       tabela(
         aba,
-        CABECALHOS_PRODUTO,
+        CABECALHOS_PROCESSO,
         linhas.map((l) => [
           l.nome,
           l.cliente,
@@ -112,11 +112,11 @@ export class ExportacaoComparativosService {
     return bufferDoLivro(livro);
   }
 
-  produtosCsv(linhas: LinhaProduto[], geradoPor: string): string {
+  processosCsv(linhas: LinhaProcesso[], geradoPor: string): string {
     const secoes: string[][][] = [
       [
-        ['COMPARATIVO DE PRODUTOS'],
-        ['Produtos no recorte', String(linhas.length)],
+        ['COMPARATIVO DE PROCESSOS'],
+        ['Processos no recorte', String(linhas.length)],
         ['Gerado por', geradoPor],
         ['Gerado em', dataBR(new Date())],
         [
@@ -125,7 +125,7 @@ export class ExportacaoComparativosService {
         ],
       ],
       [
-        CABECALHOS_PRODUTO,
+        CABECALHOS_PROCESSO,
         ...linhas.map((l) => [
           l.nome,
           l.cliente,
@@ -185,8 +185,8 @@ export class ExportacaoComparativosService {
           l.nome,
           l.email,
           l.responsavel,
-          l.produtos,
-          l.produtosConcluidos,
+          l.processos,
+          l.processosConcluidos,
           l.certificadosVigentes,
           l.ncsAbertas,
           l.ultimaMovimentacao,
@@ -220,8 +220,8 @@ export class ExportacaoComparativosService {
           l.nome,
           l.email,
           l.responsavel ?? '—',
-          String(l.produtos),
-          String(l.produtosConcluidos),
+          String(l.processos),
+          String(l.processosConcluidos),
           String(l.certificadosVigentes),
           String(l.ncsAbertas),
           dataBR(l.ultimaMovimentacao),
@@ -233,7 +233,7 @@ export class ExportacaoComparativosService {
     return fecharCsv(this.juntar(secoes));
   }
 
-  nomeArquivo(qual: 'produtos' | 'clientes', extensao: 'xlsx' | 'csv'): string {
+  nomeArquivo(qual: 'processos' | 'clientes', extensao: 'xlsx' | 'csv'): string {
     const dia = new Date().toISOString().slice(0, 10);
     return `comparativo-${qual}-${dia}.${extensao}`;
   }

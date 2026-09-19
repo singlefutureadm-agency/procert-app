@@ -29,7 +29,7 @@ describe('/uploads (e2e)', () => {
     it.each([
       ['certificados', () => cenario.arquivos.certificados],
       ['certificacoes', () => cenario.arquivos.certificacoes],
-      ['produtos', () => cenario.arquivos.produtos],
+      ['processos', () => cenario.arquivos.processos],
       ['aparencia', () => cenario.arquivos.aparencia],
     ])('%s', (pasta, nome) => {
       const caminho = caminhoDoArquivo(pasta, nome());
@@ -82,9 +82,9 @@ describe('/uploads (e2e)', () => {
   });
 
   describe('pastas públicas — servidas sem token', () => {
-    it('GET /uploads/produtos/<arquivo>.png → 200', async () => {
+    it('GET /uploads/processos/<arquivo>.png → 200', async () => {
       const resposta = await http(app).get(
-        `/uploads/produtos/${cenario.arquivos.produtos}`,
+        `/uploads/processos/${cenario.arquivos.processos}`,
       );
 
       expect(resposta.status).toBe(200);
@@ -117,18 +117,18 @@ describe('/uploads (e2e)', () => {
      * Usar o supertest aqui daria um falso verde em parte dos casos: ele segue
      * a especificação de URL e resolve os segmentos `..` — inclusive escritos
      * como `%2e%2e` — antes de abrir a conexão. O request de
-     * `produtos/%2e%2e/%2e%2e/certificados/x.pdf` sairia como
+     * `processos/%2e%2e/%2e%2e/certificados/x.pdf` sairia como
      * `/certificados/x.pdf`, nem chegaria a `/uploads`, e o 404 seria só "não
      * existe essa rota". Foi exatamente esse erro que invalidou a verificação
      * manual da sessão anterior (ver DOCUMENTACAO.md §15).
      */
     const travessias = [
-      ['../ literal', 'produtos/../certificados'],
-      ['%2e%2e%2f', 'produtos/%2e%2e%2fcertificados'],
-      ['..%2f', 'produtos/..%2fcertificados'],
-      ['%2e%2e/%2e%2e/', 'produtos/%2e%2e/%2e%2e/certificados'],
-      ['..%5c (barra invertida)', 'produtos/..%5ccertificados'],
-      ['%2e%2e%5c', 'produtos/%2e%2e%5ccertificados'],
+      ['../ literal', 'processos/../certificados'],
+      ['%2e%2e%2f', 'processos/%2e%2e%2fcertificados'],
+      ['..%2f', 'processos/..%2fcertificados'],
+      ['%2e%2e/%2e%2e/', 'processos/%2e%2e/%2e%2e/certificados'],
+      ['..%5c (barra invertida)', 'processos/..%5ccertificados'],
+      ['%2e%2e%5c', 'processos/%2e%2e%5ccertificados'],
     ] as const;
 
     it.each(travessias)('%s → 404, negado pela allowlist', async (_, prefixo) => {
@@ -152,14 +152,14 @@ describe('/uploads (e2e)', () => {
       // os casos acima viram tautologia e ninguém perceberia.
       const resposta = await requisicaoCrua(
         app,
-        '/uploads/produtos/../certificados/x.pdf',
+        '/uploads/processos/../certificados/x.pdf',
       );
 
       expect(resposta.caminhoEnviado).toContain('/..');
     });
 
     it('codificação inválida (%ZZ) → 404', async () => {
-      const resposta = await requisicaoCrua(app, '/uploads/produtos/%ZZ/x.png');
+      const resposta = await requisicaoCrua(app, '/uploads/processos/%ZZ/x.png');
 
       expect(resposta.status).toBe(404);
       expect(JSON.parse(resposta.corpo).message).toBe('Arquivo não encontrado.');

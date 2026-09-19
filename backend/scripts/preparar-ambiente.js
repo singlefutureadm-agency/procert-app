@@ -163,7 +163,7 @@ const principal = async () => {
   for (const arquivo of ARQUIVOS_DE_AMBIENTE) copiarSeFaltar(arquivo);
 
   // Depois da cópia, não antes: numa máquina nova o `.env` acabou de nascer.
-  // `quiet` porque a saída deste script é o produto dele: a linha promocional
+  // `quiet` porque a saída deste script é o processo dele: a linha promocional
   // que o dotenv imprime por padrão empurra para cima a mensagem que interessa.
   require('dotenv').config({ path: join(raizDoBackend, '.env'), quiet: true });
 

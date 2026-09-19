@@ -87,7 +87,7 @@ describe('Autorização (e2e)', () => {
     });
   });
 
-  describe('PUT /api/certificacoes/produto/:id — cliente acompanha, não altera', () => {
+  describe('PUT /api/certificacoes/processo/:id — cliente acompanha, não altera', () => {
     const corpo = () => ({
       etapas: [{ id: c.certificacaoId, status: 'EM_ANDAMENTO' }],
     });
@@ -99,7 +99,7 @@ describe('Autorização (e2e)', () => {
     ])('$ator → $esperado', async ({ token, esperado }) => {
       const resposta = await pedir(
         'put',
-        `/api/certificacoes/produto/${c.produtoDonoId}`,
+        `/api/certificacoes/processo/${c.processoDonoId}`,
         token(),
       ).send(corpo());
 
@@ -109,7 +109,7 @@ describe('Autorização (e2e)', () => {
     it('FUNCIONARIO consegue escrever', async () => {
       const resposta = await pedir(
         'put',
-        `/api/certificacoes/produto/${c.produtoDonoId}`,
+        `/api/certificacoes/processo/${c.processoDonoId}`,
         c.funcionario,
       ).send(corpo());
 
@@ -119,13 +119,13 @@ describe('Autorização (e2e)', () => {
     it('o CLIENTE dono é barrado pelo @Roles, antes de o service ler qualquer coisa', async () => {
       const resposta = await pedir(
         'put',
-        `/api/certificacoes/produto/${c.produtoDonoId}`,
+        `/api/certificacoes/processo/${c.processoDonoId}`,
         c.clienteDono,
       ).send(corpo());
 
       expect(resposta.status).toBe(403);
       // Nada foi gravado: a etapa continua como o teste anterior a deixou.
-      const etapa = await prisma(app).certificacaoProduto.findUniqueOrThrow({
+      const etapa = await prisma(app).certificacaoProcesso.findUniqueOrThrow({
         where: { id: c.certificacaoId },
       });
       expect(etapa.status).toBe('EM_ANDAMENTO');
@@ -134,7 +134,7 @@ describe('Autorização (e2e)', () => {
 
   describe('catálogo interno — CLIENTE é barrado inclusive na LEITURA', () => {
     it.each([
-      ['GET /api/categorias-produto', '/api/categorias-produto'],
+      ['GET /api/categorias-processo', '/api/categorias-processo'],
       ['GET /api/trilhas', '/api/trilhas'],
       ['GET /api/trilhas/:id', '/api/trilhas/1'],
       ['GET /api/trilhas/:id/modelos-trilha', '/api/trilhas/1/modelos-trilha'],
@@ -207,22 +207,22 @@ describe('Autorização (e2e)', () => {
       ).resolves.toBe(401);
     });
 
-    it('ADMIN vê os 2 produtos do cenário', async () => {
+    it('ADMIN vê os 2 processos do cenário', async () => {
       const resposta = await pedir('get', '/api/dashboard/graficos', c.admin);
 
       expect(resposta.status).toBe(200);
-      expect(resposta.body.acompanhamento.totalProdutos).toBe(2);
+      expect(resposta.body.acompanhamento.totalProcessos).toBe(2);
     });
 
-    it('CLIENTE vê só o próprio produto', async () => {
+    it('CLIENTE vê só o próprio processo', async () => {
       const resposta = await pedir('get', '/api/dashboard/graficos', c.clienteDono);
 
       expect(resposta.status).toBe(200);
-      expect(resposta.body.acompanhamento.totalProdutos).toBe(1);
+      expect(resposta.body.acompanhamento.totalProcessos).toBe(1);
     });
 
-    it('o ranking do CLIENTE não cita produto nem nome de outro cliente', async () => {
-      // Este é o vetor real: `ranking` carrega nome do produto E nome do
+    it('o ranking do CLIENTE não cita processo nem nome de outro cliente', async () => {
+      // Este é o vetor real: `ranking` carrega nome do processo E nome do
       // cliente. Um gráfico com escopo quebrado não parece errado — só mostra
       // números maiores —, então a asserção precisa ser sobre o conteúdo.
       const resposta = await pedir('get', '/api/dashboard/graficos', c.clienteAlheio);
@@ -246,7 +246,7 @@ describe('Autorização (e2e)', () => {
     });
   });
 
-  describe('GET /api/certificacoes/produto/:id/exportacao — planilha', () => {
+  describe('GET /api/certificacoes/processo/:id/exportacao — planilha', () => {
     it.each([
       { ator: 'anônimo', token: () => undefined, esperado: 401 },
       { ator: 'CLIENTE dono', token: () => c.clienteDono, esperado: 200 },
@@ -256,7 +256,7 @@ describe('Autorização (e2e)', () => {
     ])('$ator → $esperado', async ({ token, esperado }) => {
       const resposta = await pedir(
         'get',
-        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao`,
+        `/api/certificacoes/processo/${c.processoDonoId}/exportacao`,
         token(),
       );
 
@@ -266,7 +266,7 @@ describe('Autorização (e2e)', () => {
     it('o XLSX sai como anexo, com nome vindo do servidor', async () => {
       const resposta = await pedir(
         'get',
-        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao`,
+        `/api/certificacoes/processo/${c.processoDonoId}/exportacao`,
         c.clienteDono,
       );
 
@@ -281,7 +281,7 @@ describe('Autorização (e2e)', () => {
     it('formato=csv devolve CSV', async () => {
       const resposta = await pedir(
         'get',
-        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao?formato=csv`,
+        `/api/certificacoes/processo/${c.processoDonoId}/exportacao?formato=csv`,
         c.admin,
       );
 
@@ -293,7 +293,7 @@ describe('Autorização (e2e)', () => {
     it('formato inválido → 400, não um arquivo corrompido', async () => {
       const resposta = await pedir(
         'get',
-        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao?formato=pdf`,
+        `/api/certificacoes/processo/${c.processoDonoId}/exportacao?formato=pdf`,
         c.admin,
       );
 
@@ -303,7 +303,7 @@ describe('Autorização (e2e)', () => {
     it('parâmetro não declarado no DTO → 400 (forbidNonWhitelisted vale na query)', async () => {
       const resposta = await pedir(
         'get',
-        `/api/certificacoes/produto/${c.produtoDonoId}/exportacao?colunas=todas`,
+        `/api/certificacoes/processo/${c.processoDonoId}/exportacao?colunas=todas`,
         c.admin,
       );
 
@@ -323,13 +323,13 @@ describe('Autorização (e2e)', () => {
       // O único certificado do cenário é do dono. Se o filtro da URL vencesse,
       // a lista viria vazia — ou, pior, com o do vizinho.
       expect(resposta.body.total).toBe(1);
-      expect(resposta.body.dados[0].produto.clienteId).toBe(c.clienteDonoId);
+      expect(resposta.body.dados[0].processo.clienteId).toBe(c.clienteDonoId);
     });
 
-    it('GET /api/produtos?clienteId=<alheio> idem', async () => {
+    it('GET /api/processos?clienteId=<alheio> idem', async () => {
       const resposta = await pedir(
         'get',
-        `/api/produtos?clienteId=${c.clienteAlheioId}`,
+        `/api/processos?clienteId=${c.clienteAlheioId}`,
         c.clienteDono,
       );
 
@@ -342,10 +342,10 @@ describe('Autorização (e2e)', () => {
       ).toBe(true);
     });
 
-    it('GET /api/produtos/:id de outro cliente → 403', async () => {
+    it('GET /api/processos/:id de outro cliente → 403', async () => {
       const resposta = await pedir(
         'get',
-        `/api/produtos/${c.produtoAlheioId}`,
+        `/api/processos/${c.processoAlheioId}`,
         c.clienteDono,
       );
 
@@ -408,7 +408,7 @@ describe('Autorização (e2e)', () => {
   });
 
   describe('DELETE /api/clientes/:id — integridade referencial', () => {
-    it('cliente com produto vinculado → 409', async () => {
+    it('cliente com processo vinculado → 409', async () => {
       const resposta = await pedir(
         'delete',
         `/api/clientes/${c.clienteDonoId}`,
@@ -490,14 +490,14 @@ describe('Autorização (e2e)', () => {
   describe('sessão', () => {
     it('token ausente → 401 em rota protegida', async () => {
       await expect(
-        pedir('get', '/api/produtos').then((r) => r.status),
+        pedir('get', '/api/processos').then((r) => r.status),
       ).resolves.toBe(401);
     });
 
     it('token malformado → 401', async () => {
       const resposta = await pedir(
         'get',
-        '/api/produtos',
+        '/api/processos',
         'Bearer nao.e.um.token',
       );
 
@@ -513,7 +513,7 @@ describe('Autorização (e2e)', () => {
     it('cadastro desativado perde acesso IMEDIATAMENTE, com o token ainda válido', async () => {
       const token = c.clienteAlheio;
       await expect(
-        pedir('get', '/api/produtos', token).then((r) => r.status),
+        pedir('get', '/api/processos', token).then((r) => r.status),
       ).resolves.toBe(200);
 
       await prisma(app).cliente.update({
@@ -524,7 +524,7 @@ describe('Autorização (e2e)', () => {
       // A JwtStrategy revalida no banco a cada request: não é preciso esperar o
       // token expirar nem manter lista de revogação.
       await expect(
-        pedir('get', '/api/produtos', token).then((r) => r.status),
+        pedir('get', '/api/processos', token).then((r) => r.status),
       ).resolves.toBe(401);
 
       await prisma(app).cliente.update({

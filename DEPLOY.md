@@ -211,7 +211,7 @@ curl -s -X POST $API/api/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"admin@procertocp.com.br","senha":"errada"}'
 
 # 4. Storage: pasta pública redireciona para o bucket, privada é negada
-curl -o /dev/null -w '%{http_code} %{redirect_url}\n' $API/uploads/produtos/x.png   # 302 -> supabase
+curl -o /dev/null -w '%{http_code} %{redirect_url}\n' $API/uploads/processos/x.png   # 302 -> supabase
 curl -o /dev/null -w '%{http_code}\n' $API/uploads/certificados/x.pdf               # 404
 ```
 
@@ -223,7 +223,7 @@ No navegador, **nesta ordem** — cada passo isola uma camada:
    quase sempre `VITE_API_URL` ou `CORS_ORIGINS`.
 3. Login entra → JWT e banco de ponta a ponta.
 4. **F5 em `/dashboard`** → o fallback de SPA do `frontend/vercel.json` subiu.
-5. Produto com foto → `/uploads` e o bucket acessíveis a partir do painel.
+5. Processo com foto → `/uploads` e o bucket acessíveis a partir do painel.
 
 ## 7. Armadilhas desta hospedagem
 
@@ -352,7 +352,7 @@ guarda só o caminho. Consequências:
 
 - A pasta precisa persistir entre deploys. Em plataforma de contêiner com disco
   efêmero (Render, Railway no plano free, Heroku), todo restart apaga PDF de
-  certificado, evidência de etapa e foto de produto. Ali é disco persistente ou
+  certificado, evidência de etapa e foto de processo. Ali é disco persistente ou
   storage externo — não é opcional.
 - Certificado sem PDF é regerado no primeiro download. **Evidência de etapa e
   foto, não** — essas somem de vez.
@@ -371,7 +371,7 @@ curl https://api.procertocp.com.br/api/health
 curl https://api.procertocp.com.br/api/estados     # 27 UFs
 
 # 3. A porta continua fechada
-curl -o /dev/null -w '%{http_code}\n' https://api.procertocp.com.br/api/produtos   # 401
+curl -o /dev/null -w '%{http_code}\n' https://api.procertocp.com.br/api/processos   # 401
 curl -o /dev/null -w '%{http_code}\n' https://api.procertocp.com.br/api/docs       # 404
 ```
 
@@ -383,7 +383,7 @@ No navegador, e **nesta ordem** — cada passo isola uma camada diferente:
    falhou.
 3. Login entra → JWT e banco de ponta a ponta.
 4. **F5 em `/dashboard`** → o `.htaccess` subiu mesmo.
-5. Abrir um produto com foto → `/uploads` acessível a partir do frontend.
+5. Abrir um processo com foto → `/uploads` acessível a partir do frontend.
 
 ---
 
@@ -429,7 +429,7 @@ O sistema PHP legado inteiro, em produção: MVC artesanal em `app/` (13
 controllers, 10 models, views), `core/`, `config/config.php`, `assets/`
 (`adminlte.css`, `custom.css` — a origem do "liquid glass"), `vendors/phpmailer/`
 e `uploads/` com **fotos reais** de administrador, cliente, funcionário e
-produto. Total: 134 arquivos, 37,8 MB. Última modificação em 07/02/2026.
+processo. Total: 134 arquivos, 37,8 MB. Última modificação em 07/02/2026.
 
 Sobras já presentes: `index_Old.html`, `mapa-site.txt`, `README.md` e `.vscode/`.
 

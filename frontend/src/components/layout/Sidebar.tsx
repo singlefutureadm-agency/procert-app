@@ -43,7 +43,7 @@ const MENU: GrupoMenu[] = [
         ],
       },
       {
-        para: '/produtos',
+        para: '/processos',
         rotulo: 'Processos',
         icone: 'caixa',
         filhos: [
@@ -51,13 +51,13 @@ const MENU: GrupoMenu[] = [
             // O quadro por fase: onde cada processo está no fluxo interno e de
             // quem é a etapa atual. Visão da EQUIPE — o backend devolve 403
             // para CLIENTE, e é por isso que ele não vê este item.
-            para: '/produtos/quadro',
+            para: '/processos/quadro',
             rotulo: 'Gestão de processos internos',
             icone: 'quadro',
             papeis: ['ADMIN', 'FUNCIONARIO'],
           },
           {
-            para: '/relatorios/produtos',
+            para: '/relatorios/processos',
             rotulo: 'Comparativo',
             icone: 'grafico',
             papeis: ['ADMIN', 'FUNCIONARIO'],
@@ -65,7 +65,7 @@ const MENU: GrupoMenu[] = [
         ],
       },
       {
-        // A categoria é a raiz: ela agrupa os produtos e escolhe QUAL trilha
+        // A categoria é a raiz: ela agrupa os processos e escolhe QUAL trilha
         // seguir. A trilha é o processo em si, e vive no catálogo — daí ser
         // filha, e não um item irmão solto.
         para: '/categorias',
@@ -299,7 +299,7 @@ export function Sidebar({ aberta, aoNavegar }: Props) {
 
       <div className="sidebar__rodape">
         <p className="texto-pequeno texto-fraco">
-          ProCert · Certificação de Produtos
+          ProCert · Certificação de Processos
         </p>
       </div>
     </aside>

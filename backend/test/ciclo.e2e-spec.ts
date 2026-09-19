@@ -32,14 +32,14 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
     const db = prisma(app);
     const base = new Date('2026-03-01T09:00:00Z');
 
-    const trilha = await db.certificacaoProduto.findMany({
-      where: { produtoId: c.produtoDonoId },
+    const trilha = await db.certificacaoProcesso.findMany({
+      where: { processoId: c.processoDonoId },
       orderBy: { ordem: 'asc' },
     });
 
     // Todas as etapas nascem com o mesmo criado_em (mesma transação).
-    await db.certificacaoProduto.updateMany({
-      where: { produtoId: c.produtoDonoId },
+    await db.certificacaoProcesso.updateMany({
+      where: { processoId: c.processoDonoId },
       data: { criadoEm: base },
     });
 
@@ -48,7 +48,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
      * Fila: 09h → 11h (2h). Tratamento: 11h → 35h (24h), atravessando a
      * reprovação: o ciclo inteiro conta, porque o atraso é real.
      */
-    await db.certificacaoProduto.update({
+    await db.certificacaoProcesso.update({
       where: { id: trilha[0].id },
       data: {
         status: StatusCertificacao.APROVADO,
@@ -109,7 +109,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
      * ETAPA 2 — APROVAÇÃO DIRETA: PENDENTE → APROVADO num lote só.
      * Tratamento zero por construção; tem de ficar fora da mediana.
      */
-    await db.certificacaoProduto.update({
+    await db.certificacaoProcesso.update({
       where: { id: trilha[1].id },
       data: {
         status: StatusCertificacao.APROVADO,
@@ -128,7 +128,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
     });
 
     // ETAPA 3 — segue PENDENTE, sem histórico nenhum: bloco "em aberto".
-    await db.certificacaoProduto.update({
+    await db.certificacaoProcesso.update({
       where: { id: trilha[2].id },
       data: {
         status: StatusCertificacao.PENDENTE,
@@ -163,7 +163,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
     };
   }
 
-  /** Soma as bases de todos os grupos — o cenário tem mais de um produto. */
+  /** Soma as bases de todos os grupos — o cenário tem mais de um processo. */
   function totais(corpo: Awaited<ReturnType<typeof relatorio>>) {
     return corpo.grupos.reduce(
       (acc, g) => ({
@@ -225,7 +225,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
     const corpo = await relatorio();
 
     /*
-     * Zero afirmaria "levou zero dia"; `null` diz "não medimos". O produto
+     * Zero afirmaria "levou zero dia"; `null` diz "não medimos". O processo
      * alheio do cenário não tem movimentação nenhuma.
      */
     for (const g of corpo.grupos) {
@@ -242,7 +242,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
     const porTrilha = await relatorio('trilha');
     const porEtapa = await relatorio('etapa');
 
-    // É medida do PRODUTO: por etapa não faz sentido.
+    // É medida do PROCESSO: por etapa não faz sentido.
     for (const g of porTrilha.grupos) expect(g.leadTimeTrilha).not.toBeNull();
     for (const g of porEtapa.grupos) expect(g.leadTimeTrilha).toBeNull();
   });
@@ -265,7 +265,7 @@ describe('Relatórios — tempo de ciclo (e2e)', () => {
   it('recusa agrupamento fora da allowlist', async () => {
     await http(app)
       .get('/api/relatorios/tempo-ciclo')
-      .query({ agrupamento: 'chave; DROP TABLE produtos' })
+      .query({ agrupamento: 'chave; DROP TABLE processos' })
       .set('Authorization', c.admin)
       .expect(400);
   });

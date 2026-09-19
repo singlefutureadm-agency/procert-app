@@ -17,7 +17,7 @@ Disallow: /dashboard
 Disallow: /certificacoes
 Disallow: /certificados
 Disallow: /nao-conformidades
-Disallow: /produtos
+Disallow: /processos
 Disallow: /clientes
 Disallow: /categorias
 Disallow: /equipe

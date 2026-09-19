@@ -108,10 +108,10 @@ export function DashboardPage() {
           />
         )}
         <CardMetrica
-          valor={data.totalProdutos}
-          rotulo="Produtos em certificação"
+          valor={data.totalProcessos}
+          rotulo="Processos em certificação"
           icone="caixa"
-          para="/produtos"
+          para="/processos"
         />
         <CardMetrica
           valor={data.certificacoesConcluidas}
@@ -146,7 +146,7 @@ export function DashboardPage() {
             <table className="tabela" role="table">
               <thead role="rowgroup">
                 <tr role="row">
-                  <th role="columnheader">Produto</th>
+                  <th role="columnheader">Processo</th>
                   <th role="columnheader">Cliente</th>
                   <th role="columnheader">Etapa</th>
                   <th role="columnheader">Status</th>
@@ -155,10 +155,10 @@ export function DashboardPage() {
               </thead>
               <tbody role="rowgroup">
                 {data.ultimasAtualizacoes.map((linha, indice) => (
-                  <tr role="row" key={`${linha.produtoId}-${indice}`}>
+                  <tr role="row" key={`${linha.processoId}-${indice}`}>
                     <td role="cell" data-principal>
-                      <Link to={`/certificacoes/produto/${linha.produtoId}`}>
-                        {linha.produto}
+                      <Link to={`/certificacoes/processo/${linha.processoId}`}>
+                        {linha.processo}
                       </Link>
                     </td>
                     <td role="cell" data-rotulo="Cliente" className="texto-suave">{linha.cliente}</td>

@@ -6,14 +6,14 @@ import { UsuarioAutenticado } from '../../common/decorators/current-user.decorat
 
 export interface MetricasDashboard {
   totalClientes: number;
-  totalProdutos: number;
+  totalProcessos: number;
   certificacoesConcluidas: number;
   certificacoesEmAndamento: number;
   certificacoesPendentes: number;
   percentualPendentes: number;
   ultimasAtualizacoes: Array<{
-    produtoId: number;
-    produto: string;
+    processoId: number;
+    processo: string;
     cliente: string;
     etapa: string;
     status: StatusCertificacao;
@@ -28,7 +28,7 @@ export interface MetricasDashboard {
  *  • "Certificações aprovadas" sempre exibia 0 (a query devolvia a chave
  *    `total_aprovados` e o controller lia `total_certificacao_aprovada`)
  *  • a etapa final era fixada como `id_etapa = 4`, quebrando ao mudar o catálogo;
- *    aqui um produto é considerado concluído quando TODAS as suas etapas
+ *    aqui um processo é considerado concluído quando TODAS as suas etapas
  *    estão aprovadas
  *  • as consultas rodavam em toda requisição, inclusive na home pública
  */
@@ -40,29 +40,29 @@ export class DashboardService {
     const escopoCliente =
       usuario.role === Role.CLIENTE ? { clienteId: usuario.id } : {};
 
-    const [totalClientes, totalProdutos, produtos, ultimas] = await Promise.all([
+    const [totalClientes, totalProcessos, processos, ultimas] = await Promise.all([
       usuario.role === Role.CLIENTE
         ? Promise.resolve(1)
         : this.prisma.cliente.count({ where: { status: StatusRegistro.ATIVO } }),
 
-      this.prisma.produto.count({
+      this.prisma.processo.count({
         where: { status: StatusRegistro.ATIVO, ...escopoCliente },
       }),
 
-      this.prisma.produto.findMany({
+      this.prisma.processo.findMany({
         where: { status: StatusRegistro.ATIVO, ...escopoCliente },
         select: { id: true, certificacao: { select: { status: true } } },
       }),
 
-      this.prisma.certificacaoProduto.findMany({
-        where: { produto: { status: StatusRegistro.ATIVO, ...escopoCliente } },
+      this.prisma.certificacaoProcesso.findMany({
+        where: { processo: { status: StatusRegistro.ATIVO, ...escopoCliente } },
         orderBy: { atualizadoEm: 'desc' },
         take: 8,
         select: {
           status: true,
           atualizadoEm: true,
           etapa: { select: { nome: true } },
-          produto: {
+          processo: {
             select: { id: true, nome: true, cliente: { select: { nome: true } } },
           },
         },
@@ -73,8 +73,8 @@ export class DashboardService {
     let emAndamento = 0;
     let pendentes = 0;
 
-    for (const produto of produtos) {
-      const etapas = produto.certificacao;
+    for (const processo of processos) {
+      const etapas = processo.certificacao;
       if (etapas.length === 0) {
         pendentes += 1;
         continue;
@@ -94,17 +94,17 @@ export class DashboardService {
 
     return {
       totalClientes,
-      totalProdutos,
+      totalProcessos,
       certificacoesConcluidas: concluidas,
       certificacoesEmAndamento: emAndamento,
       certificacoesPendentes: pendentes,
-      percentualPendentes: totalProdutos
-        ? Math.round((pendentes / totalProdutos) * 100)
+      percentualPendentes: totalProcessos
+        ? Math.round((pendentes / totalProcessos) * 100)
         : 0,
       ultimasAtualizacoes: ultimas.map((registro) => ({
-        produtoId: registro.produto.id,
-        produto: registro.produto.nome,
-        cliente: registro.produto.cliente.nome,
+        processoId: registro.processo.id,
+        processo: registro.processo.nome,
+        cliente: registro.processo.cliente.nome,
         etapa: registro.etapa.nome,
         status: registro.status,
         atualizadoEm: registro.atualizadoEm,

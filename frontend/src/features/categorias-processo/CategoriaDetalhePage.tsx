@@ -55,7 +55,7 @@ export function CategoriaDetalhePage() {
       toast.success(
         atualizada.trilha
           ? `Categoria vinculada à trilha "${atualizada.trilha.nome}".`
-          : 'Trilha desvinculada. A categoria deixou de aceitar produtos novos.',
+          : 'Trilha desvinculada. A categoria deixou de aceitar processos novos.',
       );
       void queryClient.invalidateQueries({ queryKey: ['categorias'] });
       // O contador de categorias da trilha muda dos dois lados do vínculo.
@@ -131,14 +131,14 @@ export function CategoriaDetalhePage() {
               </>
             ) : (
               // Trilha vinculada mas sem versão vigente: a categoria parece
-              // configurada e recusa todo produto novo.
-              <> — que está sem versão vigente e por isso não aceita produtos.</>
+              // configurada e recusa todo processo novo.
+              <> — que está sem versão vigente e por isso não aceita processos.</>
             )}
           </p>
         ) : (
           <p className="texto-pequeno texto-fraco" style={{ marginTop: 4 }}>
             Esta categoria ainda não tem trilha. Sem trilha ela não aceita
-            produtos: escolha uma do catálogo abaixo.
+            processos: escolha uma do catálogo abaixo.
           </p>
         )}
 
@@ -171,10 +171,10 @@ export function CategoriaDetalhePage() {
             className="btn btn--primario"
             disabled={!alterada || vincular.isPending}
             onClick={() => {
-              // Trocar a trilha de uma categoria com produtos muda a régua dos
+              // Trocar a trilha de uma categoria com processos muda a régua dos
               // FUTUROS. Vale um aviso explícito: o efeito não é visível na
               // tela em que a ação acontece.
-              if (dados.totalProdutos > 0) {
+              if (dados.totalProcessos > 0) {
                 setConfirmarTroca(true);
               } else {
                 vincular.mutate(escolhida ? Number(escolhida) : null);
@@ -223,7 +223,7 @@ export function CategoriaDetalhePage() {
           }}
         >
           {[
-            ['Produtos nesta categoria', dados.totalProdutos],
+            ['Processos nesta categoria', dados.totalProcessos],
             ['Validade do certificado', `${dados.validadeMeses} meses`],
             ['Versões da trilha', dados.totalVersoes],
           ].map(([rotulo, valor]) => (
@@ -240,8 +240,8 @@ export function CategoriaDetalhePage() {
         titulo={escolhida ? 'Trocar a trilha da categoria' : 'Desvincular a trilha'}
         mensagem={
           escolhida
-            ? `Esta categoria tem ${dados.totalProdutos} produto(s). Passar a seguir "${trilhaEscolhida?.nome}" vale só para produtos NOVOS — os que já estão em avaliação continuam na versão pela qual entraram.`
-            : `Esta categoria tem ${dados.totalProdutos} produto(s). Sem trilha ela deixa de aceitar produtos novos; os em avaliação não são afetados.`
+            ? `Esta categoria tem ${dados.totalProcessos} processo(s). Passar a seguir "${trilhaEscolhida?.nome}" vale só para processos NOVOS — os que já estão em avaliação continuam na versão pela qual entraram.`
+            : `Esta categoria tem ${dados.totalProcessos} processo(s). Sem trilha ela deixa de aceitar processos novos; os em avaliação não são afetados.`
         }
         rotuloConfirmar={escolhida ? 'Trocar trilha' : 'Desvincular'}
         perigo={!escolhida}

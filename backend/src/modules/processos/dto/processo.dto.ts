@@ -21,8 +21,8 @@ import {
 
 import { PaginacaoDto } from '../../../common/dto/paginacao.dto';
 
-export class CriarProdutoDto {
-  @ApiProperty({ description: 'Cliente proprietário do produto' })
+export class CriarProcessoDto {
+  @ApiProperty({ description: 'Cliente proprietário do processo' })
   @Type(() => Number)
   @IsInt()
   @IsPositive()
@@ -30,7 +30,7 @@ export class CriarProdutoDto {
 
   @ApiProperty({
     description:
-      'Categoria do produto. Define a trilha de certificação: o produto é ' +
+      'Categoria do processo. Define a trilha de certificação: o processo é ' +
       'vinculado à versão vigente do modelo dessa categoria.',
   })
   @Type(() => Number)
@@ -72,7 +72,7 @@ export class CriarProdutoDto {
     nullable: true,
     description:
       'Concluir todas as microetapas de uma etapa aprova a etapa sozinha. ' +
-      'OMITIDO ou `null` = herda o padrão da versão de trilha do produto; ' +
+      'OMITIDO ou `null` = herda o padrão da versão de trilha do processo; ' +
       '`true`/`false` sobrepõem só para este processo.',
   })
   @IsOptional()
@@ -82,14 +82,14 @@ export class CriarProdutoDto {
 
 /**
  * `categoriaId` fica de fora: trocar a categoria depois da submissão mudaria a
- * trilha de um produto já em avaliação. Isso é reabertura de processo, não
+ * trilha de um processo já em avaliação. Isso é reabertura de processo, não
  * edição de cadastro.
  */
-export class AtualizarProdutoDto extends PartialType(
-  OmitType(CriarProdutoDto, ['categoriaId'] as const),
+export class AtualizarProcessoDto extends PartialType(
+  OmitType(CriarProcessoDto, ['categoriaId'] as const),
 ) {}
 
-export class ListarProdutosDto extends PaginacaoDto {
+export class ListarProcessosDto extends PaginacaoDto {
   @ApiPropertyOptional({ enum: StatusRegistro, default: StatusRegistro.ATIVO })
   @IsOptional()
   @IsEnum(StatusRegistro)

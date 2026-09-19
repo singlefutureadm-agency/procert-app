@@ -81,9 +81,9 @@ export function CartaoCertificado({ certificado, contexto, acoes, aviso }: Props
 
       <footer className="texto-pequeno texto-fraco">
         Emitido por {certificado.emitidoPorNome} · categoria{' '}
-        {certificado.produto.categoria.nome}
-        {certificado.produto.categoria.normaReferencia &&
-          ` · ${certificado.produto.categoria.normaReferencia}`}
+        {certificado.processo.categoria.nome}
+        {certificado.processo.categoria.normaReferencia &&
+          ` · ${certificado.processo.categoria.normaReferencia}`}
       </footer>
 
       {acoes && <div className="nc__acoes">{acoes}</div>}

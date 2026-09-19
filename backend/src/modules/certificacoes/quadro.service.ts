@@ -16,7 +16,7 @@ import {
 } from './dto/certificacao.dto';
 
 /**
- * Limiares do semáforo de aging, em dias corridos desde `Produto.criadoEm`.
+ * Limiares do semáforo de aging, em dias corridos desde `Processo.criadoEm`.
  *
  * Vieram das etiquetas 30/20/15 que a operação aplicava À MÃO no quadro Trello.
  * O que exatamente elas mediam **não foi confirmado com a Qualidade**: podem
@@ -73,9 +73,9 @@ export type SituacaoSla =
     };
 
 export interface CartaoQuadro {
-  produtoId: number;
+  processoId: number;
   codigoProcesso: string | null;
-  produto: string;
+  processo: string;
   motivoProcesso: MotivoProcesso;
   cliente: { id: number; nome: string };
   categoria: { id: number; nome: string };
@@ -134,9 +134,9 @@ export interface Quadro {
 
 /** Uma linha crua do `$queryRaw`, antes de virar cartão. */
 interface LinhaQuadro {
-  produto_id: number;
+  processo_id: number;
   codigo_processo: string | null;
-  produto: string;
+  processo: string;
   motivo_processo: MotivoProcesso;
   cliente_id: number;
   cliente_nome: string;
@@ -169,19 +169,19 @@ interface LinhaQuadro {
  *
  * A coluna de um processo sai da etapa atual dele, resolvida pela mesma regra
  * que `listarPainel` já usa: 1ª `EM_ANDAMENTO`, senão 1ª `PENDENTE`, senão a
- * última. Nada disso é gravado em `Produto`.
+ * última. Nada disso é gravado em `Processo`.
  *
  * No quadro Trello de onde a demanda veio, a posição da lista e o progresso do
  * checklist eram duas fontes de verdade mantidas à mão — e divergiam. Gravar a
- * fase no produto repetiria o defeito com outro nome, e é por isso que a tela
+ * fase no processo repetiria o defeito com outro nome, e é por isso que a tela
  * também não tem arrastar-e-soltar: arrastar sugeriria que a posição é
  * editável.
  *
  * ## Por que SQL cru
  *
- * A derivação da etapa atual é por produto, e o quadro precisa de contagem
+ * A derivação da etapa atual é por processo, e o quadro precisa de contagem
  * REAL por coluna somada a um recorte de N cartões. Em Prisma isso seria uma
- * consulta por coluna mais uma por produto para o resumo — N+1 —, ou carregar a
+ * consulta por coluna mais uma por processo para o resumo — N+1 —, ou carregar a
  * base inteira e agregar em memória, que é a pendência já registrada do
  * `DashboardService`. Uma consulta com `DISTINCT ON` e funções de janela
  * resolve as duas coisas de uma vez, e é o mesmo caminho que `relatorios/`
@@ -200,7 +200,7 @@ export class QuadroService {
   ): Promise<Quadro> {
     // O controller já barra CLIENTE com @Roles, e esta guarda é a segunda
     // camada: a divisão por fase e por departamento é organização interna, e o
-    // cliente tem a timeline do próprio produto. Repetida aqui porque a regra
+    // cliente tem a timeline do próprio processo. Repetida aqui porque a regra
     // do projeto é que o escopo viva no service, não só na rota.
     if (usuario.role === Role.CLIENTE) {
       throw new ForbiddenException(
@@ -235,9 +235,9 @@ export class QuadroService {
     const etapasAprovadas = Number(linha.etapas_aprovadas);
 
     return {
-      produtoId: linha.produto_id,
+      processoId: linha.processo_id,
       codigoProcesso: linha.codigo_processo,
-      produto: linha.produto,
+      processo: linha.processo,
       motivoProcesso: linha.motivo_processo,
       cliente: { id: linha.cliente_id, nome: linha.cliente_nome },
       categoria: { id: linha.categoria_id, nome: linha.categoria_nome },
@@ -285,7 +285,7 @@ export class QuadroService {
     return this.prisma.$queryRaw<LinhaQuadro[]>(Prisma.sql`
       WITH etapa AS (
         SELECT
-          cp.produto_id,
+          cp.processo_id,
           cp.id,
           cp.status,
           cp.ordem,
@@ -303,7 +303,7 @@ export class QuadroService {
           me.papel_responsavel,
           me.prazo_sla_horas,
           me.obrigatoria
-        FROM certificacoes_produto cp
+        FROM certificacoes_processo cp
         JOIN modelos_etapa me ON me.id = cp.etapa_id
       ),
       atual AS (
@@ -311,8 +311,8 @@ export class QuadroService {
         -- PENDENTE, senão a última. As duas primeiras querem a MENOR ordem e a
         -- terceira quer a MAIOR, então a chave do meio só existe para os dois
         -- primeiros casos; no terceiro ela é NULL para todas as linhas do
-        -- produto, o desempate cai no \`ordem DESC\` e sai a última.
-        SELECT DISTINCT ON (produto_id) *
+        -- processo, o desempate cai no \`ordem DESC\` e sai a última.
+        SELECT DISTINCT ON (processo_id) *
         FROM (
           SELECT
             e.*,
@@ -324,14 +324,14 @@ export class QuadroService {
           FROM etapa e
         ) ordenada
         ORDER BY
-          produto_id,
+          processo_id,
           prioridade,
           CASE WHEN prioridade < 2 THEN ordem END ASC NULLS LAST,
           ordem DESC
       ),
       resumo AS (
         SELECT
-          produto_id,
+          processo_id,
           COUNT(*)                                        AS total_etapas,
           COUNT(*) FILTER (WHERE status = 'APROVADO')     AS etapas_aprovadas,
           COUNT(*) FILTER (
@@ -343,13 +343,13 @@ export class QuadroService {
           -- embaixo, que exige as duas condições juntas.
           MAX(concluida_em) FILTER (WHERE obrigatoria)    AS concluido_em
         FROM etapa
-        GROUP BY produto_id
+        GROUP BY processo_id
       ),
       cartao AS (
         SELECT
-          p.id                       AS produto_id,
+          p.id                       AS processo_id,
           p.codigo_processo,
-          p.nome                     AS produto,
+          p.nome                     AS processo,
           p.motivo_processo,
           c.id                       AS cliente_id,
           c.nome                     AS cliente_nome,
@@ -365,7 +365,7 @@ export class QuadroService {
           COALESCE(a.micro_concluidas, 0) AS micro_concluidas,
           COALESCE(r.total_etapas, 0)     AS total_etapas,
           COALESCE(r.etapas_aprovadas, 0) AS etapas_aprovadas,
-          -- Dias corridos desde a abertura do processo: criado_em do PRODUTO,
+          -- Dias corridos desde a abertura do processo: criado_em do PROCESSO,
           -- que é a submissão — não o da etapa, que é entrada na fila.
           --
           -- O relógio PARA quando o processo conclui. Contra NOW() sem parada,
@@ -393,7 +393,7 @@ export class QuadroService {
           (COALESCE(r.obrigatorias_pendentes, 0) = 0
             AND COALESCE(r.total_etapas, 0) > 0) AS concluido,
           -- LATERAL, e não JOIN direto: um JOIN com nao_conformidades
-          -- multiplicaria a linha do produto por NC e inflaria todo COUNT.
+          -- multiplicaria a linha do processo por NC e inflaria todo COUNT.
           nc.abertas                 AS ncs_abertas,
           -- Concluído tem coluna própria e VEM DAS OBRIGATÓRIAS: opcionais
           -- pendentes não seguram o processo, é a mesma régua da emissão do
@@ -407,16 +407,16 @@ export class QuadroService {
              AND COALESCE(r.obrigatorias_pendentes, 0) = 0 THEN 'CONCLUIDO'
             ELSE COALESCE(a.fase::text, 'ABERTURA')
           END AS coluna
-        FROM produtos p
+        FROM processos p
         JOIN clientes c            ON c.id = p.cliente_id
-        JOIN categorias_produto cat ON cat.id = p.categoria_id
-        LEFT JOIN atual a          ON a.produto_id = p.id
-        LEFT JOIN resumo r         ON r.produto_id = p.id
+        JOIN categorias_processo cat ON cat.id = p.categoria_id
+        LEFT JOIN atual a          ON a.processo_id = p.id
+        LEFT JOIN resumo r         ON r.processo_id = p.id
         LEFT JOIN LATERAL (
           SELECT COUNT(*) AS abertas
           FROM nao_conformidades n
-          JOIN certificacoes_produto cp2 ON cp2.id = n.certificacao_id
-          WHERE cp2.produto_id = p.id
+          JOIN certificacoes_processo cp2 ON cp2.id = n.certificacao_id
+          WHERE cp2.processo_id = p.id
             AND n.status IN ('ABERTA', 'EM_TRATATIVA')
         ) nc ON TRUE
         WHERE p.status = 'ATIVO'
@@ -462,7 +462,7 @@ export class QuadroService {
             -- Mais antigo primeiro: o quadro existe para mostrar o que está
             -- parado. Ordenação FIXA, não vem da query string — não há
             -- placeholder de ORDER BY em lugar nenhum desta consulta.
-            ORDER BY f.dias_em_aberto DESC, f.produto_id
+            ORDER BY f.dias_em_aberto DESC, f.processo_id
           ) AS posicao
         FROM filtrado f
       )

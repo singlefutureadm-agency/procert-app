@@ -12,12 +12,12 @@ import { ModelosTrilhaService } from '../modelos-trilha/modelos-trilha.service';
 import { paginar } from '../../common/dto/paginacao.dto';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import {
-  AtualizarProdutoDto,
-  CriarProdutoDto,
-  ListarProdutosDto,
-} from './dto/produto.dto';
+  AtualizarProcessoDto,
+  CriarProcessoDto,
+  ListarProcessosDto,
+} from './dto/processo.dto';
 
-const INCLUDE_PRODUTO = {
+const INCLUDE_PROCESSO = {
   cliente: { select: { id: true, nome: true, fotoUrl: true } },
   categoria: {
     select: {
@@ -49,23 +49,23 @@ const INCLUDE_PRODUTO = {
     orderBy: { criadoEm: 'desc' },
     take: 1,
   },
-} satisfies Prisma.ProdutoInclude;
+} satisfies Prisma.ProcessoInclude;
 
 @Injectable()
-export class ProdutosService {
+export class ProcessosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
     private readonly modelosTrilha: ModelosTrilhaService,
   ) {}
 
-  async listar(filtros: ListarProdutosDto, usuario: UsuarioAutenticado) {
-    // Clientes enxergam apenas os próprios produtos: o escopo é imposto aqui,
+  async listar(filtros: ListarProcessosDto, usuario: UsuarioAutenticado) {
+    // Clientes enxergam apenas os próprios processos: o escopo é imposto aqui,
     // no servidor, e não pelo id que vem da URL (corrige o IDOR do legado).
     const clienteId =
       usuario.role === Role.CLIENTE ? usuario.id : filtros.clienteId;
 
-    const where: Prisma.ProdutoWhereInput = {
+    const where: Prisma.ProcessoWhereInput = {
       status: filtros.status ?? StatusRegistro.ATIVO,
       ...(clienteId && { clienteId }),
       ...(filtros.categoriaId && { categoriaId: filtros.categoriaId }),
@@ -78,48 +78,48 @@ export class ProdutosService {
     };
 
     const [registros, total] = await this.prisma.$transaction([
-      this.prisma.produto.findMany({
+      this.prisma.processo.findMany({
         where,
-        include: INCLUDE_PRODUTO,
+        include: INCLUDE_PROCESSO,
         orderBy: { nome: 'asc' },
         skip: filtros.skip,
         take: filtros.limite,
       }),
-      this.prisma.produto.count({ where }),
+      this.prisma.processo.count({ where }),
     ]);
 
-    const dados = registros.map((produto) => this.comResumo(produto));
+    const dados = registros.map((processo) => this.comResumo(processo));
     return paginar(dados, total, filtros);
   }
 
   async buscarPorId(id: number, usuario: UsuarioAutenticado) {
-    const produto = await this.prisma.produto.findUnique({
+    const processo = await this.prisma.processo.findUnique({
       where: { id },
-      include: INCLUDE_PRODUTO,
+      include: INCLUDE_PROCESSO,
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${id} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${id} não encontrado.`);
     }
-    this.garantirAcesso(produto.clienteId, usuario);
+    this.garantirAcesso(processo.clienteId, usuario);
 
-    return this.comResumo(produto);
+    return this.comResumo(processo);
   }
 
   /**
-   * Cadastra o produto e abre a trilha de certificação.
+   * Cadastra o processo e abre a trilha de certificação.
    *
    * A trilha vem da versão vigente da trilha VINCULADA à categoria escolhida, e
-   * o produto guarda essa versão (`modeloTrilhaId`) como retrato: se a trilha
+   * o processo guarda essa versão (`modeloTrilhaId`) como retrato: se a trilha
    * publicar uma versão nova amanhã — ou se a categoria passar a apontar para
-   * outra trilha —, este produto continua sendo avaliado pelo processo que
+   * outra trilha —, este processo continua sendo avaliado pelo processo que
    * valia na submissão.
    *
-   * Diferença em relação ao legado: produto e etapas nascem na MESMA
-   * transação — lá, se o INSERT das etapas falhasse, o produto ficava órfão
+   * Diferença em relação ao legado: processo e etapas nascem na MESMA
+   * transação — lá, se o INSERT das etapas falhasse, o processo ficava órfão
    * sem nenhuma certificação associada.
    */
-  async criar(dto: CriarProdutoDto) {
+  async criar(dto: CriarProcessoDto) {
     const cliente = await this.prisma.cliente.findUnique({
       where: { id: dto.clienteId },
     });
@@ -127,7 +127,7 @@ export class ProdutosService {
       throw new NotFoundException(`Cliente ${dto.clienteId} não encontrado.`);
     }
 
-    const categoria = await this.prisma.categoriaProduto.findUnique({
+    const categoria = await this.prisma.categoriaProcesso.findUnique({
       where: { id: dto.categoriaId },
     });
     if (!categoria) {
@@ -135,7 +135,7 @@ export class ProdutosService {
     }
     if (categoria.status !== StatusRegistro.ATIVO) {
       throw new BadRequestException(
-        'Esta categoria está inativa e não aceita novos produtos.',
+        'Esta categoria está inativa e não aceita novos processos.',
       );
     }
 
@@ -149,12 +149,12 @@ export class ProdutosService {
     // que abre uma corrida entre duas aberturas simultâneas: as duas leem o
     // mesmo máximo e tentam gravar o mesmo número. Quem decide é o índice
     // único de `codigo_processo`; aqui a perdedora tenta de novo em vez de
-    // devolver 409 para quem só estava cadastrando um produto.
+    // devolver 409 para quem só estava cadastrando um processo.
     return this.comRetryDeCodigo(async () => {
       const codigoProcesso = await this.gerarCodigoProcesso(categoria.sigla);
 
       return this.prisma.$transaction(async (tx) => {
-        const produto = await tx.produto.create({
+        const processo = await tx.processo.create({
           data: {
             clienteId: dto.clienteId,
             categoriaId: dto.categoriaId,
@@ -169,14 +169,14 @@ export class ProdutosService {
         });
 
         // `create` por etapa, não `createMany`: as microetapas são relação
-        // aninhada e o `createMany` as descartaria sem erro — o produto nasceria
+        // aninhada e o `createMany` as descartaria sem erro — o processo nasceria
         // com a trilha certa e as checklists vazias.
         for (const etapa of modelo.etapas) {
-          await tx.certificacaoProduto.create({
+          await tx.certificacaoProcesso.create({
             data: {
-              produtoId: produto.id,
+              processoId: processo.id,
               etapaId: etapa.id,
-              // A trilha do produto nasce com a ordem do modelo; daí em diante
+              // A trilha do processo nasce com a ordem do modelo; daí em diante
               // ela é dele, e sobrevive a mudanças de versão.
               ordem: etapa.ordem,
               status: StatusCertificacao.PENDENTE,
@@ -197,9 +197,9 @@ export class ProdutosService {
           });
         }
 
-        return tx.produto.findUniqueOrThrow({
-          where: { id: produto.id },
-          include: INCLUDE_PRODUTO,
+        return tx.processo.findUniqueOrThrow({
+          where: { id: processo.id },
+          include: INCLUDE_PROCESSO,
         });
       });
     });
@@ -209,7 +209,7 @@ export class ProdutosService {
    * Próximo código do processo: `PROCERT-<SIGLA>-<NNN>-<AA>`.
    *
    * Derivado do MAIOR número do ano, nunca de `COUNT`: contar linhas reemite um
-   * número já usado assim que um produto é excluído, e dois processos com o
+   * número já usado assim que um processo é excluído, e dois processos com o
    * mesmo código é exatamente o que a operação não pode ter. Mesma estratégia
    * de `NaoConformidade.codigo` e `Certificado.numero`.
    *
@@ -228,7 +228,7 @@ export class ProdutosService {
    * `1000` em diante, que é como um contador se comporta quando estoura a
    * casa reservada.
    *
-   * Categoria sem sigla devolve `null` e o produto nasce sem código, sem erro:
+   * Categoria sem sigla devolve `null` e o processo nasce sem código, sem erro:
    * é preferível a um processo com identificador inventado. A tela mostra "—".
    */
   private async gerarCodigoProcesso(
@@ -264,7 +264,7 @@ export class ProdutosService {
                  ''
                )::bigint
              )::int AS maximo
-      FROM produtos
+      FROM processos
       WHERE codigo_processo LIKE ${prefixo + '%' + sufixo}
         AND SUBSTRING(
               codigo_processo
@@ -309,7 +309,7 @@ export class ProdutosService {
     }
   }
 
-  async atualizar(id: number, dto: AtualizarProdutoDto) {
+  async atualizar(id: number, dto: AtualizarProcessoDto) {
     await this.garantirExiste(id);
 
     if (dto.clienteId) {
@@ -321,68 +321,68 @@ export class ProdutosService {
       }
     }
 
-    return this.prisma.produto.update({
+    return this.prisma.processo.update({
       where: { id },
       data: dto,
-      include: INCLUDE_PRODUTO,
+      include: INCLUDE_PROCESSO,
     });
   }
 
   async alterarStatus(id: number, status: StatusRegistro) {
     await this.garantirExiste(id);
-    return this.prisma.produto.update({
+    return this.prisma.processo.update({
       where: { id },
       data: { status },
-      include: INCLUDE_PRODUTO,
+      include: INCLUDE_PROCESSO,
     });
   }
 
   /** Exclusão definitiva: remove em cascata certificações e histórico. */
   async remover(id: number): Promise<{ mensagem: string }> {
-    const produto = await this.garantirExiste(id);
-    await this.uploads.remover(produto.fotoUrl);
-    await this.prisma.produto.delete({ where: { id } });
-    return { mensagem: 'Produto excluído definitivamente.' };
+    const processo = await this.garantirExiste(id);
+    await this.uploads.remover(processo.fotoUrl);
+    await this.prisma.processo.delete({ where: { id } });
+    return { mensagem: 'Processo excluído definitivamente.' };
   }
 
   async atualizarFoto(id: number, arquivo: Express.Multer.File) {
-    const produto = await this.garantirExiste(id);
+    const processo = await this.garantirExiste(id);
     const fotoUrl = await this.uploads.substituirImagem(
       arquivo,
-      'produtos',
-      produto.fotoUrl,
+      'processos',
+      processo.fotoUrl,
     );
 
-    return this.prisma.produto.update({
+    return this.prisma.processo.update({
       where: { id },
       data: { fotoUrl },
-      include: INCLUDE_PRODUTO,
+      include: INCLUDE_PROCESSO,
     });
   }
 
   // ---------------------------------------------------------------- privados
 
   private async garantirExiste(id: number) {
-    const produto = await this.prisma.produto.findUnique({ where: { id } });
-    if (!produto) {
-      throw new NotFoundException(`Produto ${id} não encontrado.`);
+    const processo = await this.prisma.processo.findUnique({ where: { id } });
+    if (!processo) {
+      throw new NotFoundException(`Processo ${id} não encontrado.`);
     }
-    return produto;
+    return processo;
   }
 
   private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {
     if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) {
       throw new ForbiddenException(
-        'Você só pode acessar produtos do seu próprio cadastro.',
+        'Você só pode acessar processos do seu próprio cadastro.',
       );
     }
   }
 
   /** Acrescenta etapa atual, progresso e último pagamento ao payload. */
   private comResumo(
-    produto: Prisma.ProdutoGetPayload<{ include: typeof INCLUDE_PRODUTO }>,
+    processo: Prisma.ProcessoGetPayload<{ include: typeof INCLUDE_PROCESSO }>,
   ) {
-    const etapas = produto.certificacao;
+    const etapas = processo.certificacao;
     const total = etapas.length;
     const aprovadas = etapas.filter(
       (e) => e.status === StatusCertificacao.APROVADO,
@@ -395,11 +395,11 @@ export class ProdutosService {
       (e) => e.status === StatusCertificacao.PENDENTE,
     );
 
-    const { pagamentos, ...dadosProduto } = produto;
+    const { pagamentos, ...dadosProcesso } = processo;
 
     return {
-      ...dadosProduto,
-      preco: Number(produto.preco),
+      ...dadosProcesso,
+      preco: Number(processo.preco),
       ultimoPagamento: pagamentos[0]
         ? { ...pagamentos[0], valor: Number(pagamentos[0].valor) }
         : null,

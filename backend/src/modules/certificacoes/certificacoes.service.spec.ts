@@ -15,12 +15,12 @@ import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
 import { admin, cliente, funcionario } from '../../testing/usuarios.fixture';
 
 const CLIENTE_DONO = 100;
-/** Trilha do catálogo à qual a categoria do produto sob teste está vinculada. */
+/** Trilha do catálogo à qual a categoria do processo sob teste está vinculada. */
 const TRILHA = 55;
 const CLIENTE_ALHEIO = 200;
 
-/** Resposta mínima de `detalharPorProduto`, chamado ao fim de `salvar`. */
-const detalheDoProduto = () => ({
+/** Resposta mínima de `detalharPorProcesso`, chamado ao fim de `salvar`. */
+const detalheDoProcesso = () => ({
   id: 1,
   nome: 'Disjuntor DIN 25A',
   descricao: null,
@@ -53,8 +53,8 @@ describe('CertificacoesService', () => {
 
     documentos.etapasSemDocumento.mockResolvedValue([]);
     notificacoes.certificacaoAtualizada.mockResolvedValue(undefined);
-    banco.prisma.produto.findUnique.mockResolvedValue(
-      detalheDoProduto() as never,
+    banco.prisma.processo.findUnique.mockResolvedValue(
+      detalheDoProcesso() as never,
     );
 
     servico = new CertificacoesService(
@@ -81,13 +81,13 @@ describe('CertificacoesService', () => {
         ),
       );
 
-      // Recusa ANTES de qualquer leitura: o dono do produto também não escreve.
-      expect(banco.prisma.certificacaoProduto.findMany).not.toHaveBeenCalled();
+      // Recusa ANTES de qualquer leitura: o dono do processo também não escreve.
+      expect(banco.prisma.certificacaoProcesso.findMany).not.toHaveBeenCalled();
       expect(banco.transacoesAbertas).toBe(0);
     });
 
     it('FUNCIONARIO escreve normalmente', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.PENDENTE,
@@ -103,13 +103,13 @@ describe('CertificacoesService', () => {
           funcionario(),
         ),
       ).resolves.toBeDefined();
-      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).toHaveBeenCalled();
     });
   });
 
   describe('salvar — validação das etapas', () => {
     beforeEach(() => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.PENDENTE,
@@ -125,7 +125,7 @@ describe('CertificacoesService', () => {
       ] as never);
     });
 
-    it('recusa etapa que pertence a OUTRO produto, nomeando os ids', async () => {
+    it('recusa etapa que pertence a OUTRO processo, nomeando os ids', async () => {
       await expect(
         servico.salvar(
           1,
@@ -139,15 +139,15 @@ describe('CertificacoesService', () => {
         ),
       ).rejects.toThrow(
         new BadRequestException(
-          'Etapas que não pertencem a este produto: 99.',
+          'Etapas que não pertencem a este processo: 99.',
         ),
       );
       // Recusa antes de gravar metade do lote.
       expect(banco.transacoesAbertas).toBe(0);
     });
 
-    it('recusa produto sem nenhuma certificação aberta', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([] as never);
+    it('recusa processo sem nenhuma certificação aberta', async () => {
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([] as never);
 
       await expect(
         servico.salvar(
@@ -157,7 +157,7 @@ describe('CertificacoesService', () => {
         ),
       ).rejects.toThrow(
         new NotFoundException(
-          'Nenhuma certificação encontrada para o produto 7.',
+          'Nenhuma certificação encontrada para o processo 7.',
         ),
       );
     });
@@ -175,7 +175,7 @@ describe('CertificacoesService', () => {
       );
 
       // A transação abre, mas o laço não encontra nada a fazer.
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
       expect(banco.tx.certificacaoHistorico.create).not.toHaveBeenCalled();
       // Sem mudança de status, o cliente também não recebe e-mail.
       expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
@@ -216,7 +216,7 @@ describe('CertificacoesService', () => {
         nome?: string;
       }>,
     ) =>
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapas.map((e) => ({
           id: e.id,
           ordem: e.ordem,
@@ -245,7 +245,7 @@ describe('CertificacoesService', () => {
       );
 
       expect(resultado.movido).toBe(true);
-      const dados = banco.tx.certificacaoProduto.update.mock.calls[0][0];
+      const dados = banco.tx.certificacaoProcesso.update.mock.calls[0][0];
       expect(dados.where).toEqual({ id: 2 });
       expect(dados.data.status).toBe(StatusCertificacao.EM_ANDAMENTO);
     });
@@ -265,7 +265,7 @@ describe('CertificacoesService', () => {
 
       await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
 
-      const aprovacoes = banco.tx.certificacaoProduto.update.mock.calls.filter(
+      const aprovacoes = banco.tx.certificacaoProcesso.update.mock.calls.filter(
         ([chamada]) => chamada.data.status === StatusCertificacao.APROVADO,
       );
       expect(aprovacoes).toHaveLength(0);
@@ -291,7 +291,7 @@ describe('CertificacoesService', () => {
 
       await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
 
-      const devolucao = banco.tx.certificacaoProduto.update.mock.calls.find(
+      const devolucao = banco.tx.certificacaoProcesso.update.mock.calls.find(
         ([chamada]) => chamada.where.id === 1,
       );
       expect(devolucao![0].data.status).toBe(StatusCertificacao.PENDENTE);
@@ -318,13 +318,13 @@ describe('CertificacoesService', () => {
       await servico.moverParaFase(1, FaseProcesso.EMISSAO, admin());
 
       const tocouNaAprovada =
-        banco.tx.certificacaoProduto.update.mock.calls.some(
+        banco.tx.certificacaoProcesso.update.mock.calls.some(
           ([chamada]) => chamada.where.id === 1,
         );
       expect(tocouNaAprovada).toBe(false);
     });
 
-    it('recusa fase que a trilha do produto não tem', async () => {
+    it('recusa fase que a trilha do processo não tem', async () => {
       trilha([
         { id: 1, ordem: 1, status: StatusCertificacao.PENDENTE, fase: 'ABERTURA' },
       ]);
@@ -393,7 +393,7 @@ describe('CertificacoesService', () => {
 
       // O movimento inteiro é devolver a anterior à fila: assim a primeira
       // EM_ANDAMENTO passa a ser a de ENSAIOS e o cartão muda de coluna.
-      const devolucao = banco.tx.certificacaoProduto.update.mock.calls.find(
+      const devolucao = banco.tx.certificacaoProcesso.update.mock.calls.find(
         ([chamada]) => chamada.where.id === 2,
       );
       expect(devolucao![0].data.status).toBe(StatusCertificacao.PENDENTE);
@@ -401,7 +401,7 @@ describe('CertificacoesService', () => {
       // E a de destino NÃO é regravada: ela já estava em andamento, e uma
       // linha de histórico ali afirmaria uma transição que não houve.
       const regravouDestino =
-        banco.tx.certificacaoProduto.update.mock.calls.some(
+        banco.tx.certificacaoProcesso.update.mock.calls.some(
           ([chamada]) => chamada.where.id === 3,
         );
       expect(regravouDestino).toBe(false);
@@ -431,7 +431,7 @@ describe('CertificacoesService', () => {
       await expect(
         servico.moverParaFase(1, FaseProcesso.EMISSAO, cliente()),
       ).rejects.toThrow(ForbiddenException);
-      expect(banco.prisma.certificacaoProduto.findMany).not.toHaveBeenCalled();
+      expect(banco.prisma.certificacaoProcesso.findMany).not.toHaveBeenCalled();
     });
 
     it('o movimento entra no histórico com autoria da sessão', async () => {
@@ -477,12 +477,12 @@ describe('CertificacoesService', () => {
       },
     ];
 
-    /** Os dados do único `certificacaoProduto.update` da transação. */
+    /** Os dados do único `certificacaoProcesso.update` da transação. */
     const dadosDoUpdate = () =>
-      banco.tx.certificacaoProduto.update.mock.calls[0][0].data;
+      banco.tx.certificacaoProcesso.update.mock.calls[0][0].data;
 
     it('1ª saída de PENDENTE grava iniciadaEm', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.PENDENTE) as never,
       );
 
@@ -498,7 +498,7 @@ describe('CertificacoesService', () => {
     });
 
     it('aprovar grava concluidaEm', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.EM_ANDAMENTO, new Date('2026-08-01')) as never,
       );
 
@@ -514,7 +514,7 @@ describe('CertificacoesService', () => {
     });
 
     it('reprovar uma etapa aprovada LIMPA concluidaEm', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
       );
 
@@ -531,7 +531,7 @@ describe('CertificacoesService', () => {
 
     it('voltar de APROVADO para EM_ANDAMENTO também limpa', async () => {
       // O gatilho é SAIR de APROVADO, não o motivo da saída.
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
       );
 
@@ -548,7 +548,7 @@ describe('CertificacoesService', () => {
       // É o caso que obrigou o backfill a usar MAX: a conclusão vigente é a
       // última aprovação, não a primeira.
       const inicioOriginal = new Date('2026-07-15T10:00:00Z');
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.EM_ANDAMENTO, inicioOriginal) as never,
       );
 
@@ -570,7 +570,7 @@ describe('CertificacoesService', () => {
       // Monotônico: sair de PENDENTE de novo não reinicia o relógio. Se
       // reiniciasse, o tempo em fila do ciclo.service mudaria retroativamente.
       const inicioOriginal = new Date('2026-06-01T08:00:00Z');
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.PENDENTE, inicioOriginal) as never,
       );
 
@@ -588,7 +588,7 @@ describe('CertificacoesService', () => {
       // "está saindo de PENDENTE agora", então uma etapa migrada do legado —
       // que chegou EM_ANDAMENTO sem histórico de transição — nunca mais
       // receberia início, e ficaria sem SLA para sempre, sem erro nenhum.
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.EM_ANDAMENTO, null) as never,
       );
 
@@ -606,7 +606,7 @@ describe('CertificacoesService', () => {
     it('voltar para PENDENTE não inventa um início', async () => {
       // A correção acima não pode virar "grava em qualquer transição": uma
       // etapa devolvida para a fila não começou.
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.EM_ANDAMENTO, null) as never,
       );
 
@@ -620,7 +620,7 @@ describe('CertificacoesService', () => {
     });
 
     it('no-op não move marco nenhum', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
       );
 
@@ -630,14 +630,14 @@ describe('CertificacoesService', () => {
         admin(),
       );
 
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('editar só a observação de etapa aprovada não empurra concluidaEm', async () => {
       // Mesmo viés que o `statusAnterior <> statusNovo` do ciclo.service
       // descarta: um anexo ou correção de texto posterior à aprovação não pode
       // mover a data em que a etapa ficou pronta.
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.APROVADO, new Date('2026-08-01')) as never,
       );
 
@@ -661,7 +661,7 @@ describe('CertificacoesService', () => {
     });
 
     it('aprovação direta grava os dois marcos de uma vez', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.PENDENTE) as never,
       );
 
@@ -677,7 +677,7 @@ describe('CertificacoesService', () => {
     });
 
     it('grava os marcos DENTRO da transação, não fora dela', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue(
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue(
         etapaEm(StatusCertificacao.PENDENTE) as never,
       );
 
@@ -688,14 +688,14 @@ describe('CertificacoesService', () => {
       );
 
       // `tx` é um cliente separado no mock: assertar aqui prova o commit.
-      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
-      expect(banco.prisma.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).toHaveBeenCalledTimes(1);
+      expect(banco.prisma.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
   });
 
   describe('salvar — evidência obrigatória', () => {
     beforeEach(() => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -725,7 +725,7 @@ describe('CertificacoesService', () => {
     });
 
     it('só consulta evidência das etapas que estão VIRANDO aprovadas', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.APROVADO, // já estava aprovada
@@ -768,7 +768,7 @@ describe('CertificacoesService', () => {
 
   describe('salvar — não conformidade', () => {
     beforeEach(() => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -856,7 +856,7 @@ describe('CertificacoesService', () => {
       // seria reprovada e a NC poderia não nascer.
       expect(banco.chamadasForaDaTransacao).toEqual([]);
       expect(banco.chamadasNaTransacao).toEqual([
-        'certificacaoProduto.update',
+        'certificacaoProcesso.update',
         'certificacaoHistorico.create',
         'naoConformidade.create',
       ]);
@@ -883,7 +883,7 @@ describe('CertificacoesService', () => {
 
   describe('salvar — notificação do cliente', () => {
     beforeEach(() => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -911,7 +911,7 @@ describe('CertificacoesService', () => {
      * é inofensivo; na função da Vercel a execução congela quando a resposta
      * sai, a promessa nunca é retomada e o e-mail simplesmente não existe —
      * sem exceção, sem log, sem sintoma. Um teste que só verificasse "o mock
-     * foi chamado" passaria nos dois mundos, porque o `detalharPorProduto`
+     * foi chamado" passaria nos dois mundos, porque o `detalharPorProcesso`
      * seguinte cede a vez para a microtask solta. Por isso o que se afirma
      * aqui é a ORDEM: `salvar` não pode resolver antes do envio terminar.
      */
@@ -958,13 +958,13 @@ describe('CertificacoesService', () => {
         admin(),
       );
 
-      const [para, nomeCliente, produto, produtoId, mudancas] =
+      const [para, nomeCliente, processo, processoId, mudancas] =
         notificacoes.certificacaoAtualizada.mock.calls[0];
 
       expect(para).toBe('contato@cliente.com.br');
       expect(nomeCliente).toBe('Indústria Cliente Ltda');
-      expect(produto).toBe('Disjuntor DIN 25A');
-      expect(produtoId).toBe(1);
+      expect(processo).toBe('Disjuntor DIN 25A');
+      expect(processoId).toBe(1);
       expect(mudancas).toEqual([
         { etapa: 'Ensaios laboratoriais', status: 'Reprovado' },
       ]);
@@ -996,7 +996,7 @@ describe('CertificacoesService', () => {
   /**
    * Decisão do cliente, 03/09/2026: só marcos decisivos viram e-mail.
    *
-   * A régua anterior avisava a cada mudança de status. Um produto percorrendo
+   * A régua anterior avisava a cada mudança de status. Um processo percorrendo
    * a trilha sem tropeço rendia um e-mail por etapa, e o efeito conhecido é o
    * destinatário passar a ignorar todos — inclusive o único que exigia ação
    * dele. O que sobrou notificando é o que pede resposta ou muda a situação
@@ -1004,7 +1004,7 @@ describe('CertificacoesService', () => {
    */
   describe('salvar — só marcos decisivos notificam', () => {
     beforeEach(() => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.PENDENTE,
@@ -1038,7 +1038,7 @@ describe('CertificacoesService', () => {
         admin(),
       );
 
-      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
+      expect(banco.tx.certificacaoProcesso.update).toHaveBeenCalledTimes(1);
       expect(notificacoes.certificacaoAtualizada).not.toHaveBeenCalled();
     });
 
@@ -1052,7 +1052,7 @@ describe('CertificacoesService', () => {
      * ele responde.
      */
     it('NC aberta junto da reprovação entra no mesmo e-mail', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -1119,7 +1119,7 @@ describe('CertificacoesService', () => {
      * fundos — e a etapa que exige ação ficaria no meio de uma lista boa.
      */
     it('no lote misto, o e-mail leva só a reprovação', async () => {
-      banco.prisma.certificacaoProduto.findMany.mockResolvedValue([
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
         {
           id: 10,
           status: StatusCertificacao.PENDENTE,
@@ -1156,14 +1156,14 @@ describe('CertificacoesService', () => {
   // ---------------------------------------------------- versão da trilha
 
   /**
-   * Monta o cenário de produto preso a uma versão antiga.
+   * Monta o cenário de processo preso a uma versão antiga.
    *
-   * `etapasDoProduto` são os nomes já existentes na trilha DO PRODUTO, com a
+   * `etapasDoProcesso` são os nomes já existentes na trilha DO PROCESSO, com a
    * ordem que carregam hoje; `etapasVigentes`, os nomes da versão vigente na
    * ordem do modelo.
    */
   function prepararTrilha(
-    etapasDoProduto: Array<{ id: number; nome: string; ordem: number }>,
+    etapasDoProcesso: Array<{ id: number; nome: string; ordem: number }>,
     etapasVigentes: string[],
   ) {
     const vigente = {
@@ -1182,7 +1182,7 @@ describe('CertificacoesService', () => {
       })),
     };
 
-    banco.prisma.produto.findUnique.mockResolvedValue({
+    banco.prisma.processo.findUnique.mockResolvedValue({
       id: 1,
       categoriaId: 3,
       modeloTrilhaId: 80,
@@ -1195,7 +1195,7 @@ describe('CertificacoesService', () => {
       // A versão vigente é resolvida pela TRILHA da categoria, não mais pela
       // categoria: sem este campo o service nem chega à consulta.
       categoria: { id: 3, nome: 'Material elétrico', trilhaId: TRILHA },
-      certificacao: etapasDoProduto.map((e) => ({ etapa: { nome: e.nome } })),
+      certificacao: etapasDoProcesso.map((e) => ({ etapa: { nome: e.nome } })),
     } as never);
 
     banco.prisma.modeloTrilha.findFirst.mockResolvedValue(vigente as never);
@@ -1207,8 +1207,8 @@ describe('CertificacoesService', () => {
   }
 
   describe('verificarVersaoTrilha — consulta pura', () => {
-    it('diz "atualizado" quando o produto já está na versão vigente', async () => {
-      banco.prisma.produto.findUnique.mockResolvedValue({
+    it('diz "atualizado" quando o processo já está na versão vigente', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue({
         id: 1,
         categoriaId: 3,
         modeloTrilhaId: 90,
@@ -1249,7 +1249,7 @@ describe('CertificacoesService', () => {
       ]);
       // Nada foi gravado: a migração exige POST explícito.
       expect(banco.transacoesAbertas).toBe(0);
-      expect(banco.prisma.certificacaoProduto.create).not.toHaveBeenCalled();
+      expect(banco.prisma.certificacaoProcesso.create).not.toHaveBeenCalled();
     });
 
     it('categoria que TROCOU de trilha: a mensagem nomeia as duas', async () => {
@@ -1291,7 +1291,7 @@ describe('CertificacoesService', () => {
 
       const situacao = await servico.verificarVersaoTrilha(1);
 
-      expect(situacao.trilhaProduto).toBe('Trilha de material elétrico');
+      expect(situacao.trilhaProcesso).toBe('Trilha de material elétrico');
       expect(situacao.trilhaVigente).toBe('Certificação padrão');
       expect(situacao.mensagem).toContain('"Trilha de material elétrico"');
       expect(situacao.mensagem).toContain('"Certificação padrão"');
@@ -1326,10 +1326,10 @@ describe('CertificacoesService', () => {
       trilhaAposInsercao: Array<{ id: number; ordem: number; nome: string }>,
     ) {
       let proximoId = 700;
-      banco.tx.certificacaoProduto.create.mockImplementation(
+      banco.tx.certificacaoProcesso.create.mockImplementation(
         () => ({ id: proximoId++ }) as never,
       );
-      banco.tx.certificacaoProduto.findMany.mockResolvedValue(
+      banco.tx.certificacaoProcesso.findMany.mockResolvedValue(
         trilhaAposInsercao.map((e) => ({
           id: e.id,
           ordem: e.ordem,
@@ -1342,7 +1342,7 @@ describe('CertificacoesService', () => {
         const final = new Map(trilhaAposInsercao.map((e) => [e.id, e.ordem]));
         for (const [
           argumentos,
-        ] of banco.tx.certificacaoProduto.update.mock.calls) {
+        ] of banco.tx.certificacaoProcesso.update.mock.calls) {
           final.set(
             (argumentos.where as { id: number }).id,
             (argumentos.data as { ordem: number }).ordem,
@@ -1364,7 +1364,7 @@ describe('CertificacoesService', () => {
       );
 
       // "Ensaios laboratoriais" nasce com a ordem 2 do modelo vigente e COLIDE
-      // com a "Auditoria de fábrica", que já ocupava a 2 na trilha do produto.
+      // com a "Auditoria de fábrica", que já ocupava a 2 na trilha do processo.
       // É exatamente a colisão que a renumeração existe para desfazer.
       const ordemFinal = encenarTransacao([
         { id: 10, ordem: 1, nome: 'Análise documental' },
@@ -1425,14 +1425,14 @@ describe('CertificacoesService', () => {
       // trilha com ordens duplicadas em produção.
       expect(banco.chamadasForaDaTransacao).toEqual([]);
       expect(banco.chamadasNaTransacao).toEqual([
-        'produto.update',
-        'certificacaoProduto.create',
+        'processo.update',
+        'certificacaoProcesso.create',
         'certificacaoHistorico.create',
-        'certificacaoProduto.findMany',
+        'certificacaoProcesso.findMany',
       ]);
       expect(banco.transacoesAbertas).toBe(1);
       // Nenhum update: as duas etapas já caíram na posição certa.
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('registra a etapa nova no histórico, com autoria da sessão', async () => {
@@ -1456,8 +1456,8 @@ describe('CertificacoesService', () => {
       });
     });
 
-    it('produto já atualizado: nada é gravado', async () => {
-      banco.prisma.produto.findUnique.mockResolvedValue({
+    it('processo já atualizado: nada é gravado', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue({
         id: 1,
         categoriaId: 3,
         modeloTrilhaId: 90,
@@ -1482,26 +1482,26 @@ describe('CertificacoesService', () => {
     });
   });
 
-  describe('detalharPorProduto — escopo de papel', () => {
+  describe('detalharPorProcesso — escopo de papel', () => {
     it('cliente ALHEIO recebe ForbiddenException', async () => {
       await expect(
-        servico.detalharPorProduto(1, cliente(CLIENTE_ALHEIO)),
+        servico.detalharPorProcesso(1, cliente(CLIENTE_ALHEIO)),
       ).rejects.toThrow(
         new ForbiddenException(
-          'Você só pode acompanhar as certificações dos seus produtos.',
+          'Você só pode acompanhar as certificações dos seus processos.',
         ),
       );
     });
 
     it('cliente DONO acompanha', async () => {
       await expect(
-        servico.detalharPorProduto(1, cliente(CLIENTE_DONO)),
+        servico.detalharPorProcesso(1, cliente(CLIENTE_DONO)),
       ).resolves.toBeDefined();
     });
 
     it('resumo.obrigatoriasAprovadas ignora as opcionais pendentes', async () => {
-      banco.prisma.produto.findUnique.mockResolvedValue({
-        ...detalheDoProduto(),
+      banco.prisma.processo.findUnique.mockResolvedValue({
+        ...detalheDoProcesso(),
         certificacao: [
           {
             status: StatusCertificacao.APROVADO,
@@ -1518,7 +1518,7 @@ describe('CertificacoesService', () => {
         ],
       } as never);
 
-      const detalhe = await servico.detalharPorProduto(1, admin());
+      const detalhe = await servico.detalharPorProcesso(1, admin());
 
       // É o campo que evita a UI reimplementar (e errar) a regra de emissão.
       expect(detalhe.resumo.obrigatoriasAprovadas).toBe(true);
@@ -1528,8 +1528,8 @@ describe('CertificacoesService', () => {
 
   describe('listarPainel — escopo de papel', () => {
     it('o clienteId do CLIENTE vem do token e ignora o filtro da URL', async () => {
-      banco.prisma.produto.findMany.mockResolvedValue([] as never);
-      banco.prisma.produto.count.mockResolvedValue(0 as never);
+      banco.prisma.processo.findMany.mockResolvedValue([] as never);
+      banco.prisma.processo.count.mockResolvedValue(0 as never);
 
       await servico.listarPainel(
         {
@@ -1541,7 +1541,7 @@ describe('CertificacoesService', () => {
         cliente(CLIENTE_DONO),
       );
 
-      const argumentos = banco.prisma.produto.findMany.mock.calls[0][0]!;
+      const argumentos = banco.prisma.processo.findMany.mock.calls[0][0]!;
       expect(argumentos.where).toMatchObject({ clienteId: CLIENTE_DONO });
     });
   });

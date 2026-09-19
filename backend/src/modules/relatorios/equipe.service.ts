@@ -22,7 +22,7 @@ import {
  * | Origem | `Cliente.responsavelId` | autoria em histórico/NC/certificado |
  * | Recorte | retrato de **agora** | filtrada por `de`/`ate` |
  *
- * Um funcionário pode movimentar produto de cliente que **não** é da carteira
+ * Um funcionário pode movimentar processo de cliente que **não** é da carteira
  * dele, e isso conta como atividade dele. Pode também ter 30 clientes na
  * carteira e nenhuma movimentação no mês — e o relatório precisa mostrar
  * exatamente isso. Por isso a resposta traz dois grupos nomeados e **nenhum

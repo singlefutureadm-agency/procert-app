@@ -17,7 +17,7 @@ import { ExportacaoCertificacaoService } from './exportacao.service';
  * geração. Nenhuma delas é alcançável por teste de rota.
  */
 
-type Detalhe = Awaited<ReturnType<CertificacoesService['detalharPorProduto']>>;
+type Detalhe = Awaited<ReturnType<CertificacoesService['detalharPorProcesso']>>;
 type Etapa = Detalhe['etapas'][number];
 type Historico = Etapa['historico'][number];
 type NaoConformidade = Etapa['naoConformidades'][number];
@@ -100,7 +100,7 @@ function etapa(
   };
 }
 
-function produtoFixo(nome: string): Detalhe['produto'] {
+function processoFixo(nome: string): Detalhe['processo'] {
   return { id: 1, nome, descricao: null, fotoUrl: null };
 }
 
@@ -110,7 +110,7 @@ function detalhe(etapas: Etapa[], over: Partial<Detalhe> = {}): Detalhe {
   ).length;
 
   return {
-    produto: produtoFixo('Disjuntor DIN 25A'),
+    processo: processoFixo('Disjuntor DIN 25A'),
     cliente: {
       id: 100,
       nome: 'Indústria Alfa',
@@ -203,7 +203,7 @@ describe('ExportacaoCertificacaoService', () => {
       }
     });
 
-    it('prefixa com a ordem da trilha, na sequência do produto', async () => {
+    it('prefixa com a ordem da trilha, na sequência do processo', async () => {
       const livro = await gerarEReabrir(
         servico,
         detalhe([
@@ -236,7 +236,7 @@ describe('ExportacaoCertificacaoService', () => {
     });
 
     it('desempata nomes iguais em vez de deixar o exceljs lançar', async () => {
-      // Defensivo: hoje `ordem` é única por produto, então o prefixo já separa.
+      // Defensivo: hoje `ordem` é única por processo, então o prefixo já separa.
       // O teste existe para que a quebra dessa premissa apareça aqui.
       const livro = await gerarEReabrir(
         servico,
@@ -436,7 +436,7 @@ describe('ExportacaoCertificacaoService', () => {
         detalhe([etapa({ ordem: 1, etapa: { nome: 'Ensaio' } })]),
         'Ana Técnica',
       );
-      expect(texto).toContain('Produto;Disjuntor DIN 25A');
+      expect(texto).toContain('Processo;Disjuntor DIN 25A');
     });
 
     it('envelopa o valor que contém o separador, aspas ou quebra de linha', () => {
@@ -487,7 +487,7 @@ describe('ExportacaoCertificacaoService', () => {
   describe('nomeArquivo', () => {
     it('tira acento e espaço — o Content-Disposition é ASCII', () => {
       const nome = servico.nomeArquivo(
-        detalhe([], { produto: produtoFixo('Disjuntor Térmico Ação') }),
+        detalhe([], { processo: processoFixo('Disjuntor Térmico Ação') }),
         'xlsx',
       );
       expect(nome).toMatch(
@@ -497,15 +497,15 @@ describe('ExportacaoCertificacaoService', () => {
 
     it('cai no rótulo genérico quando o nome não tem nenhum alfanumérico', () => {
       const nome = servico.nomeArquivo(
-        detalhe([], { produto: produtoFixo('—— ///') }),
+        detalhe([], { processo: processoFixo('—— ///') }),
         'csv',
       );
-      expect(nome).toMatch(/^acompanhamento-produto-\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(nome).toMatch(/^acompanhamento-processo-\d{4}-\d{2}-\d{2}\.csv$/);
     });
 
     it('limita a base a 60 caracteres', () => {
       const nome = servico.nomeArquivo(
-        detalhe([], { produto: produtoFixo('A'.repeat(120)) }),
+        detalhe([], { processo: processoFixo('A'.repeat(120)) }),
         'xlsx',
       );
       const base = nome

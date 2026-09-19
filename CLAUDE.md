@@ -9,8 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 1. O que é este projeto
 
-**ProCert** — plataforma de um Organismo de Certificação de Produto (OCP). Clientes
-submetem produtos, a equipe interna avalia cada produto ao longo de uma **trilha de
+**ProCert** — plataforma de um Organismo de Certificação de Processo (OCP). Clientes
+submetem processos, a equipe interna avalia cada processo ao longo de uma **trilha de
 etapas** (análise documental, ensaios, auditoria de fábrica, decisão), reprovações geram
 **não conformidades** rastreáveis, e a aprovação de todas as etapas obrigatórias libera a
 **emissão de um certificado** com número sequencial, validade e PDF.
@@ -79,6 +79,7 @@ npm run dev                   # http://localhost:5173
 | `npm run migrate:legacy` | ETL MySQL legado → PostgreSQL (exige as vars `LEGACY_MYSQL_*`) |
 | `npm run migrate:categorias` | Transpõe o catálogo global de etapas do legado para trilhas por categoria |
 | `npm run conferir:trilhas` | Confere a migração de trilhas (§7, item 27). Somente leitura; código 1 se achar problema |
+| `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
 | `npm test` | ✅ 351 unitários, 19 suítes, Prisma mockado |
@@ -236,7 +237,7 @@ acrescentar configuração global, coloque em `configurarApp`, não no `main.ts`
 2. **Escopo do `CLIENTE` dentro do service** — *quais registros* ele vê.
 
 A segunda camada é a que corrige o IDOR do legado e **nunca pode ser esquecida**. O padrão
-repetido em `produtos`, `certificacoes`, `certificados` e `nao-conformidades` é:
+repetido em `processos`, `certificacoes`, `certificados` e `nao-conformidades` é:
 
 ```ts
 // O clienteId vem do TOKEN quando o papel é CLIENTE. O filtro da URL é ignorado.
@@ -251,7 +252,7 @@ private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {
 }
 ```
 
-**Ao criar um endpoint que devolve dados de produto/certificação/certificado/NC, replique
+**Ao criar um endpoint que devolve dados de processo/certificação/certificado/NC, replique
 esse padrão.** Confiar no `clienteId` vindo de query param é exatamente a falha que a
 migração corrigiu.
 
@@ -296,7 +297,7 @@ lê o conteúdo chama `uploads.ler(url)`: `caminhoAbsoluto` saiu junto com o pre
 que existe caminho em disco.
 
 > **Só as pastas públicas são servidas como estático.** `uploads.constantes.ts` é a fonte
-> única: `PASTAS_PUBLICAS` (`clientes`, `funcionarios`, `produtos`, `aparencia`) ganha um
+> única: `PASTAS_PUBLICAS` (`clientes`, `funcionarios`, `processos`, `aparencia`) ganha um
 > `useStaticAssets` cada em `main.ts`; `PASTAS_PRIVADAS` (`certificados`, `certificacoes`)
 > não é montada e só sai por `GET /certificados/:id/pdf` e
 > `GET /certificacoes/documentos/:id/arquivo`, que verificam a posse. Um middleware em
@@ -312,7 +313,7 @@ que existe caminho em disco.
 > Ela **decodifica o caminho uma vez** antes de olhar a allowlist — a mesma decodificação
 > que o `serve-static` faz — e recusa qualquer
 > segmento `..`/`.` ou codificação inválida. Ler o texto cru deixava
-> `/uploads/produtos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como se
+> `/uploads/processos/%2e%2e%2fcertificados/x.pdf` atravessar a allowlist como se
 > `%2e%2e%2fcertificados` fosse nome de pasta (ver `DOCUMENTACAO.md` §15). Coberto por
 > `test/uploads.e2e-spec.ts`.
 
@@ -323,9 +324,9 @@ que existe caminho em disco.
 ```
 Trilha (catálogo) ──1:N──► ModeloTrilha (versão) ──1:N──► ModeloEtapa
    ▲                              ▲                            │
-   └──1:N── CategoriaProduto      └── retrato ── Produto        │
+   └──1:N── CategoriaProcesso      └── retrato ── Processo        │
                     │                              │            │
-Cliente ──1:N──► Produto ──1:N──► CertificacaoProduto ──N:1─────┘
+Cliente ──1:N──► Processo ──1:N──► CertificacaoProcesso ──N:1─────┘
                     │                      ├──1:N──► CertificacaoHistorico ──1:N──► DocumentoCertificacao
                     │                      └──1:N──► NaoConformidade
                     ├──1:N──► Certificado
@@ -346,25 +347,25 @@ Hoje há **três níveis, e confundi-los é a fonte de erro mais provável aqui*
 
 | Nível | Modelo | O que é | Quem aponta para ele |
 |---|---|---|---|
-| **Família** | `Trilha` | nome, descrição, status | `CategoriaProduto.trilhaId` |
-| **Versão** | `ModeloTrilha` | o processo, imutável em uso | `Produto.modeloTrilhaId` |
-| **Etapa** | `ModeloEtapa` | um passo da versão | `CertificacaoProduto.etapaId` |
+| **Família** | `Trilha` | nome, descrição, status | `CategoriaProcesso.trilhaId` |
+| **Versão** | `ModeloTrilha` | o processo, imutável em uso | `Processo.modeloTrilhaId` |
+| **Etapa** | `ModeloEtapa` | um passo da versão | `CertificacaoProcesso.etapaId` |
 
-**A categoria aponta para a FAMÍLIA; o produto, para a VERSÃO.** É essa assimetria que faz
+**A categoria aponta para a FAMÍLIA; o processo, para a VERSÃO.** É essa assimetria que faz
 tudo funcionar: trocar a trilha de uma categoria, ou publicar uma versão nova, muda a régua
-dos produtos **futuros** e não toca em nenhuma avaliação em andamento. Fazer a categoria
+dos processos **futuros** e não toca em nenhuma avaliação em andamento. Fazer a categoria
 apontar para a versão devolveria o problema que a versionamento existe para resolver.
 
 ### Trilhas versionadas — a regra central
 
-- Ao cadastrar um produto, a API resolve `categoria → trilha → versão vigente`
+- Ao cadastrar um processo, a API resolve `categoria → trilha → versão vigente`
   (`ativo: true`, maior `versao`) por `resolverVigentePorCategoria` e grava
-  `Produto.modeloTrilhaId` como **retrato**. Na mesma transação, abre uma linha de
-  `CertificacaoProduto` (status `PENDENTE`) para cada `ModeloEtapa`.
-- Publicar uma versão nova **não mexe** nos produtos já submetidos: eles continuam sendo
+  `Processo.modeloTrilhaId` como **retrato**. Na mesma transação, abre uma linha de
+  `CertificacaoProcesso` (status `PENDENTE`) para cada `ModeloEtapa`.
+- Publicar uma versão nova **não mexe** nos processos já submetidos: eles continuam sendo
   avaliados pelas regras vigentes na submissão.
-- Uma `ModeloTrilha` com produto vinculado **não pode ser editada** (`409` com orientação
-  para versionar). Só versão com `totalProdutos === 0` é editável.
+- Uma `ModeloTrilha` com processo vinculado **não pode ser editada** (`409` com orientação
+  para versionar). Só versão com `totalProcessos === 0` é editável.
 - `criarVersao` sem `etapas` no payload **copia as da versão vigente** e encerra a anterior
   (`ativo: false`, `vigenteAte`) na mesma transação — a trilha nunca tem duas vigentes.
 - `definirVigente` **volta** para uma versão encerrada, zerando o `vigenteAte` dela. Sem
@@ -376,7 +377,7 @@ apontar para a versão devolveria o problema que a versionamento existe para res
 
 ### Duas guardas que impedem categoria muda
 
-Categoria sem processo não pode chegar ao cadastro de produto sem aviso. As duas
+Categoria sem processo não pode chegar ao cadastro de processo sem aviso. As duas
 mensagens são **distintas de propósito** — mandam para telas diferentes:
 
 - **sem trilha vinculada** → resolve-se em `/categorias/:id`;
@@ -385,19 +386,19 @@ mensagens são **distintas de propósito** — mandam para telas diferentes:
 Por isso `vincularTrilha` recusa (409) uma trilha sem versão vigente, e
 `alterarStatus(INATIVO)` recusa desativar trilha que alguma categoria ainda segue.
 
-### `CertificacaoProduto.ordem` — não é a `ordem` do modelo
+### `CertificacaoProcesso.ordem` — não é a `ordem` do modelo
 
-Campo **próprio do produto**, copiado de `ModeloEtapa.ordem` na abertura. Existe porque um
-produto migrado de versão carrega etapas de `ModeloTrilha` diferentes, cujos `ordem`
-colidem — a sequência real só existe no nível do produto. **Toda ordenação de timeline usa
-`CertificacaoProduto.ordem`, nunca a do modelo.**
+Campo **próprio do processo**, copiado de `ModeloEtapa.ordem` na abertura. Existe porque um
+processo migrado de versão carrega etapas de `ModeloTrilha` diferentes, cujos `ordem`
+colidem — a sequência real só existe no nível do processo. **Toda ordenação de timeline usa
+`CertificacaoProcesso.ordem`, nunca a do modelo.**
 
 `migrarParaVersaoVigente` acrescenta apenas as etapas ausentes (comparadas **por nome**,
 já que cada versão tem `ModeloEtapa` com ids distintos) e **renumera a trilha inteira
 1..N dentro da transação**, posicionando as novas conforme o modelo vigente. Etapas que a
 versão nova não prevê vão para o fim preservando a ordem relativa. Migração nunca é
 silenciosa: `verificarVersaoTrilha` é uma consulta pura, e a migração exige POST explícito.
-Ela resolve a vigente por `produto.categoria.trilhaId`; **categoria sem trilha cai no ramo
+Ela resolve a vigente por `processo.categoria.trilhaId`; **categoria sem trilha cai no ramo
 de "já atualizado"**, porque não há régua nova para onde migrar e um aviso ali mandaria o
 usuário a uma ação que a tela não completa.
 
@@ -450,7 +451,7 @@ Três regras que não devem regredir:
   Cada `avisar*` engole a própria falha, então esperar é seguro.
 - **Todo texto vindo do banco passa por `seguro`**, o template que escapa
   sozinho. `html()` é a escotilha para trecho que o próprio arquivo montou.
-- **Todo assunto passa por `assuntoLimpo()`** — nome de produto com CRLF
+- **Todo assunto passa por `assuntoLimpo()`** — nome de processo com CRLF
   emendaria cabeçalho, e o `nodemailer` 9 recusaria a mensagem inteira.
 
 O e-mail do cliente **não entra** nos `SELECT_*` dos services: cada `avisar*`
@@ -467,7 +468,7 @@ ModeloEtapa ──1:N──► ModeloMicroEtapa        (definição, imutável c
      │                       │
      │ abertura da trilha    │ cópia
      ▼                       ▼
-CertificacaoProduto ──1:N──► MicroEtapaCertificacao   (é o que se marca)
+CertificacaoProcesso ──1:N──► MicroEtapaCertificacao   (é o que se marca)
 ```
 
 **`PapelFuncional` NÃO é `Role`. Nunca cruze os dois.** `Role`
@@ -477,7 +478,7 @@ a etapa no fluxo. São eixos independentes — o mesmo FUNCIONARIO é TECNICO nu
 processo e QUALIDADE em outro. **Nenhum guard lê `papelResponsavel`**, e ligá-lo
 a autorização transformaria escala de trabalho em concessão de acesso.
 
-**A fase é DERIVADA da etapa atual, nunca gravada em `Produto`.** No Trello, a
+**A fase é DERIVADA da etapa atual, nunca gravada em `Processo`.** No Trello, a
 posição da lista e o progresso do checklist eram duas fontes mantidas à mão, e
 divergiam. A coluna do quadro sai da etapa atual pela mesma regra de
 `listarPainel` — 1ª `EM_ANDAMENTO`, senão 1ª `PENDENTE`, senão a última. Essa
@@ -495,15 +496,15 @@ null); `concluidaEm` é **reversível** (grava ao aprovar, limpa em toda saída 
 `ck_certificacao_concluida_em`.
 
 **Aprovação automática tem três estados, não dois.** `ModeloTrilha.
-aprovacaoAutomatica` é o padrão do processo; `Produto.aprovacaoAutomatica` é
+aprovacaoAutomatica` é o padrão do processo; `Processo.aprovacaoAutomatica` é
 `Boolean?` e o **`null` significa "herda", não "não"**. Quem resolve os dois é
-`aprovacaoAutomaticaDoProduto()` — nenhum lugar deve ler o campo cru. Fechar o
+`aprovacaoAutomaticaDoProcesso()` — nenhum lugar deve ler o campo cru. Fechar o
 checklist aprova a etapa **como efeito do ATO de marcar**, nunca como estado
 derivado: derivado, uma NC resolvida (que devolve a etapa a `EM_ANDAMENTO` com
 os itens ainda marcados) se reaprovaria sozinha. E a automação **não contorna
 `exigeDocumento`**.
 
-**Cancelar não é desativar.** `Produto.canceladoEm` é desfecho do processo e o
+**Cancelar não é desativar.** `Processo.canceladoEm` é desfecho do processo e o
 mantém visível na coluna própria; `status: INATIVO` é soft delete do cadastro.
 As etapas ficam como pararam.
 
@@ -518,8 +519,8 @@ As etapas ficam como pararam.
 - Emissão exige **todas as etapas obrigatórias** aprovadas — opcionais pendentes não
   bloqueiam. O endpoint de detalhe expõe `resumo.obrigatoriasAprovadas` justamente para a
   UI não precisar adivinhar a regra.
-- Um produto não pode ter dois certificados vigentes (`EMITIDO` ou `SUSPENSO`) → 409.
-- Validade vem de `CategoriaProduto.validadeMeses`, salvo data explícita. A soma de meses
+- Um processo não pode ter dois certificados vigentes (`EMITIDO` ou `SUSPENSO`) → 409.
+- Validade vem de `CategoriaProcesso.validadeMeses`, salvo data explícita. A soma de meses
   preserva fim de mês (31/01 + 1 mês = 28/02, não 03/03).
 - Número sequencial por ano `PROCERT-2026-000045`, mesma estratégia da NC.
 - PDF (pdfkit) é gerado **depois do commit**; se falhar, o certificado existe e o PDF é
@@ -541,7 +542,7 @@ As etapas ficam como pararam.
 ### Evidências
 
 `DocumentoCertificacao` pendura em `CertificacaoHistorico`, **não** em
-`CertificacaoProduto` — assim fica registrado em que ponto da trilha e por quem cada
+`CertificacaoProcesso` — assim fica registrado em que ponto da trilha e por quem cada
 arquivo entrou. Uma etapa com `ModeloEtapa.exigeDocumento` **não pode ser aprovada sem
 evidência anexada**; a regra vive no service, não na UI.
 
@@ -598,9 +599,9 @@ service, não na FK.
 
 | Rótulo (o mesmo na tela, na API e na planilha) | De | Até |
 |---|---|---|
-| **Lead time da trilha** | `Produto.criadoEm` | aprovação da última etapa **obrigatória** |
+| **Lead time da trilha** | `Processo.criadoEm` | aprovação da última etapa **obrigatória** |
 | **Tempo de tratamento da etapa** | 1ª saída de `PENDENTE` | aprovação |
-| **Tempo em fila** | `CertificacaoProduto.criadoEm` | 1ª saída de `PENDENTE` |
+| **Tempo em fila** | `CertificacaoProcesso.criadoEm` | 1ª saída de `PENDENTE` |
 
 Mais **Aprovação direta** (`PENDENTE` → `APROVADO` sem tratamento) e **Etapas em aberto**.
 
@@ -609,10 +610,10 @@ desse nome, e a pergunta "por que essa etapa demorou 14 dias?" fica sem resposta
 
 Dois fatos do schema determinam os marcos:
 
-- **`CertificacaoProduto.criadoEm` é a entrada na FILA.** A coluna é `DEFAULT
-  CURRENT_TIMESTAMP` e a trilha nasce num `createMany` dentro da transação do produto — em
+- **`CertificacaoProcesso.criadoEm` é a entrada na FILA.** A coluna é `DEFAULT
+  CURRENT_TIMESTAMP` e a trilha nasce num `createMany` dentro da transação do processo — em
   Postgres isso é o início da transação, então **todas as etapas nascem com o mesmo
-  timestamp**, igual ao do produto. Usá-lo como início do tratamento mediria o produto.
+  timestamp**, igual ao do processo. Usá-lo como início do tratamento mediria o processo.
 - **A trilha não é sequencial.** `salvar()` recebe lote e não impõe ordem, então "início =
   aprovação da anterior" é inválido, e `PENDENTE → APROVADO` direto acontece.
 
@@ -625,7 +626,7 @@ zero dia".
 
 ### `Pagamento`
 
-Tabela existe e `produtos` expõe `ultimoPagamento`, mas **não há controller/service de
+Tabela existe e `processos` expõe `ultimoPagamento`, mas **não há controller/service de
 pagamentos**. É extensão prevista, não funcionalidade entregue — não confunda.
 
 ---
@@ -656,7 +657,7 @@ src/
 │                   Inclui `home` (site institucional público), `aparencia`,
 │                   `relatorios` (equipe, comparativos e tempo de ciclo) e
 │                   `trilhas` (catálogo de processos: versões, etapas, dnd-kit).
-│                   As etapas se editam em `trilhas`, NÃO em `categorias-produto`
+│                   As etapas se editam em `trilhas`, NÃO em `categorias-processo`
 │                   — lá se escolhe qual trilha a categoria segue, e a mesma
 │                   trilha serve a várias categorias.
 ├── lib/            api.ts (axios), queryClient.ts (chaves de cache), tema.ts, formatadores
@@ -669,7 +670,7 @@ src/
 
 ### Camadas dentro de cada `features/<dominio>/`
 
-- **`api.ts`** — um objeto (`produtosApi`, `clientesApi`, …) com um método por endpoint,
+- **`api.ts`** — um objeto (`processosApi`, `clientesApi`, …) com um método por endpoint,
   tipado com os tipos de `@/types`. Componentes **nunca** chamam `api.get` direto.
 - **Páginas** — TanStack Query para leitura, `useMutation` para escrita, sempre
   invalidando pelas chaves de `lib/queryClient.ts`.
@@ -702,14 +703,14 @@ revalida em `GET /auth/me`; falha limpa tudo. `sair()` também chama `queryClien
 `/sobre`, `/servicos`, `/contato` e as duas legais (`/termos-de-uso`,
 `/politica-de-privacidade`). O painel fica sob uma rota de layout **sem `path`** envolvida
 em `<RotaProtegida>`, com os filhos declarando caminhos absolutos (`dashboard`,
-`certificacoes`, `produtos`, …). Rotas restritas usam `<RotaProtegida papeis={['ADMIN']}>`
+`certificacoes`, `processos`, …). Rotas restritas usam `<RotaProtegida papeis={['ADMIN']}>`
 — **isso é UX, não controle**: o backend repete a checagem em todo endpoint. Ao adicionar
 uma rota, ajuste também `components/layout/Sidebar.tsx` (que filtra itens por `papeis`).
 
 **Só a home e o login entram no pacote inicial.** Todo o resto é `lazy`, e o `<Suspense>`
 que os segura fica no `main.tsx`, com `CarregandoRota` de fallback. O pacote saiu de 512 KB
 para ~332 KB: antes, quem chegava pela busca para ler a página de serviços baixava o painel
-inteiro — dashboard, certificações, produtos, clientes, categorias, equipe, aparência —
+inteiro — dashboard, certificações, processos, clientes, categorias, equipe, aparência —
 antes da primeira linha de texto.
 
 Ao acrescentar rota pública, atualize **três** lugares além do router: `PAGINAS` em
@@ -759,7 +760,7 @@ relata `No 'Access-Control-Allow-Origin' header`. O sintoma esconde a causa. Se 
 falhar com CORS em produção, **olhe o status no log da função antes de mexer em CORS**.
 
 `lib/imagem.ts` redimensiona e recomprime em `<canvas>` antes de enviar. Está ligado no
-`CampoArquivo` — então funcionário, cliente e produto ganham juntos — **e em
+`CampoArquivo` — então funcionário, cliente e processo ganham juntos — **e em
 `features/aparencia/CampoImagem`**, que usa um input próprio e por isso não vem de graça.
 Uma foto de 8,7 MB vira 427 KB. Três regras que não são detalhe:
 
@@ -814,8 +815,8 @@ sobre o fundo — **avisa, não bloqueia** o salvamento.
 
 #### O caso original — `modules/certificacoes/exportacao.service.ts`
 
-`GET /certificacoes/produto/:id/exportacao?formato=xlsx|csv`, gerada no servidor com
-`exceljs`. Reaproveita `detalharPorProduto` em vez de consultar de novo: é lá que o escopo
+`GET /certificacoes/processo/:id/exportacao?formato=xlsx|csv`, gerada no servidor com
+`exceljs`. Reaproveita `detalharPorProcesso` em vez de consultar de novo: é lá que o escopo
 do CLIENTE é verificado, e uma segunda consulta seria uma segunda chance de esquecer a
 checagem.
 
@@ -1015,15 +1016,15 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
 - **Duas fontes de verdade para os tipos.** `backend/prisma/schema.prisma` e
   `frontend/src/types/index.ts` são sincronizados **à mão**. Mudou enum ou select no
   backend? Atualize `types/index.ts` no mesmo commit — divergência silenciosa é possível.
-- **Produtos migrados do legado têm `exigeDocumento: false`** em todas as etapas (o
+- **Processos migrados do legado têm `exigeDocumento: false`** em todas as etapas (o
   catálogo global não tinha o conceito). Para exigir evidência neles é preciso criar uma
-  versão nova da trilha e migrar cada produto — a versão em uso é imutável por construção.
+  versão nova da trilha e migrar cada processo — a versão em uso é imutável por construção.
 - **`npm run migrate:categorias` fala do modelo antigo.** Ele transpõe o catálogo global do
   legado para trilhas **por categoria**, que é a forma anterior a 02/09/2026. Já não
   compilava (`typecheck:scripts` reprova de propósito); agora também está errado no modelo.
   Só é relevante para quem for retomar o ETL do legado.
 - **`DashboardService` agrega em memória** (`findMany` enxuto + JS). Correto na escala
-  atual; com dezenas de milhares de produtos, migre para agregação SQL.
+  atual; com dezenas de milhares de processos, migre para agregação SQL.
 - **`npm audit` do backend**: 3 high residuais, todas a mesma advisory de `deepmerge-ts`
   via `prisma` → `@prisma/config`, **sem correção publicada** — o `@prisma/config` mais
   novo ainda depende da versão vulnerável. `npm audit fix`, mesmo com `--force`, já não
@@ -1055,7 +1056,7 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
 - **`vercel.json` não aceita campo fora do schema.** Um `comment` dentro de `rewrites[]`
   derruba o deploy na validação, antes de compilar. JSON não tem comentário; a explicação
   vai no código que depende da regra.
-- **Categoria sem trilha não aceita produto**, e a primeira versão de uma trilha precisa
+- **Categoria sem trilha não aceita processo**, e a primeira versão de uma trilha precisa
   vir com etapas (não há versão anterior para copiar). São **dois** modos de falha desde
   que a trilha virou catálogo — sem trilha vinculada, e trilha sem versão vigente — e as
   mensagens são diferentes porque as telas de conserto são diferentes.
@@ -1084,7 +1085,7 @@ O fluxo do repo foi **direto em `main`** até `d9ea0aa`. Com o CI no ar e mais d
 pessoa com write, passa a ser **branch + PR** — ver a seção de integração contínua do
 `README.md`.
 
-**Produto** (funcional, verificado manualmente):
+**Processo** (funcional, verificado manualmente):
 
 1. `6371a0d` migração completa do legado para NestJS + React.
 2. `a27a18a` tela de aparência com design tokens do painel (ADMIN).
@@ -1149,7 +1150,7 @@ fim de mês. Verde que nunca ficou vermelho não prova nada.
 19. `7f03cc4` + `fe7166e` recuperação de pedaço obsoleto após deploy, e `/assets/` fora do
     fallback de SPA. Regressão do item 17, encontrada em produção.
 20. `97b16c1` primeira trilha de uma categoria — sem isso, categoria criada pelo painel
-    nunca aceitava produto.
+    nunca aceitava processo.
 
 **Relatórios de gestão** (25–26/08/2026) — leva de cinco PRs, pedida pelo sócio para o
 painel deixar de ser só operacional e responder perguntas de reunião:
@@ -1163,7 +1164,7 @@ painel deixar de ser só operacional e responder perguntas de reunião:
     `common/planilha` de `exportacao.service.ts` sem tocar no spec existente — os 21 casos
     seguem intactos, o que é a prova de que o refactor não regrediu.
 24. `#19` `baseUrl` removido dos dois `tsconfig` (obsoleto, some no TypeScript 7).
-25. `#20` comparativos de produtos e de clientes.
+25. `#20` comparativos de processos e de clientes.
 26. Tempo de ciclo, com as três medidas nomeadas.
 
 Todo o módulo `relatorios` agrega em **SQL (`$queryRaw`)**, não em memória como o
@@ -1173,7 +1174,7 @@ não aceita placeholder.
 
 **Trilha vira catálogo** (02/09/2026):
 
-27. `ModeloTrilha.categoriaId` → `Trilha` (família) + `CategoriaProduto.trilhaId`. Trilha
+27. `ModeloTrilha.categoriaId` → `Trilha` (família) + `CategoriaProcesso.trilhaId`. Trilha
     passa a ser cadastro próprio, reutilizável por várias categorias, com CRUD completo em
     `/trilhas` e entrada própria no submenu. Ganha DELETE de trilha e de versão, e
     `definirVigente` para voltar a uma versão encerrada — nada disso existia. A tela da
@@ -1181,12 +1182,12 @@ não aceita placeholder.
 
     A migration `20260902120000_trilhas_como_catalogo` preserva tudo: cada categoria que
     tinha trilha vira uma entrada do catálogo com o nome dela, as versões são repontadas e
-    a categoria passa a apontar de volta. **Nenhum `produtos.modelo_trilha_id` é tocado.**
+    a categoria passa a apontar de volta. **Nenhum `processos.modelo_trilha_id` é tocado.**
 
     **A preservação foi verificada contra a base de desenvolvimento real** (2 categorias,
-    6 versões, 25 etapas, 4 produtos, 18 certificações): todas as contagens idênticas,
-    zero versão órfã, e `produtos.modelo_trilha_id` **byte a byte igual** antes e depois.
-    Dois produtos estavam em versões já ENCERRADAS — o caso que mais facilmente se
+    6 versões, 25 etapas, 4 processos, 18 certificações): todas as contagens idênticas,
+    zero versão órfã, e `processos.modelo_trilha_id` **byte a byte igual** antes e depois.
+    Dois processos estavam em versões já ENCERRADAS — o caso que mais facilmente se
     perderia — e continuaram nelas.
 
     > **Ao rodar em produção, refaça a conferência.** A base de produção tem outra forma,
@@ -1200,13 +1201,13 @@ não aceita placeholder.
     >
     > O que ele procura tem um sintoma em comum, e é por isso que existe: **nada disso gera
     > erro em tempo de execução**. Categoria sem trilha não quebra nada — ela recusa todo
-    > produto novo com uma mensagem que parece regra de negócio, e o defeito só aparece
+    > processo novo com uma mensagem que parece regra de negócio, e o defeito só aparece
     > quando alguém tenta cadastrar.
 
 28. Achado só no navegador, depois de tudo verde: com a categoria trocando de trilha, o
     botão de migração dizia **"Atualizar trilha (v1 → v1)"**. Verdadeiro e inútil — cada
     trilha numera as versões por conta própria, então duas v1 são processos diferentes.
-    `verificarVersaoTrilha` passou a devolver `trilhaProduto`/`trilhaVigente`, e a
+    `verificarVersaoTrilha` passou a devolver `trilhaProcesso`/`trilhaVigente`, e a
     mensagem nomeia as duas **só quando diferem**. Coberto por dois casos novos. Nenhum
     teste pegaria isso: a string estava certa, faltava sentido para quem lê.
 

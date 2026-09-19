@@ -52,7 +52,7 @@ const ESTADOS: Array<{ sigla: string; nome: string }> = [
 const CATEGORIA_PADRAO = {
   nome: 'Geral',
   descricao:
-    'Categoria padrão para produtos sem uma família específica definida. ' +
+    'Categoria padrão para processos sem uma família específica definida. ' +
     'Crie categorias próprias (EPIs, brinquedos, eletrodomésticos…) e vincule ' +
     'a cada uma a trilha do catálogo que descreve o processo dela.',
 };
@@ -61,7 +61,7 @@ const TRILHA_PADRAO = {
   nome: 'Certificação padrão',
   descricao:
     'Processo genérico de certificação: análise documental, ensaios, auditoria ' +
-    'de fábrica e decisão. Duplique-a para montar variações por família de produto.',
+    'de fábrica e decisão. Duplique-a para montar variações por família de processo.',
 };
 
 /** Etapas da versão 1 da trilha padrão. */
@@ -75,7 +75,7 @@ const ETAPAS: Array<{
   {
     nome: 'Análise documental',
     descricao:
-      'Conferência da documentação técnica do produto, memorial descritivo e dados do fabricante.',
+      'Conferência da documentação técnica do processo, memorial descritivo e dados do fabricante.',
     ordem: 1,
     tipo: TipoEtapa.DOCUMENTAL,
     exigeDocumento: true,
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
 
   // --- Trilha padrão, sua versão 1 e a categoria que a usa -----------------
   // A trilha é do CATÁLOGO e a categoria aponta para ela. A "Geral" existe para
-  // que uma base nova já consiga receber produtos sem configuração prévia.
+  // que uma base nova já consiga receber processos sem configuração prévia.
   const trilha = await prisma.trilha.upsert({
     where: { nome: TRILHA_PADRAO.nome },
     update: { descricao: TRILHA_PADRAO.descricao },
@@ -137,7 +137,7 @@ async function main(): Promise<void> {
     });
     console.log(`   ✔ Trilha "${trilha.nome}" v1 (${ETAPAS.length} etapas)`);
   } else {
-    // Versão já existente não é reescrita: ela pode ter produtos vinculados.
+    // Versão já existente não é reescrita: ela pode ter processos vinculados.
     console.log(
       `   ✔ Trilha "${trilha.nome}" já possui a v1 (${modeloExistente._count.etapas} etapas)`,
     );
@@ -148,7 +148,7 @@ async function main(): Promise<void> {
    * desfaria, em silêncio, uma troca de trilha feita de propósito no painel —
    * e o seed é idempotente justamente para poder ser rodado sem medo.
    */
-  const categoria = await prisma.categoriaProduto.upsert({
+  const categoria = await prisma.categoriaProcesso.upsert({
     where: { nome: CATEGORIA_PADRAO.nome },
     update: { descricao: CATEGORIA_PADRAO.descricao },
     create: { ...CATEGORIA_PADRAO, trilhaId: trilha.id },

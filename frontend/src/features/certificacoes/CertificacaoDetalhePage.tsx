@@ -20,7 +20,7 @@ import {
   STATUS_CERTIFICACAO,
 } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
-import { PainelCertificadoProduto } from '@/features/certificados/PainelCertificadoProduto';
+import { PainelCertificadoProcesso } from '@/features/certificados/PainelCertificadoProcesso';
 import { naoConformidadesApi } from '@/features/nao-conformidades/api';
 import { CartaoNaoConformidade } from '@/features/nao-conformidades/CartaoNaoConformidade';
 import type {
@@ -180,8 +180,8 @@ function montarRascunho(etapas: EtapaTimeline[]): Rascunho {
 }
 
 export function CertificacaoDetalhePage() {
-  const { produtoId } = useParams();
-  const id = Number(produtoId);
+  const { processoId } = useParams();
+  const id = Number(processoId);
   const { temPapel } = useAuth();
   const podeEditar = temPapel('ADMIN', 'FUNCIONARIO');
   const queryClient = useQueryClient();
@@ -212,7 +212,7 @@ export function CertificacaoDetalhePage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: chaves.certificacao(id),
-    queryFn: () => certificacoesApi.porProduto(id),
+    queryFn: () => certificacoesApi.porProcesso(id),
     enabled: Number.isFinite(id),
   });
 
@@ -226,7 +226,7 @@ export function CertificacaoDetalhePage() {
     onSuccess: (atualizado) => {
       queryClient.setQueryData(chaves.certificacao(id), atualizado);
       void queryClient.invalidateQueries({ queryKey: ['certificacoes'] });
-      void queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      void queryClient.invalidateQueries({ queryKey: ['processos'] });
       void queryClient.invalidateQueries({ queryKey: ['nao-conformidades'] });
       void queryClient.invalidateQueries({ queryKey: chaves.dashboard });
       setNcsNovas({});
@@ -272,7 +272,7 @@ export function CertificacaoDetalhePage() {
       toast.success(resultado.mensagem);
       setConfirmarMigracao(false);
       void queryClient.invalidateQueries({ queryKey: ['certificacoes'] });
-      void queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      void queryClient.invalidateQueries({ queryKey: ['processos'] });
     },
     onError: (erro) => toast.error(mensagemDeErro(erro)),
   });
@@ -317,7 +317,7 @@ export function CertificacaoDetalhePage() {
       <EstadoVazio
         icone="alerta"
         titulo="Certificação não encontrada"
-        descricao="O produto pode ter sido removido ou você não tem acesso a ele."
+        descricao="O processo pode ter sido removido ou você não tem acesso a ele."
         acao={
           <Link to="/certificacoes" className="btn btn--primario">
             Voltar ao acompanhamento
@@ -330,7 +330,7 @@ export function CertificacaoDetalhePage() {
   return (
     <>
       <CabecalhoPagina
-        titulo={data.produto.nome}
+        titulo={data.processo.nome}
         descricao={`Cliente: ${data.cliente.nome} · ${data.resumo.etapasAprovadas} de ${data.resumo.totalEtapas} etapas aprovadas`}
         acoes={
           <>
@@ -368,8 +368,8 @@ export function CertificacaoDetalhePage() {
                 <Icone nome="atualizar" tamanho={16} />
                 {/* Trocada a trilha da categoria, os dois lados podem ser "v1":
                     o número sozinho vira "v1 → v1" e não informa nada. */}
-                {versao.trilhaProduto === versao.trilhaVigente
-                  ? `Atualizar trilha (v${versao.versaoProduto} → v${versao.versaoVigente})`
+                {versao.trilhaProcesso === versao.trilhaVigente
+                  ? `Atualizar trilha (v${versao.versaoProcesso} → v${versao.versaoVigente})`
                   : `Migrar para "${versao.trilhaVigente}" (v${versao.versaoVigente})`}
               </button>
             )}
@@ -380,18 +380,18 @@ export function CertificacaoDetalhePage() {
       <section className="card vidro">
         <div className="entre">
           <div className="linha-flex">
-            {data.produto.fotoUrl && (
+            {data.processo.fotoUrl && (
               <img
                 className="avatar"
                 style={{ width: 64, height: 64 }}
-                src={urlArquivo(data.produto.fotoUrl)}
+                src={urlArquivo(data.processo.fotoUrl)}
                 alt=""
               />
             )}
             <div>
-              <strong>{data.produto.nome}</strong>
+              <strong>{data.processo.nome}</strong>
               <p className="texto-pequeno texto-suave" style={{ margin: '4px 0 0' }}>
-                {data.produto.descricao ?? 'Sem descrição técnica cadastrada.'}
+                {data.processo.descricao ?? 'Sem descrição técnica cadastrada.'}
               </p>
             </div>
           </div>
@@ -516,7 +516,7 @@ export function CertificacaoDetalhePage() {
                     )}
 
                     <DocumentosEtapa
-                      produtoId={id}
+                      processoId={id}
                       etapa={etapa}
                       podeAnexar={podeEditar}
                     />
@@ -578,9 +578,9 @@ export function CertificacaoDetalhePage() {
         )}
       </section>
 
-      <PainelCertificadoProduto
-        produtoId={id}
-        produtoNome={data.produto.nome}
+      <PainelCertificadoProcesso
+        processoId={id}
+        processoNome={data.processo.nome}
         obrigatoriasAprovadas={data.resumo.obrigatoriasAprovadas}
       />
 
@@ -648,7 +648,7 @@ export function CertificacaoDetalhePage() {
 
       <ModalConfirmacao
         aberto={confirmarMigracao}
-        titulo="Atualizar a trilha deste produto"
+        titulo="Atualizar a trilha deste processo"
         mensagem={
           `${versao?.mensagem ?? ''} ` +
           'As etapas já avaliadas e o histórico são preservados; nada é reavaliado.'

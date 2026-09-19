@@ -85,11 +85,11 @@ export class ListarNaoConformidadesDto extends PaginacaoDto {
   @IsEnum(CriticidadeNaoConformidade)
   criticidade?: CriticidadeNaoConformidade;
 
-  @ApiPropertyOptional({ description: 'Filtra por produto' })
+  @ApiPropertyOptional({ description: 'Filtra por processo' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  produtoId?: number;
+  processoId?: number;
 
   @ApiPropertyOptional({
     description: 'Somente as que aguardam resposta do cliente (ABERTA/EM_TRATATIVA)',

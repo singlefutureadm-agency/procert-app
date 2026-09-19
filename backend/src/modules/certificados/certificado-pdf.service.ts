@@ -10,8 +10,8 @@ export interface DadosCertificadoPdf {
   dataEmissao: Date;
   dataValidade: Date;
   emitidoPorNome: string;
-  produto: string;
-  produtoDescricao?: string | null;
+  processo: string;
+  processoDescricao?: string | null;
   cliente: string;
   clienteDocumento?: string | null;
   categoria: string;
@@ -58,7 +58,7 @@ export class CertificadoPdfService {
         .fillColor(CINZA)
         .fontSize(10)
         .font('Helvetica')
-        .text('Organismo de Certificação de Produto', { align: 'center' });
+        .text('Organismo de Certificação de Processo', { align: 'center' });
 
       doc.moveDown(1.5);
 
@@ -90,7 +90,7 @@ export class CertificadoPdfService {
         .fontSize(11)
         .font('Helvetica')
         .text(
-          'A ProCert certifica que o produto abaixo identificado foi avaliado e atende aos ' +
+          'A ProCert certifica que o processo abaixo identificado foi avaliado e atende aos ' +
             'requisitos aplicáveis, tendo sido aprovado em todas as etapas obrigatórias do ' +
             'processo de certificação.',
           { align: 'justify' },
@@ -98,9 +98,9 @@ export class CertificadoPdfService {
 
       doc.moveDown(1.2);
 
-      this.linha(doc, 'Produto', dados.produto);
-      if (dados.produtoDescricao) {
-        this.linha(doc, 'Descrição', dados.produtoDescricao);
+      this.linha(doc, 'Processo', dados.processo);
+      if (dados.processoDescricao) {
+        this.linha(doc, 'Descrição', dados.processoDescricao);
       }
       this.linha(doc, 'Titular', dados.cliente);
       if (dados.clienteDocumento) {

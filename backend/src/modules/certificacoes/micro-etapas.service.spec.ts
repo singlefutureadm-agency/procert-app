@@ -3,7 +3,7 @@ import { StatusCertificacao } from '@prisma/client';
 import { mockDeep } from 'jest-mock-extended';
 
 import {
-  aprovacaoAutomaticaDoProduto,
+  aprovacaoAutomaticaDoProcesso,
   MicroEtapasService,
 } from './micro-etapas.service';
 import { DocumentosCertificacaoService } from './documentos.service';
@@ -26,7 +26,7 @@ describe('MicroEtapasService', () => {
     concluida?: boolean;
     statusEtapa?: StatusCertificacao;
     exigeDocumento?: boolean;
-    aprovacaoProduto?: boolean | null;
+    aprovacaoProcesso?: boolean | null;
     aprovacaoTrilha?: boolean;
   } = {}) => ({
     id: 5,
@@ -40,9 +40,9 @@ describe('MicroEtapasService', () => {
         nome: 'Ensaios laboratoriais',
         exigeDocumento: extra.exigeDocumento ?? false,
       },
-      produto: {
+      processo: {
         id: 1,
-        aprovacaoAutomatica: extra.aprovacaoProduto ?? null,
+        aprovacaoAutomatica: extra.aprovacaoProcesso ?? null,
         modeloTrilha: { aprovacaoAutomatica: extra.aprovacaoTrilha ?? true },
       },
     },
@@ -135,7 +135,7 @@ describe('MicroEtapasService', () => {
       const resultado = await servico.alternar(5, true, admin());
 
       expect(resultado.etapaAprovada).toBe(true);
-      expect(banco.tx.certificacaoProduto.update).toHaveBeenCalledTimes(1);
+      expect(banco.tx.certificacaoProcesso.update).toHaveBeenCalledTimes(1);
 
       const historico = banco.tx.certificacaoHistorico.create.mock.calls[0][0].data;
       // "Sistema" seria mentira: a decisão foi de uma pessoa.
@@ -153,7 +153,7 @@ describe('MicroEtapasService', () => {
 
       await servico.alternar(5, true, admin());
 
-      const dados = banco.tx.certificacaoProduto.update.mock.calls[0][0].data;
+      const dados = banco.tx.certificacaoProcesso.update.mock.calls[0][0].data;
       expect(dados.status).toBe(StatusCertificacao.APROVADO);
       expect(dados.concluidaEm).toBeInstanceOf(Date);
     });
@@ -168,7 +168,7 @@ describe('MicroEtapasService', () => {
 
       expect(resultado.etapaAprovada).toBe(false);
       expect(resultado.aviso).toBeNull();
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('DESMARCAR nunca aprova, mesmo com o resto todo marcado', async () => {
@@ -182,7 +182,7 @@ describe('MicroEtapasService', () => {
       const resultado = await servico.alternar(5, false, admin());
 
       expect(resultado.etapaAprovada).toBe(false);
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('etapa SEM checklist nunca é aprovada por este caminho', async () => {
@@ -199,7 +199,7 @@ describe('MicroEtapasService', () => {
 
     it('processo em aprovação MANUAL completa o checklist e não aprova', async () => {
       banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
-        microNoBanco({ aprovacaoProduto: false, aprovacaoTrilha: true }) as never,
+        microNoBanco({ aprovacaoProcesso: false, aprovacaoTrilha: true }) as never,
       );
       checklist(3, 0);
 
@@ -209,7 +209,7 @@ describe('MicroEtapasService', () => {
       // O aviso é obrigatório: sem ele, marcar o último item não faz nada e
       // ninguém entende por quê.
       expect(resultado.aviso).toMatch(/manualmente/i);
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('exigeDocumento SEGURA a aprovação automática e explica', async () => {
@@ -225,7 +225,7 @@ describe('MicroEtapasService', () => {
 
       expect(resultado.etapaAprovada).toBe(false);
       expect(resultado.aviso).toMatch(/evidência/i);
-      expect(banco.tx.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
 
     it('com evidência anexada, a etapa que exige documento aprova', async () => {
@@ -251,20 +251,20 @@ describe('MicroEtapasService', () => {
       // Fora do commit, uma falha deixaria a etapa aprovada sem rastro de quem
       // a aprovou.
       expect(banco.chamadasNaTransacao).toEqual([
-        'certificacaoProduto.update',
+        'certificacaoProcesso.update',
         'certificacaoHistorico.create',
       ]);
-      expect(banco.prisma.certificacaoProduto.update).not.toHaveBeenCalled();
+      expect(banco.prisma.certificacaoProcesso.update).not.toHaveBeenCalled();
     });
   });
 });
 
 /**
- * A resolução da política é o ponto único da regra. `null` no produto NÃO é
+ * A resolução da política é o ponto único da regra. `null` no processo NÃO é
  * "não": é "herda a trilha" — e confundir os dois faz um processo que ninguém
  * configurou parar de acompanhar a política do processo.
  */
-describe('aprovacaoAutomaticaDoProduto', () => {
+describe('aprovacaoAutomaticaDoProcesso', () => {
   const comTrilha = (
     aprovacaoAutomatica: boolean | null,
     trilha: boolean,
@@ -273,19 +273,19 @@ describe('aprovacaoAutomaticaDoProduto', () => {
     modeloTrilha: { aprovacaoAutomatica: trilha },
   });
 
-  it('null no produto HERDA a trilha, nos dois valores', () => {
-    expect(aprovacaoAutomaticaDoProduto(comTrilha(null, true))).toBe(true);
-    expect(aprovacaoAutomaticaDoProduto(comTrilha(null, false))).toBe(false);
+  it('null no processo HERDA a trilha, nos dois valores', () => {
+    expect(aprovacaoAutomaticaDoProcesso(comTrilha(null, true))).toBe(true);
+    expect(aprovacaoAutomaticaDoProcesso(comTrilha(null, false))).toBe(false);
   });
 
-  it('o produto sobrepõe a trilha quando opinou', () => {
-    expect(aprovacaoAutomaticaDoProduto(comTrilha(false, true))).toBe(false);
-    expect(aprovacaoAutomaticaDoProduto(comTrilha(true, false))).toBe(true);
+  it('o processo sobrepõe a trilha quando opinou', () => {
+    expect(aprovacaoAutomaticaDoProcesso(comTrilha(false, true))).toBe(false);
+    expect(aprovacaoAutomaticaDoProcesso(comTrilha(true, false))).toBe(true);
   });
 
-  it('`false` no produto é decisão, não ausência', () => {
+  it('`false` no processo é decisão, não ausência', () => {
     // O caso que um `Boolean` com default `false` não conseguiria expressar:
     // aqui a trilha aprova sozinha e ESTE processo foi desligado à mão.
-    expect(aprovacaoAutomaticaDoProduto(comTrilha(false, true))).toBe(false);
+    expect(aprovacaoAutomaticaDoProcesso(comTrilha(false, true))).toBe(false);
   });
 });

@@ -13,7 +13,7 @@
 
 /** Identificação da empresa, repetida ao pé dos dois documentos. */
 export const EMPRESA_LEGAL = {
-  razaoSocial: 'PROCERT CERTIFICAÇÃO DE PRODUTOS LTDA',
+  razaoSocial: 'PROCERT CERTIFICAÇÃO DE PROCESSOS LTDA',
   cnpj: '61.926.893/0001-95',
   endereco:
     'Rua John Harrison, 299, Conj. 902, Cond. Now Offices, Lapa, São Paulo/SP, CEP 05074-080',

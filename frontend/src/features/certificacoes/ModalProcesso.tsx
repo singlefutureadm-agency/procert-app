@@ -7,7 +7,7 @@ import { BadgeCertificacao } from '@/components/Badge';
 import { Carregando } from '@/components/Carregando';
 import { Icone } from '@/components/Icone';
 import { Modal } from '@/components/Modal';
-import { produtosApi } from '@/features/produtos/api';
+import { processosApi } from '@/features/processos/api';
 import {
   ROTULO_FASE,
   ROTULO_PAPEL_FUNCIONAL,
@@ -38,7 +38,7 @@ export function ModalProcesso({
   aoFechar: () => void;
 }) {
   const clienteQuery = useQueryClient();
-  const produtoId = cartao?.produtoId;
+  const processoId = cartao?.processoId;
 
   // O formulário de motivo só aparece depois de pedir para cancelar: é ação
   // destrutiva do ponto de vista do fluxo, e um textarea sempre visível
@@ -47,21 +47,21 @@ export function ModalProcesso({
   const [motivo, setMotivo] = useState('');
 
   const { data: detalhe, isLoading } = useQuery({
-    queryKey: chaves.certificacao(produtoId ?? 0),
-    queryFn: () => certificacoesApi.porProduto(produtoId!),
-    enabled: produtoId !== undefined,
+    queryKey: chaves.certificacao(processoId ?? 0),
+    queryFn: () => certificacoesApi.porProcesso(processoId!),
+    enabled: processoId !== undefined,
   });
 
-  const { data: produto } = useQuery({
-    queryKey: chaves.produto(produtoId ?? 0),
-    queryFn: () => produtosApi.buscar(produtoId!),
-    enabled: produtoId !== undefined,
+  const { data: processo } = useQuery({
+    queryKey: chaves.processo(processoId ?? 0),
+    queryFn: () => processosApi.buscar(processoId!),
+    enabled: processoId !== undefined,
   });
 
   /** Invalida o processo E o quadro: a marcação pode ter mudado a coluna. */
   function recarregar() {
-    if (produtoId === undefined) return;
-    clienteQuery.invalidateQueries({ queryKey: chaves.certificacao(produtoId) });
+    if (processoId === undefined) return;
+    clienteQuery.invalidateQueries({ queryKey: chaves.certificacao(processoId) });
     clienteQuery.invalidateQueries({ queryKey: ['certificacoes', 'quadro'] });
   }
 
@@ -84,10 +84,10 @@ export function ModalProcesso({
 
   const alterarPolitica = useMutation({
     mutationFn: (aprovacaoAutomatica: boolean | null) =>
-      produtosApi.atualizar(produtoId!, { aprovacaoAutomatica }),
+      processosApi.atualizar(processoId!, { aprovacaoAutomatica }),
     onSuccess: () => {
-      if (produtoId !== undefined) {
-        clienteQuery.invalidateQueries({ queryKey: chaves.produto(produtoId) });
+      if (processoId !== undefined) {
+        clienteQuery.invalidateQueries({ queryKey: chaves.processo(processoId) });
       }
       toast.success('Modo de aprovação atualizado para este processo.');
     },
@@ -103,8 +103,8 @@ export function ModalProcesso({
   const cancelamento = useMutation({
     mutationFn: (motivoOuNulo: string | null) =>
       motivoOuNulo === null
-        ? certificacoesApi.reabrir(produtoId!)
-        : certificacoesApi.cancelar(produtoId!, motivoOuNulo),
+        ? certificacoesApi.reabrir(processoId!)
+        : certificacoesApi.cancelar(processoId!, motivoOuNulo),
     onSuccess: (resposta) => {
       toast.success(resposta.mensagem);
       setCancelando(false);
@@ -123,7 +123,7 @@ export function ModalProcesso({
     <Modal
       aberto
       aoFechar={aoFechar}
-      titulo={cartao.produto}
+      titulo={cartao.processo}
       largura="ampla"
       comBotaoFechar
     >
@@ -136,7 +136,7 @@ export function ModalProcesso({
       {detalhe && (
         <>
           <PoliticaDeAprovacao
-            valor={produto?.aprovacaoAutomatica ?? null}
+            valor={processo?.aprovacaoAutomatica ?? null}
             salvando={alterarPolitica.isPending}
             aoMudar={(valor) => alterarPolitica.mutate(valor)}
           />
@@ -154,7 +154,7 @@ export function ModalProcesso({
 
           <div className="processo__saidas">
             <Link
-              to={`/certificacoes/produto/${cartao.produtoId}`}
+              to={`/certificacoes/processo/${cartao.processoId}`}
               className="btn btn--secundario"
             >
               <Icone nome="prancheta" />
@@ -163,13 +163,13 @@ export function ModalProcesso({
 
             {/* O modelo que gerou este checklist. Estava a dois menus de
                 distância; daqui é um clique. */}
-            {produto?.modeloTrilha && (
+            {processo?.modeloTrilha && (
               <Link
-                to={`/trilhas/${produto.modeloTrilha.trilha.id}`}
+                to={`/trilhas/${processo.modeloTrilha.trilha.id}`}
                 className="btn btn--secundario"
               >
                 <Icone nome="bussola" />
-                Trilha (v{produto.modeloTrilha.versao})
+                Trilha (v{processo.modeloTrilha.versao})
               </Link>
             )}
 
@@ -245,7 +245,7 @@ export function ModalProcesso({
 }
 
 /**
- * O campo do PRODUTO que decide como as etapas dele são aprovadas.
+ * O campo do PROCESSO que decide como as etapas dele são aprovadas.
  *
  * Três estados, não dois: "herdar" é diferente de "manual". Um processo que
  * herda acompanha a trilha quando a política dela mudar; um marcado como

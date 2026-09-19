@@ -19,7 +19,7 @@
  *
  * O texto descreve o PROCESSO de avaliação da conformidade — que é público,
  * verdadeiro para o setor e onde estão os termos de busca — e as famílias de
- * produto que o próprio site já declarava. Havendo confirmação documental do
+ * processo que o próprio site já declarava. Havendo confirmação documental do
  * cliente sobre acreditação e escopo, o lugar de declarar é aqui e em
  * `hasCredential` no JSON-LD de `lib/seo.ts`.
  */
@@ -59,13 +59,13 @@ export interface HeroPagina {
 
 export const SERVICOS_PAGINA = {
   seo: {
-    titulo: 'Certificação de EPI e de produtos | ProCert Certificação',
+    titulo: 'Certificação de EPI e de processos | ProCert Certificação',
     descricao:
       'Certificação de equipamentos de proteção individual para trabalho em altura — cinturões, talabartes e trava-quedas —, auditoria de fábrica, ensaios e emissão de certificado. Conheça as etapas do processo.',
   },
   hero: {
     rotulo: 'Serviços',
-    titulo: 'Certificação de produtos e equipamentos de proteção individual',
+    titulo: 'Certificação de processos e equipamentos de proteção individual',
     subtitulo:
       'Da análise documental à emissão do certificado, com acompanhamento técnico em cada etapa.',
   } satisfies HeroPagina,
@@ -73,8 +73,8 @@ export const SERVICOS_PAGINA = {
   introducao: {
     titulo: 'O que a ProCert faz',
     paragrafos: [
-      'A ProCert é um Organismo de Certificação de Produto (OCP) dedicado à avaliação da conformidade de equipamentos de proteção individual e de produtos industriais. Nosso trabalho é verificar, com método e evidência, que um produto atende aos requisitos técnicos que se propõe a atender — e registrar essa verificação de forma auditável.',
-      'Certificar um produto não é emitir um documento no fim de uma fila. É um processo de avaliação que combina análise de documentação técnica, ensaios em laboratório, verificação do processo produtivo e uma decisão fundamentada. Cada uma dessas etapas gera evidência, e é a evidência que sustenta o certificado.',
+      'A ProCert é um Organismo de Certificação de Processo (OCP) dedicado à avaliação da conformidade de equipamentos de proteção individual e de processos industriais. Nosso trabalho é verificar, com método e evidência, que um processo atende aos requisitos técnicos que se propõe a atender — e registrar essa verificação de forma auditável.',
+      'Certificar um processo não é emitir um documento no fim de uma fila. É um processo de avaliação que combina análise de documentação técnica, ensaios em laboratório, verificação do processo produtivo e uma decisão fundamentada. Cada uma dessas etapas gera evidência, e é a evidência que sustenta o certificado.',
     ],
   } satisfies BlocoTexto,
 
@@ -87,7 +87,7 @@ export const SERVICOS_PAGINA = {
       icone: 'bi-shield-check',
       titulo: 'Certificação de EPI para trabalho em altura',
       texto:
-        'Avaliação da conformidade de equipamentos de proteção individual contra quedas, incluindo cinturões de segurança tipo paraquedista, talabartes de posicionamento e segurança, e dispositivos trava-quedas. São produtos em que a falha tem consequência direta sobre a vida do trabalhador, e o processo de avaliação reflete isso.',
+        'Avaliação da conformidade de equipamentos de proteção individual contra quedas, incluindo cinturões de segurança tipo paraquedista, talabartes de posicionamento e segurança, e dispositivos trava-quedas. São processos em que a falha tem consequência direta sobre a vida do trabalhador, e o processo de avaliação reflete isso.',
       pontos: [
         'Cinturões de segurança tipo paraquedista',
         'Talabartes de segurança e de posicionamento',
@@ -97,9 +97,9 @@ export const SERVICOS_PAGINA = {
     },
     {
       icone: 'bi-check-circle',
-      titulo: 'Certificação de produtos industriais',
+      titulo: 'Certificação de processos industriais',
       texto:
-        'Verificação de que o produto atende às normas técnicas e aos requisitos regulatórios aplicáveis à sua família. O escopo é definido caso a caso, a partir da norma aplicável, do uso pretendido e do risco associado ao produto.',
+        'Verificação de que o processo atende às normas técnicas e aos requisitos regulatórios aplicáveis à sua família. O escopo é definido caso a caso, a partir da norma aplicável, do uso pretendido e do risco associado ao processo.',
       pontos: [
         'Análise da documentação técnica e do memorial descritivo',
         'Definição do escopo e do plano de avaliação',
@@ -110,7 +110,7 @@ export const SERVICOS_PAGINA = {
       icone: 'bi-clipboard-data',
       titulo: 'Auditoria de fábrica e inspeção',
       texto:
-        'A conformidade de uma amostra não garante a conformidade da produção. A auditoria de fábrica avalia o processo produtivo e o controle da qualidade do fabricante, verificando se ele é capaz de reproduzir de forma consistente o produto que foi ensaiado.',
+        'A conformidade de uma amostra não garante a conformidade da produção. A auditoria de fábrica avalia o processo produtivo e o controle da qualidade do fabricante, verificando se ele é capaz de reproduzir de forma consistente o processo que foi ensaiado.',
       pontos: [
         'Avaliação do processo produtivo',
         'Verificação do controle da qualidade',
@@ -122,7 +122,7 @@ export const SERVICOS_PAGINA = {
       icone: 'bi-journal-check',
       titulo: 'Ensaios e relatórios técnicos',
       texto:
-        'Coordenação dos ensaios previstos para a família do produto e emissão de relatórios técnicos que registram método, condição e resultado. O relatório é o documento que sustenta a decisão de certificação e acompanha o produto ao longo da manutenção.',
+        'Coordenação dos ensaios previstos para a família do processo e emissão de relatórios técnicos que registram método, condição e resultado. O relatório é o documento que sustenta a decisão de certificação e acompanha o processo ao longo da manutenção.',
       pontos: [
         'Definição dos ensaios aplicáveis',
         'Registro de método, condições e resultados',
@@ -144,32 +144,32 @@ export const SERVICOS_PAGINA = {
 
   /**
    * As etapas espelham a trilha real do sistema (ver `schema.prisma`:
-   * ModeloEtapa / CertificacaoProduto). Descrever o processo que a plataforma
+   * ModeloEtapa / CertificacaoProcesso). Descrever o processo que a plataforma
    * de fato executa é o conteúdo mais difícil de um concorrente copiar, e o
-   * que melhor responde à busca "como certificar um produto".
+   * que melhor responde à busca "como certificar um processo".
    */
   processo: {
     titulo: 'Como funciona o processo de certificação',
     texto:
-      'Cada família de produto tem sua própria trilha de avaliação, definida antes do início do processo e registrada em versão. Um produto submetido é avaliado pelas regras vigentes na submissão — publicar uma versão nova da trilha não altera processos em andamento.',
+      'Cada família de processo tem sua própria trilha de avaliação, definida antes do início do processo e registrada em versão. Um processo submetido é avaliado pelas regras vigentes na submissão — publicar uma versão nova da trilha não altera processos em andamento.',
     etapas: [
       {
         numero: '01',
         titulo: 'Análise documental',
         texto:
-          'Conferência da documentação técnica do produto, do memorial descritivo e dos dados do fabricante. É aqui que se define o escopo da avaliação e se identificam pendências antes de qualquer ensaio — o que evita descobrir um problema de documentação depois do custo de laboratório.',
+          'Conferência da documentação técnica do processo, do memorial descritivo e dos dados do fabricante. É aqui que se define o escopo da avaliação e se identificam pendências antes de qualquer ensaio — o que evita descobrir um problema de documentação depois do custo de laboratório.',
       },
       {
         numero: '02',
         titulo: 'Ensaios laboratoriais',
         texto:
-          'Execução dos ensaios previstos para a família do produto, com registro de método, condições e resultados. Cada ensaio gera evidência anexada à etapa correspondente do processo.',
+          'Execução dos ensaios previstos para a família do processo, com registro de método, condições e resultados. Cada ensaio gera evidência anexada à etapa correspondente do processo.',
       },
       {
         numero: '03',
         titulo: 'Auditoria de fábrica',
         texto:
-          'Avaliação do processo produtivo e do sistema de controle da qualidade do fabricante, para verificar a capacidade de reproduzir de forma consistente o produto avaliado.',
+          'Avaliação do processo produtivo e do sistema de controle da qualidade do fabricante, para verificar a capacidade de reproduzir de forma consistente o processo avaliado.',
       },
       {
         numero: '04',
@@ -188,29 +188,29 @@ export const SERVICOS_PAGINA = {
 
   faq: [
     {
-      pergunta: 'Quanto tempo leva para certificar um produto?',
+      pergunta: 'Quanto tempo leva para certificar um processo?',
       resposta:
-        'O prazo depende da família do produto, do número de ensaios previstos e, principalmente, da qualidade da documentação apresentada na primeira etapa. Processos que chegam com documentação técnica completa avançam sensivelmente mais rápido, porque a análise documental deixa de gerar pendências que travam as etapas seguintes. O escopo e o prazo estimado são definidos na abertura do processo.',
+        'O prazo depende da família do processo, do número de ensaios previstos e, principalmente, da qualidade da documentação apresentada na primeira etapa. Processos que chegam com documentação técnica completa avançam sensivelmente mais rápido, porque a análise documental deixa de gerar pendências que travam as etapas seguintes. O escopo e o prazo estimado são definidos na abertura do processo.',
     },
     {
       pergunta: 'Quais documentos preciso reunir antes de começar?',
       resposta:
-        'Em geral: memorial descritivo do produto, desenhos e especificações técnicas, dados do fabricante e do processo produtivo, e a identificação da norma ou do requisito aplicável. A lista exata varia com a família do produto e é definida na análise documental.',
+        'Em geral: memorial descritivo do processo, desenhos e especificações técnicas, dados do fabricante e do processo produtivo, e a identificação da norma ou do requisito aplicável. A lista exata varia com a família do processo e é definida na análise documental.',
     },
     {
-      pergunta: 'O que acontece se o produto for reprovado em alguma etapa?',
+      pergunta: 'O que acontece se o processo for reprovado em alguma etapa?',
       resposta:
         'A reprovação abre uma não conformidade, com descrição do que foi encontrado e prazo para resposta. O cliente apresenta a tratativa, a equipe avalia, e a etapa volta a ser avaliada — ela não é aprovada automaticamente por causa da resposta. Todo o histórico fica registrado, com autoria e data.',
     },
     {
       pergunta: 'Qual a validade do certificado?',
       resposta:
-        'A validade é definida pela categoria do produto e consta no próprio certificado. Durante esse período a certificação é mantida por avaliações periódicas, e o vencimento é acompanhado para que a recertificação seja iniciada com antecedência.',
+        'A validade é definida pela categoria do processo e consta no próprio certificado. Durante esse período a certificação é mantida por avaliações periódicas, e o vencimento é acompanhado para que a recertificação seja iniciada com antecedência.',
     },
     {
       pergunta: 'Consigo acompanhar o andamento do processo?',
       resposta:
-        'Sim. Cada cliente tem acesso a um portal onde vê a situação de cada etapa da trilha do seu produto, os documentos enviados, as não conformidades abertas e os certificados emitidos, com histórico de quem alterou o quê e quando.',
+        'Sim. Cada cliente tem acesso a um portal onde vê a situação de cada etapa da trilha do seu processo, os documentos enviados, as não conformidades abertas e os certificados emitidos, com histórico de quem alterou o quê e quando.',
     },
   ] satisfies PerguntaFrequente[],
 };
@@ -219,22 +219,22 @@ export const SERVICOS_PAGINA = {
 
 export const SOBRE_PAGINA = {
   seo: {
-    titulo: 'Sobre a ProCert | Organismo de Certificação de Produto',
+    titulo: 'Sobre a ProCert | Organismo de Certificação de Processo',
     descricao:
-      'A ProCert é um Organismo de Certificação de Produto especializado em equipamentos de proteção individual. Conheça nossa atuação, princípios técnicos e compromisso com a imparcialidade.',
+      'A ProCert é um Organismo de Certificação de Processo especializado em equipamentos de proteção individual. Conheça nossa atuação, princípios técnicos e compromisso com a imparcialidade.',
   },
   hero: {
     rotulo: 'Sobre a ProCert',
     titulo: 'Um organismo de certificação construído sobre evidência',
     subtitulo:
-      'Certificação de produto com rigor técnico, imparcialidade e rastreabilidade em cada decisão.',
+      'Certificação de processo com rigor técnico, imparcialidade e rastreabilidade em cada decisão.',
   } satisfies HeroPagina,
 
   quemSomos: {
     titulo: 'Quem somos',
     paragrafos: [
-      'A ProCert é um Organismo de Certificação de Produto (OCP) especializado na certificação de Equipamentos de Proteção Individual, com atuação voltada a produtos de proteção contra quedas — cinturões de segurança, talabartes e dispositivos trava-quedas. Atendemos fabricantes e importadores em todo o Brasil.',
-      'Certificação de produto é, no fundo, uma questão de confiança entre partes que não se conhecem: um comprador que não visitou a fábrica, um trabalhador que não leu o relatório de ensaio, um fiscal que não acompanhou a produção. O papel de um organismo de certificação é ser o terceiro que verificou — e cuja verificação pode ser auditada.',
+      'A ProCert é um Organismo de Certificação de Processo (OCP) especializado na certificação de Equipamentos de Proteção Individual, com atuação voltada a processos de proteção contra quedas — cinturões de segurança, talabartes e dispositivos trava-quedas. Atendemos fabricantes e importadores em todo o Brasil.',
+      'Certificação de processo é, no fundo, uma questão de confiança entre partes que não se conhecem: um comprador que não visitou a fábrica, um trabalhador que não leu o relatório de ensaio, um fiscal que não acompanhou a produção. O papel de um organismo de certificação é ser o terceiro que verificou — e cuja verificação pode ser auditada.',
       'É por isso que nosso processo é construído em torno de evidência, e não de parecer. Cada etapa da avaliação registra o que foi verificado, por quem e quando; cada reprovação gera uma não conformidade rastreável; cada certificado emitido tem um histórico completo por trás.',
     ],
   } satisfies BlocoTexto,
@@ -255,7 +255,7 @@ export const SOBRE_PAGINA = {
       icone: 'bi-file-lock',
       titulo: 'Confidencialidade',
       texto:
-        'Documentação técnica de produto é ativo estratégico do fabricante. O acesso é restrito por perfil, e o cliente só enxerga os próprios processos — regra aplicada no servidor, não apenas na interface.',
+        'Documentação técnica de processo é ativo estratégico do fabricante. O acesso é restrito por perfil, e o cliente só enxerga os próprios processos — regra aplicada no servidor, não apenas na interface.',
     },
     {
       icone: 'bi-diagram-3',
@@ -274,8 +274,8 @@ export const SOBRE_PAGINA = {
   comoTrabalhamos: {
     titulo: 'Como trabalhamos',
     paragrafos: [
-      'Cada família de produto tem uma trilha de avaliação própria, definida e versionada antes de qualquer processo começar. Isso significa que dois produtos da mesma família são avaliados pelos mesmos critérios, e que uma mudança de critério não altera retroativamente processos já em andamento.',
-      'O cliente acompanha tudo por um portal próprio: em que etapa está cada produto, quais documentos foram enviados, quais não conformidades estão abertas e qual o prazo de resposta. A alternativa — descobrir o andamento por telefone — transforma o processo numa caixa preta, e é justamente essa opacidade que a certificação existe para combater.',
+      'Cada família de processo tem uma trilha de avaliação própria, definida e versionada antes de qualquer processo começar. Isso significa que dois processos da mesma família são avaliados pelos mesmos critérios, e que uma mudança de critério não altera retroativamente processos já em andamento.',
+      'O cliente acompanha tudo por um portal próprio: em que etapa está cada processo, quais documentos foram enviados, quais não conformidades estão abertas e qual o prazo de resposta. A alternativa — descobrir o andamento por telefone — transforma o processo numa caixa preta, e é justamente essa opacidade que a certificação existe para combater.',
     ],
   } satisfies BlocoTexto,
 };
@@ -284,9 +284,9 @@ export const SOBRE_PAGINA = {
 
 export const CONTATO_PAGINA = {
   seo: {
-    titulo: 'Contato | ProCert Certificação de Produtos',
+    titulo: 'Contato | ProCert Certificação de Processos',
     descricao:
-      'Fale com a equipe técnica da ProCert sobre certificação de EPI e de produtos. Atendimento por telefone, e-mail e WhatsApp. Escritório na Lapa, São Paulo.',
+      'Fale com a equipe técnica da ProCert sobre certificação de EPI e de processos. Atendimento por telefone, e-mail e WhatsApp. Escritório na Lapa, São Paulo.',
   },
   hero: {
     rotulo: 'Contato',
@@ -298,7 +298,7 @@ export const CONTATO_PAGINA = {
   introducao: {
     titulo: 'Antes de enviar',
     paragrafos: [
-      'Quanto mais específica a mensagem, mais útil o retorno. Se puder, diga qual é o produto, para que uso ele é destinado e se já existe alguma norma ou requisito de referência — com isso conseguimos indicar o escopo provável da avaliação já no primeiro contato, em vez de gastar uma rodada só para descobrir do que se trata.',
+      'Quanto mais específica a mensagem, mais útil o retorno. Se puder, diga qual é o processo, para que uso ele é destinado e se já existe alguma norma ou requisito de referência — com isso conseguimos indicar o escopo provável da avaliação já no primeiro contato, em vez de gastar uma rodada só para descobrir do que se trata.',
     ],
   } satisfies BlocoTexto,
 

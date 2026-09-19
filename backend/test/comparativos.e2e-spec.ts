@@ -5,7 +5,7 @@ import { criarApp, http, prisma } from './utils/aplicacao';
 import { Cenario, prepararCenario } from './utils/cenario';
 
 /**
- * Comparativos de produtos e de clientes.
+ * Comparativos de processos e de clientes.
  *
  * Como o relatório de equipe, a consulta é `$queryRaw` e **só o e2e a alcança**:
  * o mock do Prisma não interpreta SQL, então um unitário provaria apenas que a
@@ -33,8 +33,8 @@ describe('Relatórios — comparativos (e2e)', () => {
     // Marca UMA etapa da trilha como opcional e a deixa pendente. É o caso que
     // separa "pendentes" de "obrigatórias pendentes": ela conta na primeira e
     // não na segunda, porque não bloqueia a emissão do certificado.
-    const trilha = await db.certificacaoProduto.findMany({
-      where: { produtoId: c.produtoDonoId },
+    const trilha = await db.certificacaoProcesso.findMany({
+      where: { processoId: c.processoDonoId },
       orderBy: { ordem: 'asc' },
       include: { etapa: true },
     });
@@ -44,7 +44,7 @@ describe('Relatórios — comparativos (e2e)', () => {
       data: { obrigatoria: false },
     });
 
-    await db.certificacaoProduto.update({
+    await db.certificacaoProcesso.update({
       where: { id: trilha[trilha.length - 1].id },
       // Sair de APROVADO limpa `concluidaEm` — a mesma regra do service, aqui
       // à mão porque o fixture escreve direto no Prisma.
@@ -60,26 +60,26 @@ describe('Relatórios — comparativos (e2e)', () => {
     await app.close();
   });
 
-  function produtoNo(corpo: { dados: Array<{ id: number }> }, id: number) {
+  function processoNo(corpo: { dados: Array<{ id: number }> }, id: number) {
     const linha = corpo.dados.find((d) => d.id === id);
-    if (!linha) throw new Error(`Produto ${id} não veio no comparativo.`);
+    if (!linha) throw new Error(`Processo ${id} não veio no comparativo.`);
     return linha as never as Record<string, number | string | null>;
   }
 
-  describe('GET /api/relatorios/produtos', () => {
+  describe('GET /api/relatorios/processos', () => {
     it('separa "pendentes" de "obrigatórias pendentes"', async () => {
       const resposta = await http(app)
-        .get('/api/relatorios/produtos')
+        .get('/api/relatorios/processos')
         .query({ limite: 100 })
         .set('Authorization', c.admin)
         .expect(200);
 
-      const linha = produtoNo(resposta.body, c.produtoDonoId);
+      const linha = processoNo(resposta.body, c.processoDonoId);
 
       /*
        * A etapa opcional deixada pendente conta em `pendentes` e NÃO em
        * `obrigatoriasPendentes`. Fundir as duas faria a tela afirmar que o
-       * produto não pode emitir certificado quando ele pode.
+       * processo não pode emitir certificado quando ele pode.
        */
       expect(Number(linha.pendentes)).toBeGreaterThan(0);
       expect(Number(linha.obrigatoriasPendentes)).toBeLessThan(
@@ -87,14 +87,14 @@ describe('Relatórios — comparativos (e2e)', () => {
       );
     });
 
-    it('calcula progresso sobre o total de etapas da trilha DO PRODUTO', async () => {
+    it('calcula progresso sobre o total de etapas da trilha DO PROCESSO', async () => {
       const resposta = await http(app)
-        .get('/api/relatorios/produtos')
+        .get('/api/relatorios/processos')
         .query({ limite: 100 })
         .set('Authorization', c.admin)
         .expect(200);
 
-      const linha = produtoNo(resposta.body, c.produtoDonoId);
+      const linha = processoNo(resposta.body, c.processoDonoId);
       const esperado = Math.round(
         (Number(linha.aprovadas) / Number(linha.totalEtapas)) * 100,
       );
@@ -106,27 +106,27 @@ describe('Relatórios — comparativos (e2e)', () => {
 
     it('não multiplica contagens entre etapas, NCs e histórico', async () => {
       const db = prisma(app);
-      const etapas = await db.certificacaoProduto.count({
-        where: { produtoId: c.produtoDonoId },
+      const etapas = await db.certificacaoProcesso.count({
+        where: { processoId: c.processoDonoId },
       });
 
       const resposta = await http(app)
-        .get('/api/relatorios/produtos')
+        .get('/api/relatorios/processos')
         .query({ limite: 100 })
         .set('Authorization', c.admin)
         .expect(200);
 
       // Com JOIN direto, `totalEtapas` viria multiplicado pelo número de NCs e
-      // de linhas de histórico do produto.
+      // de linhas de histórico do processo.
       expect(
-        Number(produtoNo(resposta.body, c.produtoDonoId).totalEtapas),
+        Number(processoNo(resposta.body, c.processoDonoId).totalEtapas),
       ).toBe(etapas);
     });
 
     it('aceita as ordenações da allowlist', async () => {
       for (const ordem of ['progresso', 'progresso_asc', 'paradas', 'nome']) {
         await http(app)
-          .get('/api/relatorios/produtos')
+          .get('/api/relatorios/processos')
           .query({ ordem })
           .set('Authorization', c.admin)
           .expect(200);
@@ -140,22 +140,22 @@ describe('Relatórios — comparativos (e2e)', () => {
        * essa porta, e o 400 aqui é a prova de que ela está fechada.
        */
       await http(app)
-        .get('/api/relatorios/produtos')
-        .query({ ordem: 'nome; DROP TABLE produtos' })
+        .get('/api/relatorios/processos')
+        .query({ ordem: 'nome; DROP TABLE processos' })
         .set('Authorization', c.admin)
         .expect(400);
     });
 
     it('filtra por cliente e por categoria', async () => {
       const resposta = await http(app)
-        .get('/api/relatorios/produtos')
+        .get('/api/relatorios/processos')
         .query({ clienteId: c.clienteAlheioId, limite: 100 })
         .set('Authorization', c.admin)
         .expect(200);
 
       const ids = resposta.body.dados.map((d: { id: number }) => d.id);
-      expect(ids).toContain(c.produtoAlheioId);
-      expect(ids).not.toContain(c.produtoDonoId);
+      expect(ids).toContain(c.processoAlheioId);
+      expect(ids).not.toContain(c.processoDonoId);
     });
 
     it.each([
@@ -164,7 +164,7 @@ describe('Relatórios — comparativos (e2e)', () => {
       { ator: 'FUNCIONARIO', token: () => c.funcionario, esperado: 200 },
       { ator: 'ADMIN', token: () => c.admin, esperado: 200 },
     ])('$ator → $esperado', async ({ token, esperado }) => {
-      const requisicao = http(app).get('/api/relatorios/produtos');
+      const requisicao = http(app).get('/api/relatorios/processos');
       const t = token();
       if (t) requisicao.set('Authorization', t);
       await requisicao.expect(esperado);
@@ -172,7 +172,7 @@ describe('Relatórios — comparativos (e2e)', () => {
   });
 
   describe('GET /api/relatorios/clientes', () => {
-    it('conta produtos e certificados vigentes por cliente', async () => {
+    it('conta processos e certificados vigentes por cliente', async () => {
       const resposta = await http(app)
         .get('/api/relatorios/clientes')
         .query({ limite: 100 })
@@ -183,8 +183,8 @@ describe('Relatórios — comparativos (e2e)', () => {
         (d: { id: number }) => d.id === c.clienteDonoId,
       );
 
-      expect(linha.produtos).toBe(1);
-      // O cenário emite um certificado EMITIDO para o produto do dono.
+      expect(linha.processos).toBe(1);
+      // O cenário emite um certificado EMITIDO para o processo do dono.
       expect(linha.certificadosVigentes).toBe(1);
     });
 
@@ -236,14 +236,14 @@ describe('Relatórios — comparativos (e2e)', () => {
   });
 
   describe('exportações', () => {
-    it('baixa o XLSX de produtos', async () => {
+    it('baixa o XLSX de processos', async () => {
       const resposta = await http(app)
-        .get('/api/relatorios/produtos/exportacao')
+        .get('/api/relatorios/processos/exportacao')
         .set('Authorization', c.admin)
         .expect(200);
 
       expect(resposta.headers['content-disposition']).toMatch(
-        /comparativo-produtos-\d{4}-\d{2}-\d{2}\.xlsx/,
+        /comparativo-processos-\d{4}-\d{2}-\d{2}\.xlsx/,
       );
       expect(resposta.headers['content-type']).toContain('spreadsheetml');
     });
@@ -261,7 +261,7 @@ describe('Relatórios — comparativos (e2e)', () => {
     it('recusa `pagina` na exportação em vez de ignorar em silêncio', async () => {
       // Ignorado, alguém baixaria a página 2 achando que baixou tudo.
       await http(app)
-        .get('/api/relatorios/produtos/exportacao')
+        .get('/api/relatorios/processos/exportacao')
         .query({ pagina: 2 })
         .set('Authorization', c.admin)
         .expect(400);

@@ -93,38 +93,38 @@ export class ExportarRelatorioDto {
 // ------------------------------------------------------------ comparativos
 
 /**
- * Ordenações aceitas no comparativo de produtos.
+ * Ordenações aceitas no comparativo de processos.
  *
  * Allowlist fechada, e o service a traduz para um `Prisma.sql` fixo. O nome da
  * coluna **nunca** vem da query string: interpolar isso em `$queryRaw` seria
  * injeção de SQL na cláusula `ORDER BY`, que os placeholders não protegem.
  */
-export const ORDENS_PRODUTO = [
+export const ORDENS_PROCESSO = [
   'progresso',
   'progresso_asc',
   'paradas',
   'nome',
 ] as const;
-export type OrdemComparativoProduto = (typeof ORDENS_PRODUTO)[number];
+export type OrdemComparativoProcesso = (typeof ORDENS_PROCESSO)[number];
 
 export const ORDENS_CLIENTE = [
-  'produtos',
-  'produtos_asc',
+  'processos',
+  'processos_asc',
   'certificados',
   'nome',
 ] as const;
 export type OrdemComparativoCliente = (typeof ORDENS_CLIENTE)[number];
 
-export class ListarComparativoProdutosDto extends PaginacaoDto {
+export class ListarComparativoProcessosDto extends PaginacaoDto {
   @ApiPropertyOptional({
-    enum: ORDENS_PRODUTO,
+    enum: ORDENS_PROCESSO,
     default: 'progresso',
     description:
       '`paradas` ordena pelo maior tempo sem movimentação — o processo travado.',
   })
   @IsOptional()
-  @IsIn(ORDENS_PRODUTO)
-  ordem: OrdemComparativoProduto = 'progresso';
+  @IsIn(ORDENS_PROCESSO)
+  ordem: OrdemComparativoProcesso = 'progresso';
 
   @ApiPropertyOptional({ description: 'Ignorado quando o papel é CLIENTE.' })
   @IsOptional()
@@ -142,10 +142,10 @@ export class ListarComparativoProdutosDto extends PaginacaoDto {
 }
 
 export class ListarComparativoClientesDto extends PaginacaoDto {
-  @ApiPropertyOptional({ enum: ORDENS_CLIENTE, default: 'produtos' })
+  @ApiPropertyOptional({ enum: ORDENS_CLIENTE, default: 'processos' })
   @IsOptional()
   @IsIn(ORDENS_CLIENTE)
-  ordem: OrdemComparativoCliente = 'produtos';
+  ordem: OrdemComparativoCliente = 'processos';
 
   @ApiPropertyOptional({ description: 'Filtra pela carteira de um funcionário.' })
   @IsOptional()
@@ -163,8 +163,8 @@ export class FormatoExportacaoDto {
   formato?: 'xlsx' | 'csv';
 }
 
-export class ExportarComparativoProdutosDto extends IntersectionType(
-  OmitType(ListarComparativoProdutosDto, ['pagina', 'limite'] as const),
+export class ExportarComparativoProcessosDto extends IntersectionType(
+  OmitType(ListarComparativoProcessosDto, ['pagina', 'limite'] as const),
   FormatoExportacaoDto,
 ) {}
 

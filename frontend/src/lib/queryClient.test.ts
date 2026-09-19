@@ -48,8 +48,8 @@ describe('chaves', () => {
     expect(chaves.clientes({ pagina: 1 })).not.toEqual(
       chaves.clientes({ pagina: 2 }),
     );
-    expect(chaves.produtos({ busca: 'a' })).not.toEqual(
-      chaves.produtos({ busca: 'b' }),
+    expect(chaves.processos({ busca: 'a' })).not.toEqual(
+      chaves.processos({ busca: 'b' }),
     );
   });
 
@@ -62,18 +62,18 @@ describe('chaves', () => {
   it('filtro ausente não vira `undefined` na chave', () => {
     // `['clientes', undefined]` e `['clientes', {}]` são chaves diferentes.
     expect(chaves.clientes()).toEqual(['clientes', {}]);
-    expect(chaves.produtos()).toEqual(['produtos', {}]);
+    expect(chaves.processos()).toEqual(['processos', {}]);
   });
 
   it('cada domínio tem prefixo próprio, e ids não colidem entre domínios', () => {
     /*
      * `invalidateQueries({ queryKey: ['clientes'] })` derruba tudo que começa
      * com esse prefixo. Sem prefixo próprio, invalidar clientes derrubaria
-     * produtos junto — ou, pior, não derrubaria o que devia.
+     * processos junto — ou, pior, não derrubaria o que devia.
      */
     expect(chaves.cliente(1)[0]).toBe('clientes');
-    expect(chaves.produto(1)[0]).toBe('produtos');
-    expect(chaves.cliente(1)).not.toEqual(chaves.produto(1));
+    expect(chaves.processo(1)[0]).toBe('processos');
+    expect(chaves.cliente(1)).not.toEqual(chaves.processo(1));
   });
 
   it('o quadro não colide com a lista de certificações', () => {
@@ -98,7 +98,7 @@ describe('chaves', () => {
   it('os relatórios compartilham o prefixo `relatorios`', () => {
     for (const chave of [
       chaves.relatorioEquipe(),
-      chaves.comparativoProdutos(),
+      chaves.comparativoProcessos(),
       chaves.comparativoClientes(),
       chaves.tempoCiclo(),
     ]) {
@@ -108,7 +108,7 @@ describe('chaves', () => {
     // E são distintas entre si, senão um relatório serviria dados de outro.
     const todas = [
       JSON.stringify(chaves.relatorioEquipe()),
-      JSON.stringify(chaves.comparativoProdutos()),
+      JSON.stringify(chaves.comparativoProcessos()),
       JSON.stringify(chaves.comparativoClientes()),
       JSON.stringify(chaves.tempoCiclo()),
     ];

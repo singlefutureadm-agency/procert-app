@@ -13,14 +13,14 @@ import { PrismaService } from '../prisma/prisma.service';
  * continuaria verde.
  *
  * Aqui a forma de callback recebe um **cliente separado** (`tx`), inalcançável
- * de fora do callback. Uma chamada registrada em `tx.certificacaoProduto.update`
+ * de fora do callback. Uma chamada registrada em `tx.certificacaoProcesso.update`
  * só pode ter acontecido lá dentro; se o serviço perder o `$transaction`, a
  * chamada aparece em `prisma.*` e o teste quebra. Os dois lados são
  * verificáveis:
  *
  * ```ts
- * expect(tx.certificacaoProduto.update).toHaveBeenCalled();   // rodou dentro
- * expect(prisma.certificacaoProduto.update).not.toHaveBeenCalled(); // e só lá
+ * expect(tx.certificacaoProcesso.update).toHaveBeenCalled();   // rodou dentro
+ * expect(prisma.certificacaoProcesso.update).not.toHaveBeenCalled(); // e só lá
  * ```
  *
  * Além disso, `chamadasNaTransacao` registra as operações em ordem — serve para

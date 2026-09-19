@@ -3,15 +3,15 @@
  *
  * ## Por que existe, e por que não é o `seed`
  *
- * O checklist de verdade se cadastra na TRILHA, e cada produto recebe uma cópia
- * ao entrar nela. Mas uma trilha com produto vinculado é imutável — e os
- * produtos que já estão no quadro entraram por versões que não tinham
+ * O checklist de verdade se cadastra na TRILHA, e cada processo recebe uma cópia
+ * ao entrar nela. Mas uma trilha com processo vinculado é imutável — e os
+ * processos que já estão no quadro entraram por versões que não tinham
  * checklist. Migrar para uma versão nova também não resolve:
  * `migrarParaVersaoVigente` só ACRESCENTA etapas ausentes e **não toca no
- * checklist das que o produto já tinha**, de propósito, para não apagar
+ * checklist das que o processo já tinha**, de propósito, para não apagar
  * marcações feitas.
  *
- * Sobra escrever a cópia do produto (`MicroEtapaCertificacao`) diretamente, que
+ * Sobra escrever a cópia do processo (`MicroEtapaCertificacao`) diretamente, que
  * é exatamente onde ela vive. É o que este script faz — e por isso ele é
  * DEMONSTRATIVO: serve para a operação ver o quadro com checklist antes de
  * decidir os textos definitivos, não para virar processo real.
@@ -24,7 +24,7 @@
  *   gravaria autoria falsa e, com aprovação automática ligada, aprovaria etapa
  *   sozinho.
  * - **Não toca em trilha**: nenhuma `ModeloMicroEtapa` é criada. O catálogo
- *   continua sendo a fonte, e quando a Qualidade cadastrar lá, os produtos
+ *   continua sendo a fonte, e quando a Qualidade cadastrar lá, os processos
  *   NOVOS já nascem certos.
  *
  * Uso: `npm run demo:micro-etapas`
@@ -105,7 +105,7 @@ const FASE_POR_TIPO: Record<TipoEtapa, FaseProcesso> = {
  * Distribui as etapas pelas fases, para o quadro demonstrar o pipeline.
  *
  * **Escreve em `ModeloEtapa`, que é de versão imutável — e isso é deliberado.**
- * A imutabilidade existe para que "este produto foi avaliado por estas regras"
+ * A imutabilidade existe para que "este processo foi avaliado por estas regras"
  * continue verdadeiro, e `fase` NÃO é regra de avaliação: ela não muda
  * aprovação, prazo nem exigência de evidência. É só em que coluna o cartão
  * aparece. Ajustá-la retroativamente não altera nenhuma avaliação já feita.
@@ -143,14 +143,14 @@ async function main() {
   console.log('Checklists:');
   // Só etapas SEM checklist: a idempotência mora aqui, e é ela que impede o
   // script de passar por cima do que a Qualidade cadastrar de verdade depois.
-  const etapas = await prisma.certificacaoProduto.findMany({
+  const etapas = await prisma.certificacaoProcesso.findMany({
     where: { microEtapas: { none: {} } },
     select: {
       id: true,
-      produto: { select: { nome: true, codigoProcesso: true } },
+      processo: { select: { nome: true, codigoProcesso: true } },
       etapa: { select: { nome: true, tipo: true } },
     },
-    orderBy: [{ produtoId: 'asc' }, { ordem: 'asc' }],
+    orderBy: [{ processoId: 'asc' }, { ordem: 'asc' }],
   });
 
   if (etapas.length === 0) {
@@ -176,7 +176,7 @@ async function main() {
     });
 
     itens += modelo.length;
-    const codigo = etapa.produto.codigoProcesso ?? etapa.produto.nome;
+    const codigo = etapa.processo.codigoProcesso ?? etapa.processo.nome;
     console.log(`  ${codigo} · ${etapa.etapa.nome}: ${modelo.length} item(ns)`);
   }
 

@@ -19,14 +19,14 @@ const INCLUDE_MODELO = {
     orderBy: { ordem: 'asc' },
     include: { microEtapas: { orderBy: { ordem: 'asc' } } },
   },
-  _count: { select: { produtos: true } },
+  _count: { select: { processos: true } },
 } satisfies Prisma.ModeloTrilhaInclude;
 
 /**
  * Versões de uma trilha do catálogo.
  *
- * A regra central é a imutabilidade: assim que uma versão tem produto
- * vinculado, ela vira registro histórico — a avaliação daquele produto tem que
+ * A regra central é a imutabilidade: assim que uma versão tem processo
+ * vinculado, ela vira registro histórico — a avaliação daquele processo tem que
  * continuar valendo pelas regras vigentes na submissão. Alterar o processo
  * significa criar uma versão nova, não editar a anterior.
  *
@@ -145,7 +145,7 @@ export class ModelosTrilhaService {
 
   /**
    * Substitui as etapas de uma versão ainda não utilizada.
-   * Com produto vinculado, a versão é imutável e a resposta orienta versionar.
+   * Com processo vinculado, a versão é imutável e a resposta orienta versionar.
    */
   async substituirEtapas(modeloId: number, dto: SubstituirEtapasDto) {
     const modelo = await this.garantirEditavel(modeloId);
@@ -204,7 +204,7 @@ export class ModelosTrilhaService {
    *
    * Existe para desfazer uma publicação: uma v3 recém-criada que se mostrou
    * errada precisa de caminho de volta para a v2 sem inventar uma v4 idêntica.
-   * Só afeta produto NOVO — os que já estão em avaliação carregam o retrato da
+   * Só afeta processo NOVO — os que já estão em avaliação carregam o retrato da
    * versão pela qual entraram e continuam nela. `vigenteAte` volta a ser nulo:
    * a versão está no ar de novo, e uma data de encerramento no passado diria o
    * contrário para todo relatório que lê a vigência.
@@ -222,7 +222,7 @@ export class ModelosTrilhaService {
     if (modelo._count.etapas === 0) {
       throw new BadRequestException(
         'Esta versão não tem etapas: uma trilha vigente sem etapa nenhuma faria ' +
-          'a categoria recusar todo produto novo. Acrescente as etapas primeiro.',
+          'a categoria recusar todo processo novo. Acrescente as etapas primeiro.',
       );
     }
 
@@ -245,10 +245,10 @@ export class ModelosTrilhaService {
   }
 
   /**
-   * Exclui uma versão sem produtos.
+   * Exclui uma versão sem processos.
    *
    * A vigente não sai enquanto for a única da trilha: a trilha ficaria sem
-   * versão nenhuma e toda categoria vinculada a ela pararia de aceitar produto,
+   * versão nenhuma e toda categoria vinculada a ela pararia de aceitar processo,
    * sem nada na tela dizendo o que aconteceu. Havendo outras, a anterior assume
    * a vigência na mesma transação — a trilha nunca fica órfã de vigente.
    */
@@ -285,10 +285,10 @@ export class ModelosTrilhaService {
 
   /**
    * Resolve a versão vigente da trilha de uma categoria — usada ao cadastrar
-   * produto. Exposta para o `ProdutosService` não duplicar a regra.
+   * processo. Exposta para o `ProcessosService` não duplicar a regra.
    */
   async resolverVigentePorCategoria(categoriaId: number) {
-    const categoria = await this.prisma.categoriaProduto.findUnique({
+    const categoria = await this.prisma.categoriaProcesso.findUnique({
       where: { id: categoriaId },
       select: { trilhaId: true },
     });
@@ -300,7 +300,7 @@ export class ModelosTrilhaService {
     if (!categoria.trilhaId) {
       throw new BadRequestException(
         'Esta categoria ainda não tem trilha vinculada. Vincule uma trilha do ' +
-          'catálogo à categoria antes de submeter produtos.',
+          'catálogo à categoria antes de submeter processos.',
       );
     }
 
@@ -318,7 +318,7 @@ export class ModelosTrilhaService {
     if (!modelo || modelo.etapas.length === 0) {
       throw new BadRequestException(
         'A trilha desta categoria não tem uma versão vigente com etapas. ' +
-          'Publique uma versão da trilha antes de submeter produtos.',
+          'Publique uma versão da trilha antes de submeter processos.',
       );
     }
 
@@ -340,7 +340,7 @@ export class ModelosTrilhaService {
   private async garantirEditavel(modeloId: number) {
     const modelo = await this.prisma.modeloTrilha.findUnique({
       where: { id: modeloId },
-      include: { _count: { select: { produtos: true } } },
+      include: { _count: { select: { processos: true } } },
     });
 
     if (!modelo) {
@@ -349,9 +349,9 @@ export class ModelosTrilhaService {
       );
     }
 
-    if (modelo._count.produtos > 0) {
+    if (modelo._count.processos > 0) {
       throw new ConflictException(
-        `Esta versão já está em uso por ${modelo._count.produtos} produto(s) e não pode ser alterada. ` +
+        `Esta versão já está em uso por ${modelo._count.processos} processo(s) e não pode ser alterada. ` +
           'Crie uma nova versão da trilha para mudar o processo.',
       );
     }
@@ -365,12 +365,12 @@ export class ModelosTrilhaService {
   }
 
   /** Marca para o frontend se a versão ainda aceita edição direta. */
-  private comEditavel<T extends { _count: { produtos: number } }>(modelo: T) {
+  private comEditavel<T extends { _count: { processos: number } }>(modelo: T) {
     const { _count, ...dados } = modelo;
     return {
       ...dados,
-      totalProdutos: _count.produtos,
-      editavel: _count.produtos === 0,
+      totalProcessos: _count.processos,
+      editavel: _count.processos === 0,
     };
   }
 }

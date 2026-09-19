@@ -9,7 +9,7 @@ import type { EtapaTimeline } from '@/types';
 import { certificacoesApi } from './api';
 
 interface Props {
-  produtoId: number;
+  processoId: number;
   etapa: EtapaTimeline;
   podeAnexar: boolean;
 }
@@ -21,7 +21,7 @@ interface Props {
  * achatados numa lista só, porque para quem lê a etapa o que importa é o
  * conjunto de anexos — a procedência de cada um aparece no histórico abaixo.
  */
-export function DocumentosEtapa({ produtoId, etapa, podeAnexar }: Props) {
+export function DocumentosEtapa({ processoId, etapa, podeAnexar }: Props) {
   const queryClient = useQueryClient();
   const entrada = useRef<HTMLInputElement>(null);
 
@@ -29,7 +29,7 @@ export function DocumentosEtapa({ produtoId, etapa, podeAnexar }: Props) {
 
   const anexar = useMutation({
     mutationFn: (arquivo: File) =>
-      certificacoesApi.anexarDocumento(produtoId, etapa.id, arquivo),
+      certificacoesApi.anexarDocumento(processoId, etapa.id, arquivo),
     onSuccess: () => {
       toast.success('Documento anexado.');
       void queryClient.invalidateQueries({ queryKey: ['certificacoes'] });

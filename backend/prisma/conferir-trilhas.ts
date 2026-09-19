@@ -11,7 +11,7 @@
  * Este script é essa conferência, escrita uma vez em vez de digitada a cada
  * banco. O que ele procura tem um sintoma em comum e é por isso que existe:
  * **nada aqui gera erro em tempo de execução**. Uma categoria sem trilha não
- * quebra nada — ela simplesmente recusa todo produto novo, com uma mensagem
+ * quebra nada — ela simplesmente recusa todo processo novo, com uma mensagem
  * que parece regra de negócio, e o defeito só aparece quando alguém tenta
  * cadastrar.
  *
@@ -43,53 +43,53 @@ async function main(): Promise<void> {
 
   console.log('Conferindo a migração de trilhas...\n');
 
-  const [trilhas, versoes, categorias, produtos] = await Promise.all([
+  const [trilhas, versoes, categorias, processos] = await Promise.all([
     prisma.trilha.count(),
     prisma.modeloTrilha.count(),
-    prisma.categoriaProduto.count(),
-    prisma.produto.count(),
+    prisma.categoriaProcesso.count(),
+    prisma.processo.count(),
   ]);
 
   console.log(
     `  ${trilhas} trilha(s), ${versoes} versão(ões), ` +
-      `${categorias} categoria(s), ${produtos} produto(s).\n`,
+      `${categorias} categoria(s), ${processos} processo(s).\n`,
   );
 
   /**
    * Categoria sem trilha.
    *
-   * O caso central. `CategoriaProduto.trilhaId` é anulável — a coluna permite
-   * o estado, o domínio não. Uma categoria assim recusa cadastro de produto
+   * O caso central. `CategoriaProcesso.trilhaId` é anulável — a coluna permite
+   * o estado, o domínio não. Uma categoria assim recusa cadastro de processo
    * com "categoria sem trilha", que é indistinguível de uma categoria recém
    * criada e ainda não configurada. Se ela TINHA trilha antes da migração, a
    * mensagem mente sobre a causa.
    *
-   * A contagem de produtos é o que separa "categoria nova, ainda vazia" de
+   * A contagem de processos é o que separa "categoria nova, ainda vazia" de
    * "categoria em uso que perdeu o vínculo".
    */
-  const semTrilha = await prisma.categoriaProduto.findMany({
+  const semTrilha = await prisma.categoriaProcesso.findMany({
     where: { trilhaId: null },
     select: {
       id: true,
       nome: true,
       status: true,
-      _count: { select: { produtos: true } },
+      _count: { select: { processos: true } },
     },
     orderBy: { id: 'asc' },
   });
 
-  const emUso = semTrilha.filter((c) => c._count.produtos > 0);
+  const emUso = semTrilha.filter((c) => c._count.processos > 0);
 
   if (semTrilha.length > 0) {
     achados.push({
       titulo: `${semTrilha.length} categoria(s) sem trilha vinculada`,
       detalhe: semTrilha.map(
         (c) =>
-          `#${c.id} ${c.nome} — ${c.status}, ${c._count.produtos} produto(s)` +
-          (c._count.produtos > 0 ? '  ← já teve uso' : '  (nunca usada)'),
+          `#${c.id} ${c.nome} — ${c.status}, ${c._count.processos} processo(s)` +
+          (c._count.processos > 0 ? '  ← já teve uso' : '  (nunca usada)'),
       ),
-      // Categoria sem produto pode ser cadastro novo, legítimo e incompleto.
-      // Com produto, alguém já a usou: perder o vínculo é regressão.
+      // Categoria sem processo pode ser cadastro novo, legítimo e incompleto.
+      // Com processo, alguém já a usou: perder o vínculo é regressão.
       grave: emUso.length > 0,
     });
   }
@@ -100,9 +100,9 @@ async function main(): Promise<void> {
    * O outro jeito de a categoria ficar muda, e o #36 o trata com mensagem
    * própria de propósito — as duas situações mandam o admin para telas
    * diferentes. Uma trilha cujas versões foram todas encerradas (`ativo:
-   * false`) não serve para abrir produto.
+   * false`) não serve para abrir processo.
    */
-  const semVersaoVigente = await prisma.categoriaProduto.findMany({
+  const semVersaoVigente = await prisma.categoriaProcesso.findMany({
     where: {
       trilhaId: { not: null },
       trilha: { versoes: { none: { ativo: true } } },
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
       id: true,
       nome: true,
       trilha: { select: { nome: true, _count: { select: { versoes: true } } } },
-      _count: { select: { produtos: true } },
+      _count: { select: { processos: true } },
     },
     orderBy: { id: 'asc' },
   });
@@ -123,7 +123,7 @@ async function main(): Promise<void> {
         (c) =>
           `#${c.id} ${c.nome} → trilha "${c.trilha?.nome}" ` +
           `(${c.trilha?._count.versoes ?? 0} versão(ões), nenhuma ativa), ` +
-          `${c._count.produtos} produto(s)`,
+          `${c._count.processos} processo(s)`,
       ),
       grave: true,
     });
@@ -154,40 +154,40 @@ async function main(): Promise<void> {
   }
 
   /**
-   * Produto apontando para versão que sumiu.
+   * Processo apontando para versão que sumiu.
    *
-   * `Produto.modeloTrilhaId` é NOT NULL e a FK é `Restrict`, então o banco já
+   * `Processo.modeloTrilhaId` é NOT NULL e a FK é `Restrict`, então o banco já
    * impede o estado. A consulta existe para provar que a migration não mexeu
-   * no retrato de versão de cada produto — era a garantia declarada, e é a que
+   * no retrato de versão de cada processo — era a garantia declarada, e é a que
    * mais custaria caro se tivesse falhado, porque reconstruir qual versão
    * regia uma avaliação em andamento não é possível depois.
    */
-  const produtosPorVersao = await prisma.produto.groupBy({
+  const processosPorVersao = await prisma.processo.groupBy({
     by: ['modeloTrilhaId'],
     _count: true,
   });
 
   const versoesReferenciadas = await prisma.modeloTrilha.findMany({
-    where: { id: { in: produtosPorVersao.map((p) => p.modeloTrilhaId) } },
+    where: { id: { in: processosPorVersao.map((p) => p.modeloTrilhaId) } },
     select: { id: true },
   });
 
   const idsExistentes = new Set(versoesReferenciadas.map((v) => v.id));
-  const quebrados = produtosPorVersao.filter(
+  const quebrados = processosPorVersao.filter(
     (p) => !idsExistentes.has(p.modeloTrilhaId),
   );
 
   if (quebrados.length > 0) {
     achados.push({
-      titulo: `${quebrados.length} versão(ões) de trilha referenciada por produto não existe(m)`,
+      titulo: `${quebrados.length} versão(ões) de trilha referenciada por processo não existe(m)`,
       detalhe: quebrados.map(
-        (p) => `modelo_trilha_id ${p.modeloTrilhaId} — ${p._count} produto(s)`,
+        (p) => `modelo_trilha_id ${p.modeloTrilhaId} — ${p._count} processo(s)`,
       ),
       grave: true,
     });
   } else {
     console.log(
-      `  Retrato de versão intacto: ${produtosPorVersao.length} versão(ões) ` +
+      `  Retrato de versão intacto: ${processosPorVersao.length} versão(ões) ` +
         'distinta(s) em uso, todas existentes.\n',
     );
   }

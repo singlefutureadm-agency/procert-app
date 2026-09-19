@@ -124,7 +124,7 @@ export function PreviaVidro({ tokens, fonteId }: { tokens: TokensTema; fonteId: 
     <CaixaPrevia tokens={tokens} fonteId={fonteId}>
       <div className="vidro" style={{ padding: 16 }}>
         <div className="card-metrica__valor">128</div>
-        <div className="card-metrica__rotulo">Produtos em certificação</div>
+        <div className="card-metrica__rotulo">Processos em certificação</div>
       </div>
 
       <div className="vidro" style={{ padding: '10px 14px' }}>

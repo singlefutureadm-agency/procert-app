@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // ProCert — modelo de dados PostgreSQL
 //
-// Migrado do MySQL legado (tbl_cliente, tbl_funcionario, tbl_produto,
-// tbl_etapa_certificacao, tbl_certificacao_produto, tbl_certificacao_historico,
+// Migrado do MySQL legado (tbl_cliente, tbl_funcionario, tbl_processo,
+// tbl_etapa_certificacao, tbl_certificacao_processo, tbl_certificacao_historico,
 // tbl_pagamento, tbl_estado, tbl_reset_senha, tbl_contato).
 //
 // Mudanças estruturais em relação ao legado:
@@ -10,7 +10,7 @@
 //  • Status textuais viraram ENUMs
 //  • `status_etapa` + `ativo_certificacao` (duplicados no legado) → único campo `ativo`
 //  • Chaves estrangeiras reais com ON DELETE definido
-//  • Unicidade de (produtoId, etapaId) em CertificacaoProduto
+//  • Unicidade de (processoId, etapaId) em CertificacaoProcesso
 //  • Senhas sempre em hash bcrypt (`senhaHash`)
 // ---------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ enum TipoPessoa {
   JURIDICA
 }
 
-/// ENUM já existente no legado em tbl_certificacao_produto.status.
+/// ENUM já existente no legado em tbl_certificacao_processo.status.
 enum StatusCertificacao {
   PENDENTE
   EM_ANDAMENTO
@@ -59,7 +59,7 @@ enum StatusPagamento {
 }
 
 /// Gravidade da não conformidade encontrada em uma etapa.
-/// MAIOR compromete a conformidade do produto; MENOR admite correção pontual.
+/// MAIOR compromete a conformidade do processo; MENOR admite correção pontual.
 enum CriticidadeNaoConformidade {
   MENOR
   MAIOR
@@ -110,9 +110,9 @@ enum PapelFuncional {
 /// Bloco do pipeline a que a etapa pertence — as "listas" do quadro Trello,
 /// com o hand-off Técnico ↔ Qualidade que a operação já pratica.
 ///
-/// A fase do PROCESSO é **derivada da etapa atual, nunca gravada no produto**.
+/// A fase do PROCESSO é **derivada da etapa atual, nunca gravada no processo**.
 /// No Trello a posição da lista e o progresso do checklist eram duas fontes de
-/// verdade mantidas à mão, e divergiam; guardar a fase em `Produto` repetiria
+/// verdade mantidas à mão, e divergiam; guardar a fase em `Processo` repetiria
 /// exatamente esse defeito.
 enum FaseProcesso {
   ABERTURA
@@ -125,7 +125,7 @@ enum FaseProcesso {
 /// Por que este processo existe. Vinha no nome do card do Trello
 /// (INICIAL / RENOVAÇÃO / RECERTIFICAÇÃO / MANUTENÇÃO / TRANSFERÊNCIA).
 ///
-/// É atributo do processo, não da trilha: o mesmo produto pode voltar anos
+/// É atributo do processo, não da trilha: o mesmo processo pode voltar anos
 /// depois para renovação seguindo a mesma régua técnica.
 enum MotivoProcesso {
   INICIAL
@@ -199,7 +199,7 @@ model Cliente {
 
   estado      Estado?      @relation(fields: [estadoId], references: [id], onDelete: SetNull)
   responsavel Funcionario? @relation("CarteiraCliente", fields: [responsavelId], references: [id], onDelete: SetNull)
-  produtos    Produto[]
+  processos    Processo[]
 
   @@index([status])
   @@index([nome])
@@ -241,18 +241,18 @@ model Funcionario {
   documentosEnviados    DocumentoCertificacao[]
   aparenciaAtualizada   ConfiguracaoAparencia[]
   microEtapasConcluidas MicroEtapaCertificacao[] @relation("MicroEtapaConcluida")
-  processosCancelados   Produto[]                @relation("ProcessoCancelado")
+  processosCancelados   Processo[]                @relation("ProcessoCancelado")
 
   @@index([role, status])
   @@map("funcionarios")
 }
 
-/// Produto submetido à certificação (legado: tbl_produto).
-model Produto {
+/// Processo submetido à certificação (legado: tbl_processo).
+model Processo {
   id                  Int            @id @default(autoincrement())
   clienteId           Int            @map("cliente_id")
   categoriaId         Int            @map("categoria_id")
-  /// Versão da trilha vigente quando o produto foi submetido.
+  /// Versão da trilha vigente quando o processo foi submetido.
   /// É um retrato: não muda sozinha quando a categoria ganha uma versão nova.
   modeloTrilhaId      Int            @map("modelo_trilha_id")
   /// Identificador do processo no formato `PROCERT-<SIGLA>-<NNN>-<AA>`
@@ -263,8 +263,8 @@ model Produto {
   /// linhas reemite um número já usado depois de uma exclusão. Mesma razão já
   /// registrada em `NaoConformidade.codigo` e `Certificado.numero`.
   ///
-  /// Nulável e SEM backfill retroativo: inventar código para produto antigo
-  /// criaria identificador que nunca circulou em documento nenhum. Produto
+  /// Nulável e SEM backfill retroativo: inventar código para processo antigo
+  /// criaria identificador que nunca circulou em documento nenhum. Processo
   /// anterior à mudança mostra "—".
   codigoProcesso      String?        @unique @map("codigo_processo") @db.VarChar(30)
   /// Por que este processo foi aberto. Ver `MotivoProcesso`.
@@ -273,23 +273,23 @@ model Produto {
   /// concluídas?
   ///
   /// **NULÁVEL de propósito, e `null` não é "não": é "herda".** `null` faz o
-  /// produto seguir `ModeloTrilha.aprovacaoAutomatica` da versão que ele
+  /// processo seguir `ModeloTrilha.aprovacaoAutomatica` da versão que ele
   /// carrega. Um `Boolean` com default `false` não distinguiria "o admin
-  /// desligou neste produto" de "o admin não opinou" — e só a segunda deve
+  /// desligou neste processo" de "o admin não opinou" — e só a segunda deve
   /// acompanhar a trilha quando a política da trilha mudar.
   ///
-  /// Quem resolve os dois é `aprovacaoAutomaticaDoProduto()`. Nenhum lugar deve
+  /// Quem resolve os dois é `aprovacaoAutomaticaDoProcesso()`. Nenhum lugar deve
   /// ler este campo cru para decidir.
   aprovacaoAutomatica Boolean?       @map("aprovacao_automatica")
   /// Quando o processo foi INTERROMPIDO. `null` = em andamento.
   ///
   /// **Não confundir com `status: INATIVO`.** São dois eixos:
-  ///  • `status` é o soft delete do cadastro — o produto some das listagens.
+  ///  • `status` é o soft delete do cadastro — o processo some das listagens.
   ///  • `canceladoEm` é um desfecho do PROCESSO: ele existiu, foi interrompido,
   ///    e continua visível no quadro, em coluna própria. Some do fluxo, não do
   ///    registro.
   ///
-  /// É campo do produto, e não um `StatusCertificacao` novo, porque cancelar é
+  /// É campo do processo, e não um `StatusCertificacao` novo, porque cancelar é
   /// decisão sobre o processo INTEIRO — as etapas mantêm o estado em que
   /// pararam, que é o que a auditoria precisa poder afirmar depois.
   ///
@@ -312,24 +312,24 @@ model Produto {
   atualizadoEm        DateTime       @updatedAt @map("atualizado_em")
 
   cliente      Cliente               @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-  categoria    CategoriaProduto      @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  categoria    CategoriaProcesso      @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
   modeloTrilha ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Restrict)
   canceladoPor Funcionario?          @relation("ProcessoCancelado", fields: [canceladoPorId], references: [id], onDelete: SetNull)
-  certificacao CertificacaoProduto[]
+  certificacao CertificacaoProcesso[]
   certificados Certificado[]
   pagamentos   Pagamento[]
 
   @@index([clienteId])
   @@index([categoriaId])
   @@index([status])
-  @@map("produtos")
+  @@map("processos")
 }
 
 /// Catálogo global de etapas do legado (tbl_etapa_certificacao).
 ///
-/// OBSOLETO: substituído por CategoriaProduto → ModeloTrilha → ModeloEtapa.
+/// OBSOLETO: substituído por CategoriaProcesso → ModeloTrilha → ModeloEtapa.
 /// Mantido apenas até `npm run migrate:categorias` transpor os dados; a relação
-/// com CertificacaoProduto já foi cortada para permitir o remapeamento.
+/// com CertificacaoProcesso já foi cortada para permitir o remapeamento.
 model EtapaCertificacao {
   id           Int      @id @default(autoincrement())
   nome         String   @unique @db.VarChar(120)
@@ -343,12 +343,12 @@ model EtapaCertificacao {
   @@map("etapas_certificacao")
 }
 
-/// Família de produtos que compartilha o mesmo processo de certificação
+/// Família de processos que compartilha o mesmo processo de certificação
 /// (ex.: EPIs de altura, brinquedos, eletrodomésticos).
 ///
 /// Existe porque a trilha de certificação não é universal: cada categoria
 /// responde a normas, ensaios e documentos próprios.
-model CategoriaProduto {
+model CategoriaProcesso {
   id              Int            @id @default(autoincrement())
   nome            String         @unique @db.VarChar(120)
   /// Abreviação da categoria no código do processo (`EPI`, `VOL`, `AESC`).
@@ -359,14 +359,14 @@ model CategoriaProduto {
   sigla           String?        @db.VarChar(8)
   descricao       String?        @db.Text
   normaReferencia String?        @map("norma_referencia") @db.VarChar(200)
-  /// Validade do certificado emitido para produtos desta categoria, em meses.
+  /// Validade do certificado emitido para processos desta categoria, em meses.
   /// Varia por família (EPI, brinquedo, eletrodoméstico) e por norma.
   validadeMeses   Int            @default(24) @map("validade_meses")
   status          StatusRegistro @default(ATIVO)
   /// Trilha do catálogo que esta categoria segue.
   ///
   /// Nulável: categoria recém-criada ainda não tem trilha, e sem trilha ela não
-  /// aceita produto — a regra vive em `ModelosTrilhaService.resolverVigente`.
+  /// aceita processo — a regra vive em `ModelosTrilhaService.resolverVigente`.
   /// Aponta para a FAMÍLIA, não para a versão: qual versão vale hoje é a que
   /// estiver `ativo`, e trocar de versão não mexe nesta coluna.
   trilhaId        Int?           @map("trilha_id")
@@ -374,11 +374,11 @@ model CategoriaProduto {
   atualizadoEm    DateTime       @updatedAt @map("atualizado_em")
 
   trilha   Trilha?   @relation(fields: [trilhaId], references: [id], onDelete: Restrict)
-  produtos Produto[]
+  processos Processo[]
 
   @@index([status])
   @@index([trilhaId])
-  @@map("categorias_produto")
+  @@map("categorias_processo")
 }
 
 /// Trilha de certificação do catálogo — a FAMÍLIA, não a versão.
@@ -390,7 +390,7 @@ model CategoriaProduto {
 /// categorias com o mesmo processo divergirem em silêncio na primeira revisão.
 ///
 /// A família guarda identidade e nome; o processo em si vive nas VERSÕES
-/// (`ModeloTrilha`), que continuam imutáveis assim que têm produto vinculado.
+/// (`ModeloTrilha`), que continuam imutáveis assim que têm processo vinculado.
 model Trilha {
   id           Int            @id @default(autoincrement())
   nome         String         @unique @db.VarChar(120)
@@ -400,7 +400,7 @@ model Trilha {
   atualizadoEm DateTime       @updatedAt @map("atualizado_em")
 
   versoes    ModeloTrilha[]
-  categorias CategoriaProduto[]
+  categorias CategoriaProcesso[]
 
   @@index([status])
   @@map("trilhas")
@@ -408,13 +408,13 @@ model Trilha {
 
 /// Versão imutável de uma trilha do catálogo.
 ///
-/// Trilhas mudam com o tempo (norma revisada, ensaio novo), mas um produto já
+/// Trilhas mudam com o tempo (norma revisada, ensaio novo), mas um processo já
 /// submetido precisa ser avaliado pelas regras vigentes na submissão. Por isso
-/// versiona-se em vez de editar: só a versão sem produtos vinculados é editável.
+/// versiona-se em vez de editar: só a versão sem processos vinculados é editável.
 ///
-/// `Produto.modeloTrilhaId` aponta para AQUI, não para `Trilha`: é o retrato da
+/// `Processo.modeloTrilhaId` aponta para AQUI, não para `Trilha`: é o retrato da
 /// versão vigente no dia da submissão. Vincular a categoria a outra trilha, ou
-/// publicar uma versão nova, não mexe em produto nenhum já em andamento.
+/// publicar uma versão nova, não mexe em processo nenhum já em andamento.
 model ModeloTrilha {
   id                  Int       @id @default(autoincrement())
   trilhaId            Int       @map("trilha_id")
@@ -424,12 +424,12 @@ model ModeloTrilha {
   /// sozinha?
   ///
   /// Fica na VERSÃO, e não na família `Trilha`, pela mesma razão que tudo mais
-  /// aqui: o produto guarda `modeloTrilhaId` como retrato, então herda a regra
+  /// aqui: o processo guarda `modeloTrilhaId` como retrato, então herda a regra
   /// vigente na submissão. Na família, virar esta chave mudaria em silêncio o
   /// modo de aprovar de todo processo em andamento — inclusive os que já
   /// estavam sendo avaliados sob a regra anterior.
   ///
-  /// `Produto.aprovacaoAutomatica` sobrepõe isto caso a caso.
+  /// `Processo.aprovacaoAutomatica` sobrepõe isto caso a caso.
   ///
   /// Default `false`: aprovação de etapa de certificação é ato humano com
   /// autoria, e ligar automação por omissão seria decidir isso pelo cliente.
@@ -440,7 +440,7 @@ model ModeloTrilha {
 
   trilha   Trilha        @relation(fields: [trilhaId], references: [id], onDelete: Cascade)
   etapas   ModeloEtapa[]
-  produtos Produto[]
+  processos Processo[]
 
   @@unique([trilhaId, versao])
   @@index([trilhaId, ativo])
@@ -482,7 +482,7 @@ model ModeloEtapa {
   exigeDocumento   Boolean         @default(false) @map("exige_documento")
 
   modeloTrilha  ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Cascade)
-  certificacoes CertificacaoProduto[]
+  certificacoes CertificacaoProcesso[]
   microEtapas   ModeloMicroEtapa[]
 
   @@index([modeloTrilhaId, ordem])
@@ -491,10 +491,10 @@ model ModeloEtapa {
 
 /// Microetapa prevista por uma etapa da versão de trilha — o item de checklist.
 ///
-/// Vive na TRILHA, não no produto: é parte da definição do processo, e portanto
-/// imutável junto com a versão. O que o produto carrega é uma CÓPIA
+/// Vive na TRILHA, não no processo: é parte da definição do processo, e portanto
+/// imutável junto com a versão. O que o processo carrega é uma CÓPIA
 /// (`MicroEtapaCertificacao`), feita na abertura da trilha, exatamente como
-/// `CertificacaoProduto.ordem` é cópia de `ModeloEtapa.ordem`.
+/// `CertificacaoProcesso.ordem` é cópia de `ModeloEtapa.ordem`.
 ///
 /// Sem texto próprio de "descrição": um item de checklist que precisa de
 /// parágrafo explicativo é uma etapa, não uma microetapa.
@@ -525,18 +525,18 @@ model ModeloMicroEtapa {
   @@map("modelos_micro_etapa")
 }
 
-/// Uma etapa aplicada a um produto (legado: tbl_certificacao_produto).
+/// Uma etapa aplicada a um processo (legado: tbl_certificacao_processo).
 /// `etapaId` aponta para `ModeloEtapa` — a etapa da versão de trilha que o
-/// produto carrega —, não mais para o catálogo global.
-model CertificacaoProduto {
+/// processo carrega —, não mais para o catálogo global.
+model CertificacaoProcesso {
   id           Int                @id @default(autoincrement())
-  produtoId    Int                @map("produto_id")
+  processoId    Int                @map("processo_id")
   etapaId      Int                @map("etapa_id")
-  /// Posição desta etapa na trilha DO PRODUTO.
+  /// Posição desta etapa na trilha DO PROCESSO.
   ///
   /// Copiada de `ModeloEtapa.ordem` na abertura da trilha. É um campo próprio
-  /// porque um produto migrado de versão carrega etapas de modelos diferentes,
-  /// cujos `ordem` colidem — a sequência real só existe no nível do produto.
+  /// porque um processo migrado de versão carrega etapas de modelos diferentes,
+  /// cujos `ordem` colidem — a sequência real só existe no nível do processo.
   ordem        Int
   status       StatusCertificacao @default(PENDENTE)
   observacao   String?            @db.Text
@@ -562,9 +562,9 @@ model CertificacaoProduto {
   /// conformidade mantém o início ORIGINAL.
   ///
   /// `criadoEm` NÃO serve para isto: é a entrada na FILA. A trilha nasce num
-  /// `createMany` dentro da transação do produto e, em Postgres,
+  /// `createMany` dentro da transação do processo e, em Postgres,
   /// `CURRENT_TIMESTAMP` é o início da transação — todas as etapas de um
-  /// produto nascem com o mesmo timestamp, igual ao do produto.
+  /// processo nascem com o mesmo timestamp, igual ao do processo.
   iniciadaEm   DateTime?          @map("iniciada_em")
   /// Quando esta etapa foi aprovada — a aprovação VIGENTE.
   ///
@@ -597,19 +597,19 @@ model CertificacaoProduto {
   criadoEm     DateTime           @default(now()) @map("criado_em")
   atualizadoEm DateTime           @updatedAt @map("atualizado_em")
 
-  produto          Produto                  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  processo          Processo                  @relation(fields: [processoId], references: [id], onDelete: Cascade)
   etapa            ModeloEtapa              @relation(fields: [etapaId], references: [id], onDelete: Restrict)
   historico        CertificacaoHistorico[]
   naoConformidades NaoConformidade[]
   microEtapas      MicroEtapaCertificacao[]
 
-  @@unique([produtoId, etapaId])
-  @@index([produtoId, ordem])
+  @@unique([processoId, etapaId])
+  @@index([processoId, ordem])
   @@index([status])
-  @@map("certificacoes_produto")
+  @@map("certificacoes_processo")
 }
 
-/// A microetapa aplicada a um produto — o item de checklist que se marca.
+/// A microetapa aplicada a um processo — o item de checklist que se marca.
 ///
 /// Cópia de `ModeloMicroEtapa`, feita na abertura da trilha e na migração de
 /// versão. O `nome` é copiado, e não lido por FK, pelo mesmo motivo das autorias
@@ -643,7 +643,7 @@ model MicroEtapaCertificacao {
   concluidaPorNome   String?         @map("concluida_por_nome") @db.VarChar(150)
   criadoEm           DateTime        @default(now()) @map("criado_em")
 
-  certificacao     CertificacaoProduto @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
+  certificacao     CertificacaoProcesso @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
   modeloMicroEtapa ModeloMicroEtapa?   @relation(fields: [modeloMicroEtapaId], references: [id], onDelete: SetNull)
   concluidaPor     Funcionario?        @relation("MicroEtapaConcluida", fields: [concluidaPorId], references: [id], onDelete: SetNull)
 
@@ -677,7 +677,7 @@ model NaoConformidade {
   criadoEm        DateTime                   @default(now()) @map("criado_em")
   atualizadoEm    DateTime                   @updatedAt @map("atualizado_em")
 
-  certificacao CertificacaoProduto @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
+  certificacao CertificacaoProcesso @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
   abertoPor    Funcionario?        @relation(fields: [abertoPorId], references: [id], onDelete: SetNull)
 
   @@index([certificacaoId])
@@ -696,7 +696,7 @@ model CertificacaoHistorico {
   alteradoPorNome String              @map("alterado_por_nome") @db.VarChar(150)
   alteradoEm      DateTime            @default(now()) @map("alterado_em")
 
-  certificacao CertificacaoProduto     @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
+  certificacao CertificacaoProcesso     @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
   alteradoPor  Funcionario?            @relation(fields: [alteradoPorId], references: [id], onDelete: SetNull)
   documentos   DocumentoCertificacao[]
 
@@ -707,7 +707,7 @@ model CertificacaoHistorico {
 /// Evidência anexada a uma etapa (laudo de ensaio, relatório de auditoria,
 /// memorial descritivo).
 ///
-/// Pendura em `CertificacaoHistorico`, e não em `CertificacaoProduto`, para
+/// Pendura em `CertificacaoHistorico`, e não em `CertificacaoProcesso`, para
 /// preservar o momento: fica registrado em qual ponto da trilha — e por quem —
 /// cada documento entrou. Um anexo enviado antes da aprovação gera o seu
 /// próprio registro de histórico, de modo que todo arquivo tem data e autoria.
@@ -731,14 +731,14 @@ model DocumentoCertificacao {
   @@map("documentos_certificacao")
 }
 
-/// Certificado de conformidade emitido para um produto.
+/// Certificado de conformidade emitido para um processo.
 ///
-/// É o produto final do processo e um documento com efeito externo: por isso
+/// É o processo final do processo e um documento com efeito externo: por isso
 /// número imutável, validade explícita e um status próprio — suspender ou
 /// cancelar um certificado é diferente de mexer na trilha que o originou.
 model Certificado {
   id        Int    @id @default(autoincrement())
-  produtoId Int    @map("produto_id")
+  processoId Int    @map("processo_id")
   /// Sequencial por ano: PROCERT-2026-000045.
   numero    String @unique @db.VarChar(30)
   /// O que exatamente está certificado (modelo, variante, faixa de aplicação).
@@ -758,10 +758,10 @@ model Certificado {
   criadoEm       DateTime @default(now()) @map("criado_em")
   atualizadoEm   DateTime @updatedAt @map("atualizado_em")
 
-  produto    Produto      @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  processo    Processo      @relation(fields: [processoId], references: [id], onDelete: Restrict)
   emitidoPor Funcionario? @relation(fields: [emitidoPorId], references: [id], onDelete: SetNull)
 
-  @@index([produtoId, dataEmissao])
+  @@index([processoId, dataEmissao])
   @@index([status, dataValidade])
   @@map("certificados")
 }
@@ -769,7 +769,7 @@ model Certificado {
 /// Pagamentos do processo (legado: tbl_pagamento — antes só era lido).
 model Pagamento {
   id            Int             @id @default(autoincrement())
-  produtoId     Int             @map("produto_id")
+  processoId     Int             @map("processo_id")
   valor         Decimal         @default(0) @db.Decimal(12, 2)
   status        StatusPagamento @default(PENDENTE)
   dataPagamento DateTime?       @map("data_pagamento")
@@ -777,9 +777,9 @@ model Pagamento {
   criadoEm      DateTime        @default(now()) @map("criado_em")
   atualizadoEm  DateTime        @updatedAt @map("atualizado_em")
 
-  produto Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  processo Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
 
-  @@index([produtoId, criadoEm])
+  @@index([processoId, criadoEm])
   @@map("pagamentos")
 }
 

@@ -24,7 +24,7 @@ export interface OpcoesImagem {
   qualidade: number;
 }
 
-/** Fotos de pessoa e miniaturas de produto: exibidas pequenas, nunca ampliadas. */
+/** Fotos de pessoa e miniaturas de processo: exibidas pequenas, nunca ampliadas. */
 export const PERFIL: OpcoesImagem = { ladoMaximo: 1024, qualidade: 0.85 };
 
 /**

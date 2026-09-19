@@ -19,14 +19,14 @@ import { ListarCertificadosDto } from './dto/certificado.dto';
 const CLIENTE_DONO = 100;
 const CLIENTE_ALHEIO = 200;
 
-/** Etapa da trilha do produto, como o `include` do serviço a enxerga. */
+/** Etapa da trilha do processo, como o `include` do serviço a enxerga. */
 const etapa = (
   nome: string,
   obrigatoria: boolean,
   status: StatusCertificacao,
 ) => ({ status, etapa: { nome, obrigatoria } });
 
-const produtoBase = (
+const processoBase = (
   certificacao: ReturnType<typeof etapa>[],
   validadeMeses = 12,
 ) => ({
@@ -55,8 +55,8 @@ const certificadoSalvo = (extra: Record<string, unknown> = {}) => ({
   emitidoPorNome: 'Ana Administradora',
   arquivoPdf: null,
   criadoEm: new Date(2026, 0, 31),
-  produtoId: 1,
-  produto: {
+  processoId: 1,
+  processo: {
     id: 1,
     nome: 'Disjuntor DIN 25A',
     clienteId: CLIENTE_DONO,
@@ -97,7 +97,7 @@ describe('CertificadosService', () => {
     jest.useRealTimers();
   });
 
-  /** Prepara os mocks do caminho feliz de `emitir`, exceto o produto. */
+  /** Prepara os mocks do caminho feliz de `emitir`, exceto o processo. */
   function prepararEmissao() {
     banco.prisma.certificado.findFirst.mockResolvedValue(null as never);
     banco.tx.certificado.findFirst.mockResolvedValue(null as never);
@@ -114,8 +114,8 @@ describe('CertificadosService', () => {
 
   describe('emitir — regra das etapas obrigatórias', () => {
     it('bloqueia com etapa OBRIGATÓRIA pendente e nomeia as pendentes na mensagem', async () => {
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
           etapa('Ensaios laboratoriais', true, StatusCertificacao.EM_ANDAMENTO),
           etapa('Auditoria de fábrica', true, StatusCertificacao.PENDENTE),
@@ -136,8 +136,8 @@ describe('CertificadosService', () => {
 
     it('PERMITE emitir com etapa OPCIONAL pendente', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
           etapa('Ensaios laboratoriais', true, StatusCertificacao.APROVADO),
           etapa('Selo verde (opcional)', false, StatusCertificacao.PENDENTE),
@@ -151,12 +151,12 @@ describe('CertificadosService', () => {
       expect(banco.tx.certificado.create).toHaveBeenCalled();
     });
 
-    it('recusa produto inexistente', async () => {
-      banco.prisma.produto.findUnique.mockResolvedValue(null as never);
+    it('recusa processo inexistente', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue(null as never);
 
       await expect(
         servico.emitir(999, { escopo: 'x' }, admin()),
-      ).rejects.toThrow(new NotFoundException('Produto 999 não encontrado.'));
+      ).rejects.toThrow(new NotFoundException('Processo 999 não encontrado.'));
     });
   });
 
@@ -164,8 +164,8 @@ describe('CertificadosService', () => {
     it.each([[StatusCertificado.EMITIDO], [StatusCertificado.SUSPENSO]])(
       'devolve 409 quando já existe certificado %s',
       async (status) => {
-        banco.prisma.produto.findUnique.mockResolvedValue(
-          produtoBase([
+        banco.prisma.processo.findUnique.mockResolvedValue(
+          processoBase([
             etapa('Análise documental', true, StatusCertificacao.APROVADO),
           ]) as never,
         );
@@ -178,7 +178,7 @@ describe('CertificadosService', () => {
           servico.emitir(1, { escopo: 'Disjuntores' }, admin()),
         ).rejects.toThrow(
           new ConflictException(
-            'Este produto já possui o certificado PROCERT-2026-000001 em vigor. ' +
+            'Este processo já possui o certificado PROCERT-2026-000001 em vigor. ' +
               'Cancele-o antes de emitir um novo.',
           ),
         );
@@ -188,8 +188,8 @@ describe('CertificadosService', () => {
 
     it('consulta o vigente apenas entre EMITIDO e SUSPENSO — vencido e cancelado liberam o lugar', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
         ]) as never,
       );
@@ -199,7 +199,7 @@ describe('CertificadosService', () => {
 
       expect(banco.prisma.certificado.findFirst).toHaveBeenCalledWith({
         where: {
-          produtoId: 1,
+          processoId: 1,
           status: {
             in: [StatusCertificado.EMITIDO, StatusCertificado.SUSPENSO],
           },
@@ -222,8 +222,8 @@ describe('CertificadosService', () => {
 
     it('31/01 + 1 mês vira 28/02, não 03/03 (fim de mês preservado)', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase(
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase(
           [etapa('Análise documental', true, StatusCertificacao.APROVADO)],
           1,
         ) as never,
@@ -240,8 +240,8 @@ describe('CertificadosService', () => {
 
     it('31/01/2024 + 1 mês vira 29/02 em ano bissexto', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2024, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase(
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase(
           [etapa('Análise documental', true, StatusCertificacao.APROVADO)],
           1,
         ) as never,
@@ -256,8 +256,8 @@ describe('CertificadosService', () => {
 
     it('31/01 + 12 meses volta a 31/01 do ano seguinte', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase(
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase(
           [etapa('Análise documental', true, StatusCertificacao.APROVADO)],
           12,
         ) as never,
@@ -273,8 +273,8 @@ describe('CertificadosService', () => {
 
     it('31/03 + 1 mês vira 30/04 (mês de 30 dias)', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 2, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase(
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase(
           [etapa('Análise documental', true, StatusCertificacao.APROVADO)],
           1,
         ) as never,
@@ -289,8 +289,8 @@ describe('CertificadosService', () => {
 
     it('data explícita no payload vence a validade da categoria', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase(
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase(
           [etapa('Análise documental', true, StatusCertificacao.APROVADO)],
           12,
         ) as never,
@@ -307,8 +307,8 @@ describe('CertificadosService', () => {
 
     it('recusa validade anterior ou igual à emissão', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 5, 1, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
         ]) as never,
       );
@@ -331,8 +331,8 @@ describe('CertificadosService', () => {
   describe('emitir — autoria e numeração', () => {
     it('grava a autoria da sessão, nunca um campo do payload', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
         ]) as never,
       );
@@ -348,8 +348,8 @@ describe('CertificadosService', () => {
 
     it('numera derivando do MAIOR número do ano, dentro da transação', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
         ]) as never,
       );
@@ -374,8 +374,8 @@ describe('CertificadosService', () => {
 
     it('começa em 000001 quando o ano ainda não tem certificado', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
         ]) as never,
       );
@@ -389,8 +389,8 @@ describe('CertificadosService', () => {
 
     it('falha na geração do PDF não derruba a emissão', async () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 0, 31, 12));
-      banco.prisma.produto.findUnique.mockResolvedValue(
-        produtoBase([
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
           etapa('Análise documental', true, StatusCertificacao.APROVADO),
         ]) as never,
       );
@@ -528,7 +528,7 @@ describe('CertificadosService', () => {
       numero: 'PROCERT-2026-000045',
       dataValidade: new Date('2027-09-03T12:00:00.000Z'),
       motivoStatus: null,
-      produto: {
+      processo: {
         nome: 'Disjuntor DIN 25A',
         cliente: {
           nome: 'Indústria Cliente Ltda',
@@ -556,10 +556,10 @@ describe('CertificadosService', () => {
       } as never);
 
       expect(notificacoes.certificadoAlterado).toHaveBeenCalledTimes(1);
-      const [para, , produto, certificado] =
+      const [para, , processo, certificado] =
         notificacoes.certificadoAlterado.mock.calls[0];
       expect(para).toBe('contato@cliente.com.br');
-      expect(produto).toBe('Disjuntor DIN 25A');
+      expect(processo).toBe('Disjuntor DIN 25A');
       expect(certificado).toMatchObject({
         numero: 'PROCERT-2026-000045',
         cancelado: false,
@@ -658,7 +658,7 @@ describe('CertificadosService', () => {
         servico.buscarPorId(55, cliente(CLIENTE_ALHEIO)),
       ).rejects.toThrow(
         new ForbiddenException(
-          'Você só pode acessar os certificados dos seus produtos.',
+          'Você só pode acessar os certificados dos seus processos.',
         ),
       );
     });
@@ -695,7 +695,7 @@ describe('CertificadosService', () => {
 
       const argumentos = banco.prisma.certificado.findMany.mock.calls[0][0]!;
       expect(argumentos.where).toMatchObject({
-        produto: { clienteId: CLIENTE_DONO },
+        processo: { clienteId: CLIENTE_DONO },
       });
     });
 
@@ -711,7 +711,7 @@ describe('CertificadosService', () => {
 
       const argumentos = banco.prisma.certificado.findMany.mock.calls[0][0]!;
       expect(argumentos.where).toMatchObject({
-        produto: { clienteId: CLIENTE_ALHEIO },
+        processo: { clienteId: CLIENTE_ALHEIO },
       });
     });
 
@@ -724,13 +724,13 @@ describe('CertificadosService', () => {
       expect(banco.transacoesAbertas).toBe(1);
     });
 
-    it('listarPorProduto: cliente alheio recebe 403 antes de ver qualquer número', async () => {
-      banco.prisma.produto.findUnique.mockResolvedValue({
+    it('listarPorProcesso: cliente alheio recebe 403 antes de ver qualquer número', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue({
         clienteId: CLIENTE_DONO,
       } as never);
 
       await expect(
-        servico.listarPorProduto(1, cliente(CLIENTE_ALHEIO)),
+        servico.listarPorProcesso(1, cliente(CLIENTE_ALHEIO)),
       ).rejects.toThrow(ForbiddenException);
       expect(banco.prisma.certificado.findMany).not.toHaveBeenCalled();
     });

@@ -28,7 +28,7 @@ const etapaDoModelo = (
   prazoSlaHoras: null,
   exigeDocumento: false,
   // O checklist do catálogo. Vem como linhas de `ModeloMicroEtapa`, e é o que
-  // a cópia para o produto lê.
+  // a cópia para o processo lê.
   microEtapas: [] as { id: number; nome: string; ordem: number }[],
   ordem,
   ...extra,
@@ -74,7 +74,7 @@ describe('ModelosTrilhaService', () => {
         id: 90,
         versao: 2,
         etapas: [],
-        _count: { produtos: 0 },
+        _count: { processos: 0 },
       } as never);
     });
 
@@ -238,7 +238,7 @@ describe('ModelosTrilhaService', () => {
     it('substituirEtapas devolve 409 e orienta a versionar', async () => {
       banco.prisma.modeloTrilha.findUnique.mockResolvedValue({
         id: 80,
-        _count: { produtos: 12 },
+        _count: { processos: 12 },
       } as never);
 
       await expect(
@@ -249,7 +249,7 @@ describe('ModelosTrilhaService', () => {
         }),
       ).rejects.toThrow(
         new ConflictException(
-          'Esta versão já está em uso por 12 produto(s) e não pode ser alterada. ' +
+          'Esta versão já está em uso por 12 processo(s) e não pode ser alterada. ' +
             'Crie uma nova versão da trilha para mudar o processo.',
         ),
       );
@@ -259,7 +259,7 @@ describe('ModelosTrilhaService', () => {
     it('reordenarEtapas também é barrado em versão em uso', async () => {
       banco.prisma.modeloTrilha.findUnique.mockResolvedValue({
         id: 80,
-        _count: { produtos: 1 },
+        _count: { processos: 1 },
       } as never);
 
       await expect(
@@ -267,10 +267,10 @@ describe('ModelosTrilhaService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('versão SEM produto vinculado continua editável', async () => {
+    it('versão SEM processo vinculado continua editável', async () => {
       banco.prisma.modeloTrilha.findUnique.mockResolvedValue({
         id: 90,
-        _count: { produtos: 0 },
+        _count: { processos: 0 },
         etapas: [],
         trilha: { id: TRILHA },
       } as never);
@@ -289,18 +289,18 @@ describe('ModelosTrilhaService', () => {
       });
     });
 
-    it('`editavel` acompanha a contagem de produtos', async () => {
+    it('`editavel` acompanha a contagem de processos', async () => {
       banco.prisma.modeloTrilha.findUnique.mockResolvedValue({
         id: 80,
         versao: 1,
         etapas: [],
         trilha: { id: TRILHA },
-        _count: { produtos: 4 },
+        _count: { processos: 4 },
       } as never);
 
       const modelo = await servico.buscarPorId(80);
 
-      expect(modelo).toMatchObject({ totalProdutos: 4, editavel: false });
+      expect(modelo).toMatchObject({ totalProcessos: 4, editavel: false });
       expect(modelo).not.toHaveProperty('_count');
     });
   });
@@ -312,7 +312,7 @@ describe('ModelosTrilhaService', () => {
         versao: 2,
         etapas: [],
         trilha: { id: TRILHA },
-        _count: { produtos: 0 },
+        _count: { processos: 0 },
       } as never);
       banco.prisma.modeloEtapa.findMany.mockResolvedValue([
         { id: 901 },
@@ -361,7 +361,7 @@ describe('ModelosTrilhaService', () => {
 
     it('resolve a versão ativa PELA TRILHA da categoria', async () => {
       const vigente = { id: 90, versao: 2, etapas: [etapaDoModelo('Análise', 1)] };
-      banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+      banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
         categoriaVinculada as never,
       );
       banco.prisma.modeloTrilha.findFirst.mockResolvedValue(vigente as never);
@@ -371,7 +371,7 @@ describe('ModelosTrilhaService', () => {
       );
 
       // O salto categoria → trilha → versão é o que a mudança de modelo
-      // introduziu. Sem ele o produto nasceria pela trilha errada — e como
+      // introduziu. Sem ele o processo nasceria pela trilha errada — e como
       // toda categoria seguia a mesma trilha antes da migração, um teste que
       // só olhasse o resultado passaria sem provar nada.
       expect(banco.prisma.modeloTrilha.findFirst).toHaveBeenCalledWith({
@@ -380,7 +380,7 @@ describe('ModelosTrilhaService', () => {
           etapas: {
             orderBy: { ordem: 'asc' },
             // O checklist do catálogo vem junto: é ele que é copiado para o
-            // produto na abertura da trilha.
+            // processo na abertura da trilha.
             include: { microEtapas: { orderBy: { ordem: 'asc' } } },
           },
         },
@@ -389,7 +389,7 @@ describe('ModelosTrilhaService', () => {
     });
 
     it('recusa categoria inexistente', async () => {
-      banco.prisma.categoriaProduto.findUnique.mockResolvedValue(null as never);
+      banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(null as never);
 
       await expect(
         servico.resolverVigentePorCategoria(CATEGORIA),
@@ -398,7 +398,7 @@ describe('ModelosTrilhaService', () => {
     });
 
     it('recusa categoria SEM trilha vinculada, orientando a vincular', async () => {
-      banco.prisma.categoriaProduto.findUnique.mockResolvedValue({
+      banco.prisma.categoriaProcesso.findUnique.mockResolvedValue({
         trilhaId: null,
       } as never);
 
@@ -407,7 +407,7 @@ describe('ModelosTrilhaService', () => {
       ).rejects.toThrow(
         new BadRequestException(
           'Esta categoria ainda não tem trilha vinculada. Vincule uma trilha do ' +
-            'catálogo à categoria antes de submeter produtos.',
+            'catálogo à categoria antes de submeter processos.',
         ),
       );
       // "Sem trilha" e "trilha sem versão" mandam o usuário a telas
@@ -416,7 +416,7 @@ describe('ModelosTrilhaService', () => {
     });
 
     it('recusa trilha vinculada sem versão vigente', async () => {
-      banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+      banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
         categoriaVinculada as never,
       );
       banco.prisma.modeloTrilha.findFirst.mockResolvedValue(null as never);
@@ -426,13 +426,13 @@ describe('ModelosTrilhaService', () => {
       ).rejects.toThrow(
         new BadRequestException(
           'A trilha desta categoria não tem uma versão vigente com etapas. ' +
-            'Publique uma versão da trilha antes de submeter produtos.',
+            'Publique uma versão da trilha antes de submeter processos.',
         ),
       );
     });
 
-    it('recusa versão vigente SEM etapas — produto não pode nascer sem trilha', async () => {
-      banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+    it('recusa versão vigente SEM etapas — processo não pode nascer sem trilha', async () => {
+      banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
         categoriaVinculada as never,
       );
       banco.prisma.modeloTrilha.findFirst.mockResolvedValue({
@@ -455,7 +455,7 @@ describe('ModelosTrilhaService', () => {
         ativo: false,
         versao: 1,
         etapas: [],
-        _count: { etapas: 4, produtos: 0 },
+        _count: { etapas: 4, processos: 0 },
       } as never);
 
       await servico.definirVigente(80);
@@ -478,7 +478,7 @@ describe('ModelosTrilhaService', () => {
         id: 80,
         trilhaId: TRILHA,
         ativo: false,
-        _count: { etapas: 0, produtos: 0 },
+        _count: { etapas: 0, processos: 0 },
       } as never);
 
       await expect(servico.definirVigente(80)).rejects.toThrow(
@@ -494,7 +494,7 @@ describe('ModelosTrilhaService', () => {
         ativo: true,
         versao: 1,
         etapas: [],
-        _count: { etapas: 4, produtos: 0 },
+        _count: { etapas: 4, processos: 0 },
       } as never);
 
       await servico.definirVigente(80);
@@ -511,7 +511,7 @@ describe('ModelosTrilhaService', () => {
         versao: 1,
         trilhaId: TRILHA,
         ativo: true,
-        _count: { produtos: 0 },
+        _count: { processos: 0 },
       } as never);
       banco.prisma.modeloTrilha.findMany.mockResolvedValue([] as never);
 
@@ -525,7 +525,7 @@ describe('ModelosTrilhaService', () => {
         versao: 2,
         trilhaId: TRILHA,
         ativo: true,
-        _count: { produtos: 0 },
+        _count: { processos: 0 },
       } as never);
       banco.prisma.modeloTrilha.findMany.mockResolvedValue([{ id: 80 }] as never);
 
@@ -544,13 +544,13 @@ describe('ModelosTrilhaService', () => {
       expect(banco.transacoesAbertas).toBe(1);
     });
 
-    it('recusa excluir versão com produtos', async () => {
+    it('recusa excluir versão com processos', async () => {
       banco.prisma.modeloTrilha.findUnique.mockResolvedValue({
         id: 80,
         versao: 1,
         trilhaId: TRILHA,
         ativo: false,
-        _count: { produtos: 3 },
+        _count: { processos: 3 },
       } as never);
 
       await expect(servico.removerVersao(80)).rejects.toThrow(ConflictException);

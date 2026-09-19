@@ -1,4 +1,4 @@
-# ProCert — Plataforma de Certificação de Produtos
+# ProCert — Plataforma de Certificação de Processos
 
 Migração do sistema legado em PHP (MVC artesanal + MySQL) para uma stack moderna:
 
@@ -60,8 +60,8 @@ procert-app/
 │       ├── bootstrap.ts      configurarApp(): prefixo, helmet, CORS, validação,
 │       │                     filtro de erros e estáticos de /uploads
 │       ├── testing/          Mocks e fixtures dos testes unitários
-│       └── modules/          auth, clientes, funcionarios, categorias-produto,
-│                             modelos-trilha, produtos, certificacoes,
+│       └── modules/          auth, clientes, funcionarios, categorias-processo,
+│                             modelos-trilha, processos, certificacoes,
 │                             nao-conformidades, certificados, estados,
 │                             dashboard, uploads, mail, contato, aparencia
 └── frontend/                 SPA React 19 + Vite
@@ -259,19 +259,19 @@ a suíte rodou antes. **Trabalhe em branch e abra PR** — os dois checks precis
 ## Modelo de domínio
 
 ```
-CategoriaProduto ──1:N──► ModeloTrilha (versionado) ──1:N──► ModeloEtapa
+CategoriaProcesso ──1:N──► ModeloTrilha (versionado) ──1:N──► ModeloEtapa
                                                                   │
-Cliente ──1:N──► Produto ──1:N──► CertificacaoProduto ──N:1───────┘
+Cliente ──1:N──► Processo ──1:N──► CertificacaoProcesso ──N:1───────┘
                     │                      ├──1:N──► CertificacaoHistorico ──1:N──► DocumentoCertificacao
                     │                      └──1:N──► NaoConformidade
                     ├──1:N──► Certificado
                     └──1:N──► Pagamento
 ```
 
-Cada **categoria** define a própria trilha de certificação, **versionada**: um produto se
+Cada **categoria** define a própria trilha de certificação, **versionada**: um processo se
 vincula à versão vigente no momento da submissão e continua sendo avaliado por ela mesmo
-que a categoria publique uma versão nova depois. Ao cadastrar um **Produto**, a API abre
-uma linha de `CertificacaoProduto` (status `PENDENTE`) para cada etapa dessa versão, dentro
+que a categoria publique uma versão nova depois. Ao cadastrar um **Processo**, a API abre
+uma linha de `CertificacaoProcesso` (status `PENDENTE`) para cada etapa dessa versão, dentro
 de uma transação.
 
 A partir daí: etapas recebem evidências (obrigatórias quando o modelo exige), reprovações
@@ -284,8 +284,8 @@ validade por categoria e PDF).
 | Papel | Permissões |
 |-------|-----------|
 | `ADMIN` | Acesso total, incluindo gestão de administradores e emissão/suspensão de certificados |
-| `FUNCIONARIO` | Clientes, produtos, categorias e trilhas, certificações e não conformidades |
-| `CLIENTE` | Somente os próprios produtos, certificações e certificados (escopo forçado no servidor); pode responder às suas não conformidades |
+| `FUNCIONARIO` | Clientes, processos, categorias e trilhas, certificações e não conformidades |
+| `CLIENTE` | Somente os próprios processos, certificações e certificados (escopo forçado no servidor); pode responder às suas não conformidades |
 
 ---
 

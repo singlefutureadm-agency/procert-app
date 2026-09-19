@@ -73,7 +73,7 @@ const INCLUDE_MICRO_ETAPAS = {
     concluidaEm: true,
     concluidaPorNome: true,
   },
-} satisfies Prisma.CertificacaoProduto$microEtapasArgs;
+} satisfies Prisma.CertificacaoProcesso$microEtapasArgs;
 
 @Injectable()
 export class CertificacoesService {
@@ -87,7 +87,7 @@ export class CertificacoesService {
   ) {}
 
   /**
-   * Painel consolidado: uma linha por produto, com a etapa atual e o progresso.
+   * Painel consolidado: uma linha por processo, com a etapa atual e o progresso.
    * Substitui as consultas com subquery correlacionada de `Servico::getCertificacoes()`.
    */
   async listarPainel(
@@ -97,7 +97,7 @@ export class CertificacoesService {
     const clienteId =
       usuario.role === Role.CLIENTE ? usuario.id : filtros.clienteId;
 
-    const where: Prisma.ProdutoWhereInput = {
+    const where: Prisma.ProcessoWhereInput = {
       status: StatusRegistro.ATIVO,
       ...(clienteId && { clienteId }),
       ...(filtros.status && { certificacao: { some: { status: filtros.status } } }),
@@ -109,8 +109,8 @@ export class CertificacoesService {
       }),
     };
 
-    const [produtos, total] = await this.prisma.$transaction([
-      this.prisma.produto.findMany({
+    const [processos, total] = await this.prisma.$transaction([
+      this.prisma.processo.findMany({
         where,
         select: {
           id: true,
@@ -135,25 +135,25 @@ export class CertificacoesService {
         skip: filtros.skip,
         take: filtros.limite,
       }),
-      this.prisma.produto.count({ where }),
+      this.prisma.processo.count({ where }),
     ]);
 
-    const dados = produtos.map((produto) => {
-      const etapas = produto.certificacao;
+    const dados = processos.map((processo) => {
+      const etapas = processo.certificacao;
       const aprovadas = etapas.filter(
         (e) => e.status === StatusCertificacao.APROVADO,
       ).length;
       const atual = etapaAtualDe(etapas);
 
       return {
-        produtoId: produto.id,
-        produto: produto.nome,
-        produtoFotoUrl: produto.fotoUrl,
-        cliente: produto.cliente,
+        processoId: processo.id,
+        processo: processo.nome,
+        processoFotoUrl: processo.fotoUrl,
+        cliente: processo.cliente,
         etapaAtual: atual?.etapa.nome ?? null,
         status: atual?.status ?? StatusCertificacao.PENDENTE,
         observacao: atual?.observacao ?? null,
-        atualizadoEm: atual?.atualizadoEm ?? produto.atualizadoEm,
+        atualizadoEm: atual?.atualizadoEm ?? processo.atualizadoEm,
         totalEtapas: etapas.length,
         etapasAprovadas: aprovadas,
         progresso: etapas.length
@@ -166,12 +166,12 @@ export class CertificacoesService {
   }
 
   /**
-   * Timeline completa de um produto: todas as etapas, em ordem,
+   * Timeline completa de um processo: todas as etapas, em ordem,
    * cada uma com o seu histórico de alterações.
    */
-  async detalharPorProduto(produtoId: number, usuario: UsuarioAutenticado) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+  async detalharPorProcesso(processoId: number, usuario: UsuarioAutenticado) {
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
       select: {
         id: true,
         nome: true,
@@ -182,7 +182,7 @@ export class CertificacoesService {
           select: { id: true, nome: true, email: true, telefone: true, fotoUrl: true },
         },
         certificacao: {
-          // A sequência é a da trilha do produto, não a do modelo: só ela
+          // A sequência é a da trilha do processo, não a do modelo: só ela
           // acomoda etapas vindas de versões diferentes sem empate.
           orderBy: { ordem: 'asc' },
           select: {
@@ -192,7 +192,7 @@ export class CertificacoesService {
             observacao: true,
             atualizadoEm: true,
             // `ordem` do modelo fica de fora de propósito: a posição exibida é
-            // a da trilha do produto.
+            // a da trilha do processo.
             etapa: {
               select: {
                 id: true,
@@ -206,7 +206,7 @@ export class CertificacoesService {
                 prazoSlaHoras: true,
               },
             },
-            // O checklist da etapa NESTE produto. É a cópia que se marca; a
+            // O checklist da etapa NESTE processo. É a cópia que se marca; a
             // definição vive em `ModeloMicroEtapa` e não aparece aqui.
             microEtapas: INCLUDE_MICRO_ETAPAS,
             naoConformidades: {
@@ -252,24 +252,24 @@ export class CertificacoesService {
       },
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
-    this.garantirAcesso(produto.clienteId, usuario);
+    this.garantirAcesso(processo.clienteId, usuario);
 
-    const etapas = produto.certificacao;
+    const etapas = processo.certificacao;
     const aprovadas = etapas.filter(
       (e) => e.status === StatusCertificacao.APROVADO,
     ).length;
 
     return {
-      produto: {
-        id: produto.id,
-        nome: produto.nome,
-        descricao: produto.descricao,
-        fotoUrl: produto.fotoUrl,
+      processo: {
+        id: processo.id,
+        nome: processo.nome,
+        descricao: processo.descricao,
+        fotoUrl: processo.fotoUrl,
       },
-      cliente: produto.cliente,
+      cliente: processo.cliente,
       etapas,
       resumo: {
         totalEtapas: etapas.length,
@@ -296,7 +296,7 @@ export class CertificacoesService {
    * Tudo dentro de uma transação: ou o lote inteiro é aplicado, ou nada.
    */
   async salvar(
-    produtoId: number,
+    processoId: number,
     dto: SalvarCertificacaoDto,
     usuario: UsuarioAutenticado,
   ) {
@@ -306,8 +306,8 @@ export class CertificacoesService {
       );
     }
 
-    const existentes = await this.prisma.certificacaoProduto.findMany({
-      where: { produtoId },
+    const existentes = await this.prisma.certificacaoProcesso.findMany({
+      where: { processoId },
       select: {
         id: true,
         status: true,
@@ -321,7 +321,7 @@ export class CertificacoesService {
 
     if (existentes.length === 0) {
       throw new NotFoundException(
-        `Nenhuma certificação encontrada para o produto ${produtoId}.`,
+        `Nenhuma certificação encontrada para o processo ${processoId}.`,
       );
     }
 
@@ -329,7 +329,7 @@ export class CertificacoesService {
     const invalidas = dto.etapas.filter((e) => !porId.has(e.id));
     if (invalidas.length) {
       throw new BadRequestException(
-        `Etapas que não pertencem a este produto: ${invalidas
+        `Etapas que não pertencem a este processo: ${invalidas
           .map((e) => e.id)
           .join(', ')}.`,
       );
@@ -381,7 +381,7 @@ export class CertificacoesService {
         }
 
         if (mudouStatus || mudouObservacao) {
-          await tx.certificacaoProduto.update({
+          await tx.certificacaoProcesso.update({
             where: { id: alteracao.id },
             data: {
               status: alteracao.status,
@@ -453,28 +453,28 @@ export class CertificacoesService {
     );
 
     if (notificaveis.length || ncsAbertas.length) {
-      await this.notificarCliente(produtoId, notificaveis, ncsAbertas);
+      await this.notificarCliente(processoId, notificaveis, ncsAbertas);
     }
 
-    return this.detalharPorProduto(produtoId, usuario);
+    return this.detalharPorProcesso(processoId, usuario);
   }
 
   /**
    * Reabre a certificação: apaga as linhas atuais (e o histórico em cascata)
    * e recria a trilha a partir das etapas ativas.
    */
-  async reiniciar(produtoId: number) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+  async reiniciar(processoId: number) {
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
     });
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
 
-    // Reabre pela trilha que o produto carrega, não pela vigente da categoria:
+    // Reabre pela trilha que o processo carrega, não pela vigente da categoria:
     // trocar de versão é decisão à parte (`migrarParaVersaoVigente`).
     const etapas = await this.prisma.modeloEtapa.findMany({
-      where: { modeloTrilhaId: produto.modeloTrilhaId },
+      where: { modeloTrilhaId: processo.modeloTrilhaId },
       orderBy: { ordem: 'asc' },
       select: {
         id: true,
@@ -485,19 +485,19 @@ export class CertificacoesService {
 
     if (etapas.length === 0) {
       throw new BadRequestException(
-        'O modelo de trilha deste produto não tem etapas cadastradas.',
+        'O modelo de trilha deste processo não tem etapas cadastradas.',
       );
     }
 
     // `create` em laço, não `createMany`: as microetapas são relação aninhada e
     // o `createMany` recriaria a trilha com os checklists vazios, sem erro.
     await this.prisma.$transaction(async (tx) => {
-      await tx.certificacaoProduto.deleteMany({ where: { produtoId } });
+      await tx.certificacaoProcesso.deleteMany({ where: { processoId } });
 
       for (const etapa of etapas) {
-        await tx.certificacaoProduto.create({
+        await tx.certificacaoProcesso.create({
           data: {
-            produtoId,
+            processoId,
             etapaId: etapa.id,
             ordem: etapa.ordem,
             status: StatusCertificacao.PENDENTE,
@@ -522,23 +522,23 @@ export class CertificacoesService {
   }
 
   /**
-   * Diz se o produto está preso a uma versão antiga da trilha da sua categoria.
+   * Diz se o processo está preso a uma versão antiga da trilha da sua categoria.
    *
    * Consulta pura, sem efeito: a migração só acontece com confirmação
    * explícita em `migrarParaVersaoVigente`. Trocar a régua de avaliação de um
-   * produto em andamento nunca deve ser silencioso.
+   * processo em andamento nunca deve ser silencioso.
    */
-  async verificarVersaoTrilha(produtoId: number) {
-    const produto = await this.carregarProdutoComTrilha(produtoId);
+  async verificarVersaoTrilha(processoId: number) {
+    const processo = await this.carregarProcessoComTrilha(processoId);
 
     /*
      * Categoria sem trilha vinculada cai no mesmo ramo de "já está na vigente":
      * não há régua nova para onde migrar, e inventar um aviso aqui mandaria o
      * usuário a uma ação que a tela não consegue completar.
      */
-    const vigente = produto.categoria.trilhaId
+    const vigente = processo.categoria.trilhaId
       ? await this.prisma.modeloTrilha.findFirst({
-          where: { trilhaId: produto.categoria.trilhaId, ativo: true },
+          where: { trilhaId: processo.categoria.trilhaId, ativo: true },
           include: {
             etapas: { orderBy: { ordem: 'asc' } },
             trilha: { select: { nome: true } },
@@ -547,20 +547,20 @@ export class CertificacoesService {
         })
       : null;
 
-    if (!vigente || vigente.id === produto.modeloTrilhaId) {
+    if (!vigente || vigente.id === processo.modeloTrilhaId) {
       return {
         atualizado: true,
-        trilhaProduto: produto.modeloTrilha.trilha.nome,
-        trilhaVigente: produto.modeloTrilha.trilha.nome,
-        versaoProduto: produto.modeloTrilha.versao,
-        versaoVigente: vigente?.versao ?? produto.modeloTrilha.versao,
+        trilhaProcesso: processo.modeloTrilha.trilha.nome,
+        trilhaVigente: processo.modeloTrilha.trilha.nome,
+        versaoProcesso: processo.modeloTrilha.versao,
+        versaoVigente: vigente?.versao ?? processo.modeloTrilha.versao,
         etapasAAdicionar: [],
-        mensagem: 'O produto já segue a versão vigente da trilha.',
+        mensagem: 'O processo já segue a versão vigente da trilha.',
       };
     }
 
     const nomesAtuais = new Set(
-      produto.certificacao.map((certificacao) => certificacao.etapa.nome),
+      processo.certificacao.map((certificacao) => certificacao.etapa.nome),
     );
     // A comparação é por nome porque cada versão tem ModeloEtapa próprias:
     // ids diferentes descrevendo a mesma etapa do processo.
@@ -575,22 +575,22 @@ export class CertificacoesService {
      * isso ele entra sempre que as trilhas diferem, e some quando são a mesma,
      * onde repetir o nome dos dois lados só faria ruído.
      */
-    const trilhaProduto = produto.modeloTrilha.trilha.nome;
+    const trilhaProcesso = processo.modeloTrilha.trilha.nome;
     const trilhaVigente = vigente.trilha.nome;
-    const mudouDeTrilha = trilhaProduto !== trilhaVigente;
+    const mudouDeTrilha = trilhaProcesso !== trilhaVigente;
 
     const origem = mudouDeTrilha
-      ? `a versão ${produto.modeloTrilha.versao} da trilha "${trilhaProduto}"`
-      : `a versão ${produto.modeloTrilha.versao} da trilha`;
+      ? `a versão ${processo.modeloTrilha.versao} da trilha "${trilhaProcesso}"`
+      : `a versão ${processo.modeloTrilha.versao} da trilha`;
     const destino = mudouDeTrilha
       ? `a versão ${vigente.versao} da trilha "${trilhaVigente}", que a categoria passou a seguir`
       : `a versão ${vigente.versao}`;
 
     return {
       atualizado: false,
-      trilhaProduto,
+      trilhaProcesso,
       trilhaVigente,
-      versaoProduto: produto.modeloTrilha.versao,
+      versaoProcesso: processo.modeloTrilha.versao,
       versaoVigente: vigente.versao,
       etapasAAdicionar: etapasAAdicionar.map((etapa) => ({
         id: etapa.id,
@@ -599,7 +599,7 @@ export class CertificacoesService {
         obrigatoria: etapa.obrigatoria,
       })),
       mensagem:
-        `Este produto segue ${origem}; a vigente é ${destino}. ` +
+        `Este processo segue ${origem}; a vigente é ${destino}. ` +
         (etapasAAdicionar.length
           ? `Migrar adiciona ${etapasAAdicionar.length} etapa(s) pendente(s).`
           : 'Migrar não adiciona etapas novas — as diferenças são de configuração.'),
@@ -607,24 +607,24 @@ export class CertificacoesService {
   }
 
   /**
-   * Move o produto para a versão vigente da trilha, acrescentando apenas as
+   * Move o processo para a versão vigente da trilha, acrescentando apenas as
    * etapas que ainda não existem na sua trilha.
    *
    * O histórico e o progresso das etapas já avaliadas são preservados: nada é
    * apagado nem reavaliado. Para recomeçar do zero existe `reiniciar`.
    */
-  async migrarParaVersaoVigente(produtoId: number, usuario: UsuarioAutenticado) {
-    const situacao = await this.verificarVersaoTrilha(produtoId);
+  async migrarParaVersaoVigente(processoId: number, usuario: UsuarioAutenticado) {
+    const situacao = await this.verificarVersaoTrilha(processoId);
 
     if (situacao.atualizado) {
       return { ...situacao, adicionadas: 0 };
     }
 
-    const produto = await this.carregarProdutoComTrilha(produtoId);
+    const processo = await this.carregarProcessoComTrilha(processoId);
     // `situacao.atualizado` false garante que existe trilha e versão vigente:
     // sem elas `verificarVersaoTrilha` teria retornado no ramo acima.
     const vigente = await this.prisma.modeloTrilha.findFirstOrThrow({
-      where: { trilhaId: produto.categoria.trilhaId ?? -1, ativo: true },
+      where: { trilhaId: processo.categoria.trilhaId ?? -1, ativo: true },
       include: {
         etapas: {
           orderBy: { ordem: 'asc' },
@@ -661,22 +661,22 @@ export class CertificacoesService {
     const FIM_DA_FILA = Number.MAX_SAFE_INTEGER;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.produto.update({
-        where: { id: produtoId },
+      await tx.processo.update({
+        where: { id: processoId },
         data: { modeloTrilhaId: vigente.id },
       });
 
       for (const etapa of situacao.etapasAAdicionar) {
-        const certificacao = await tx.certificacaoProduto.create({
+        const certificacao = await tx.certificacaoProcesso.create({
           data: {
-            produtoId,
+            processoId,
             etapaId: etapa.id,
             // Provisória: a renumeração logo abaixo posiciona todas de uma vez.
             ordem: ordemVigentePorNome.get(etapa.nome) ?? FIM_DA_FILA,
             status: StatusCertificacao.PENDENTE,
             observacao: `Etapa incluída na migração para a versão ${vigente.versao} da trilha`,
             // Etapa nova nasce com o checklist da versão nova. As etapas que o
-            // produto já tinha NÃO são tocadas: o checklist delas pertence à
+            // processo já tinha NÃO são tocadas: o checklist delas pertence à
             // avaliação em curso, e trocá-lo aqui apagaria marcações feitas.
             microEtapas: {
               create: (microEtapasPorEtapa.get(etapa.id) ?? []).map((micro) => ({
@@ -696,7 +696,7 @@ export class CertificacoesService {
             certificacaoId: certificacao.id,
             statusAnterior: null,
             statusNovo: StatusCertificacao.PENDENTE,
-            observacao: `Etapa adicionada ao migrar da versão ${situacao.versaoProduto} para a ${vigente.versao}`,
+            observacao: `Etapa adicionada ao migrar da versão ${situacao.versaoProcesso} para a ${vigente.versao}`,
             alteradoPorId: usuario.id,
             alteradoPorNome: usuario.nome,
           },
@@ -706,8 +706,8 @@ export class CertificacoesService {
       // Renumera a trilha inteira em 1..N seguindo o modelo vigente. Sem isso,
       // as etapas novas herdariam `ordem` que colide com as das versões
       // anteriores e a sequência exibida ficaria indefinida.
-      const trilha = await tx.certificacaoProduto.findMany({
-        where: { produtoId },
+      const trilha = await tx.certificacaoProcesso.findMany({
+        where: { processoId },
         select: { id: true, ordem: true, etapa: { select: { nome: true } } },
       });
 
@@ -725,7 +725,7 @@ export class CertificacoesService {
 
       for (const [indice, item] of sequencia.entries()) {
         if (item.ordemAtual === indice + 1) continue;
-        await tx.certificacaoProduto.update({
+        await tx.certificacaoProcesso.update({
           where: { id: item.id },
           data: { ordem: indice + 1 },
         });
@@ -737,7 +737,7 @@ export class CertificacoesService {
       atualizado: true,
       adicionadas: situacao.etapasAAdicionar.length,
       mensagem:
-        `Produto migrado para a versão ${vigente.versao} da trilha. ` +
+        `Processo migrado para a versão ${vigente.versao} da trilha. ` +
         `${situacao.etapasAAdicionar.length} etapa(s) adicionada(s).`,
     };
   }
@@ -750,26 +750,26 @@ export class CertificacoesService {
    * não pode invalidar uma avaliação técnica que já foi gravada.
    */
   private async notificarCliente(
-    produtoId: number,
+    processoId: number,
     mudancas: Array<{ etapa: string; statusNovo: StatusCertificacao }>,
     naoConformidades: NaoConformidadeAvisada[] = [],
   ): Promise<void> {
     try {
-      const produto = await this.prisma.produto.findUnique({
-        where: { id: produtoId },
+      const processo = await this.prisma.processo.findUnique({
+        where: { id: processoId },
         select: {
           nome: true,
           cliente: { select: { nome: true, email: true } },
         },
       });
 
-      if (!produto) return;
+      if (!processo) return;
 
       await this.notificacoes.certificacaoAtualizada(
-        produto.cliente.email,
-        produto.cliente.nome,
-        produto.nome,
-        produtoId,
+        processo.cliente.email,
+        processo.cliente.nome,
+        processo.nome,
+        processoId,
         mudancas.map((mudanca) => ({
           etapa: mudanca.etapa,
           status: ROTULO_STATUS[mudanca.statusNovo],
@@ -778,14 +778,14 @@ export class CertificacoesService {
       );
     } catch (erro) {
       this.logger.error(
-        `Falha ao notificar o cliente do produto ${produtoId}: ${(erro as Error).message}`,
+        `Falha ao notificar o cliente do processo ${processoId}: ${(erro as Error).message}`,
       );
     }
   }
 
-  private async carregarProdutoComTrilha(produtoId: number) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+  private async carregarProcessoComTrilha(processoId: number) {
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
       include: {
         modeloTrilha: { include: { trilha: { select: { nome: true } } } },
         // `trilhaId` da categoria é o que resolve a versão vigente hoje: a
@@ -795,10 +795,10 @@ export class CertificacoesService {
       },
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
-    return produto;
+    return processo;
   }
 
   /**
@@ -815,7 +815,7 @@ export class CertificacoesService {
    * EM_ANDAMENTO, senão 1ª PENDENTE, senão a última", e depois deste método a
    * 1ª EM_ANDAMENTO é justamente a etapa da fase de destino.
    *
-   * Gravar a fase no produto seria mais simples e é exatamente o que o quadro
+   * Gravar a fase no processo seria mais simples e é exatamente o que o quadro
    * Trello fazia de errado: a lista dizia uma coisa e o checklist dizia outra,
    * porque eram duas fontes mantidas à mão.
    *
@@ -826,10 +826,10 @@ export class CertificacoesService {
    * isso. O processo aparece na fase nova com as etapas anteriores ainda
    * pendentes, que é a verdade.
    *
-   * Fases sem etapa na trilha do produto são recusadas: não há para onde mover.
+   * Fases sem etapa na trilha do processo são recusadas: não há para onde mover.
    */
   async moverParaFase(
-    produtoId: number,
+    processoId: number,
     fase: FaseProcesso,
     usuario: UsuarioAutenticado,
   ) {
@@ -839,8 +839,8 @@ export class CertificacoesService {
       );
     }
 
-    const etapas = await this.prisma.certificacaoProduto.findMany({
-      where: { produtoId },
+    const etapas = await this.prisma.certificacaoProcesso.findMany({
+      where: { processoId },
       orderBy: { ordem: 'asc' },
       select: {
         id: true,
@@ -853,7 +853,7 @@ export class CertificacoesService {
 
     if (etapas.length === 0) {
       throw new NotFoundException(
-        `Nenhuma certificação encontrada para o produto ${produtoId}.`,
+        `Nenhuma certificação encontrada para o processo ${processoId}.`,
       );
     }
 
@@ -861,7 +861,7 @@ export class CertificacoesService {
 
     if (daFase.length === 0) {
       throw new BadRequestException(
-        `A trilha deste produto não tem nenhuma etapa na fase escolhida. ` +
+        `A trilha deste processo não tem nenhuma etapa na fase escolhida. ` +
           'Mover para lá deixaria o cartão numa coluna sem etapa correspondente.',
       );
     }
@@ -906,7 +906,7 @@ export class CertificacoesService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const etapa of aDevolver) {
-        await tx.certificacaoProduto.update({
+        await tx.certificacaoProcesso.update({
           where: { id: etapa.id },
           data: {
             status: StatusCertificacao.PENDENTE,
@@ -937,7 +937,7 @@ export class CertificacoesService {
       // o ruído que o `statusAnterior <> statusNovo` do ciclo.service descarta.
       if (destino.status === StatusCertificacao.EM_ANDAMENTO) return;
 
-      await tx.certificacaoProduto.update({
+      await tx.certificacaoProcesso.update({
         where: { id: destino.id },
         data: {
           status: StatusCertificacao.EM_ANDAMENTO,
@@ -972,7 +972,7 @@ export class CertificacoesService {
   /**
    * Interrompe o processo. As etapas ficam como estão.
    *
-   * Cancelar NÃO é desativar o produto (`status: INATIVO`, que é soft delete do
+   * Cancelar NÃO é desativar o processo (`status: INATIVO`, que é soft delete do
    * cadastro) e NÃO mexe no estado das etapas: o processo existiu, parou onde
    * parou, e é isso que a auditoria precisa poder afirmar. O cartão sai do
    * fluxo e vai para a coluna CANCELADO do quadro.
@@ -981,25 +981,25 @@ export class CertificacoesService {
    * uma pergunta sem resposta seis meses depois.
    */
   async cancelar(
-    produtoId: number,
+    processoId: number,
     motivo: string,
     usuario: UsuarioAutenticado,
   ) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
       select: { id: true, canceladoEm: true },
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
 
-    if (produto.canceladoEm) {
+    if (processo.canceladoEm) {
       throw new BadRequestException('Este processo já está cancelado.');
     }
 
-    await this.prisma.produto.update({
-      where: { id: produtoId },
+    await this.prisma.processo.update({
+      where: { id: processoId },
       data: {
         canceladoEm: new Date(),
         motivoCancelamento: motivo,
@@ -1018,22 +1018,22 @@ export class CertificacoesService {
    * A coluna do quadro volta a ser derivada da etapa atual — não há "voltar
    * para onde estava", porque nunca se gravou onde estava.
    */
-  async reabrir(produtoId: number) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+  async reabrir(processoId: number) {
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
       select: { id: true, canceladoEm: true },
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
 
-    if (!produto.canceladoEm) {
+    if (!processo.canceladoEm) {
       throw new BadRequestException('Este processo não está cancelado.');
     }
 
-    await this.prisma.produto.update({
-      where: { id: produtoId },
+    await this.prisma.processo.update({
+      where: { id: processoId },
       data: {
         canceladoEm: null,
         motivoCancelamento: null,
@@ -1048,7 +1048,7 @@ export class CertificacoesService {
   private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {
     if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) {
       throw new ForbiddenException(
-        'Você só pode acompanhar as certificações dos seus produtos.',
+        'Você só pode acompanhar as certificações dos seus processos.',
       );
     }
   }
@@ -1066,7 +1066,7 @@ export class CertificacoesService {
  * é sequencial — a resposta das duas perguntas diverge, e mover de volta para a
  * fase de origem era recusado como "já está nesta fase".
  *
- * A lista precisa vir ORDENADA por `ordem` — é a ordem da trilha do produto,
+ * A lista precisa vir ORDENADA por `ordem` — é a ordem da trilha do processo,
  * não a do modelo.
  */
 export function etapaAtualDe<T extends { status: StatusCertificacao }>(
@@ -1083,7 +1083,7 @@ export function etapaAtualDe<T extends { status: StatusCertificacao }>(
  * Os marcos temporais a gravar numa transição de status.
  *
  * Ponto ÚNICO da regra no código — a mesma definição que o comentário de
- * `CertificacaoProduto` no schema e que o SQL de backfill das migrations
+ * `CertificacaoProcesso` no schema e que o SQL de backfill das migrations
  * `20260905210000` e `20260905213000`. São três cópias da mesma regra em três
  * linguagens, e nada as compara em execução: mexeu numa, mexa nas outras.
  *

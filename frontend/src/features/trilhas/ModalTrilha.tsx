@@ -79,7 +79,7 @@ export function ModalTrilha({ aberto, trilha, aoFechar, aoCriar }: Props) {
         <Campo
           label="Descrição"
           erro={errors.descricao?.message}
-          dica="Para que serve esta trilha e a que famílias de produto ela atende."
+          dica="Para que serve esta trilha e a que famílias de processo ela atende."
         >
           <textarea rows={3} {...register('descricao')} />
         </Campo>

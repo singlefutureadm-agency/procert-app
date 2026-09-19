@@ -49,7 +49,7 @@ export function html(valor: string): Html {
 /**
  * Template que escapa toda interpolação, menos as marcadas com `html()`.
  *
- * Nome de produto, de etapa e de cliente são texto livre digitado no painel.
+ * Nome de processo, de etapa e de cliente são texto livre digitado no painel.
  * Antes iam para o HTML por `this.escapar(x)` escrito à mão em cada ponto;
  * aqui o padrão se inverte — esquecer passa a ser impossível, e deixar passar
  * exige o gesto explícito de `html()`.
@@ -77,7 +77,7 @@ function escapar(texto: string): string {
 /**
  * Remove quebras de linha do assunto.
  *
- * O assunto carrega nome de produto vindo do banco, e cabeçalho de e-mail é
+ * O assunto carrega nome de processo vindo do banco, e cabeçalho de e-mail é
  * delimitado por CRLF: um nome com `\r\n` dentro emenda cabeçalho falso na
  * mensagem. O `nodemailer` 9 recusa por conta própria — mas recusar é o
  * comportamento dele, não uma garantia nossa, e a versão que o recusa é a que
@@ -140,8 +140,8 @@ export class NotificacoesService {
   async certificacaoAtualizada(
     para: string,
     nomeCliente: string,
-    produto: string,
-    produtoId: number,
+    processo: string,
+    processoId: number,
     mudancas: Array<{ etapa: string; status: string }>,
     naoConformidades: NaoConformidadeAvisada[] = [],
   ): Promise<void> {
@@ -167,14 +167,14 @@ export class NotificacoesService {
       ? { texto: 'Responder no painel', url: this.link('/nao-conformidades') }
       : {
           texto: 'Acompanhar no painel',
-          url: this.link(`/certificacoes/produto/${produtoId}`),
+          url: this.link(`/certificacoes/processo/${processoId}`),
         };
 
-    await this.enviar(para, `Atualização na certificação — ${produto}`, {
+    await this.enviar(para, `Atualização na certificação — ${processo}`, {
       titulo: 'Atualização na certificação',
       destinatario: nomeCliente,
       corpo: seguro`
-        <p>A avaliação do produto <strong>${produto}</strong> teve ${quantas}:</p>
+        <p>A avaliação do processo <strong>${processo}</strong> teve ${quantas}:</p>
         <ul style="padding-left:18px">${html(itens)}</ul>${html(blocoNc)}`,
       acao,
     });
@@ -184,15 +184,15 @@ export class NotificacoesService {
   async naoConformidadeAberta(
     para: string,
     nomeCliente: string,
-    produto: string,
+    processo: string,
     nc: NaoConformidadeAvisada,
   ): Promise<void> {
-    await this.enviar(para, `Não conformidade ${nc.codigo} — ${produto}`, {
+    await this.enviar(para, `Não conformidade ${nc.codigo} — ${processo}`, {
       titulo: 'Não conformidade registrada',
       destinatario: nomeCliente,
       corpo: seguro`
-        <p>Foi registrada uma não conformidade na avaliação do produto
-           <strong>${produto}</strong>.</p>
+        <p>Foi registrada uma não conformidade na avaliação do processo
+           <strong>${processo}</strong>.</p>
         <ul style="padding-left:18px">${html(this.listaDeNc([nc]))}</ul>
         <p>${nc.descricao}</p>`,
       acao: { texto: 'Responder no painel', url: this.link('/nao-conformidades') },
@@ -204,12 +204,12 @@ export class NotificacoesService {
    *
    * `RESOLVIDA` não significa etapa aprovada — ela volta para `EM_ANDAMENTO` e
    * será reavaliada. O texto diz isso, senão o cliente lê "resolvida" e supõe
-   * que o produto avançou.
+   * que o processo avançou.
    */
   async naoConformidadeAvaliada(
     para: string,
     nomeCliente: string,
-    produto: string,
+    processo: string,
     nc: { codigo: string; etapa: string; resolvida: boolean; parecer?: string | null },
   ): Promise<void> {
     const desfecho = nc.resolvida
@@ -225,7 +225,7 @@ export class NotificacoesService {
       ? seguro`<p><strong>Parecer da equipe:</strong> ${nc.parecer}</p>`
       : '';
 
-    await this.enviar(para, `Não conformidade ${nc.codigo} — ${produto}`, {
+    await this.enviar(para, `Não conformidade ${nc.codigo} — ${processo}`, {
       titulo: nc.resolvida
         ? 'Não conformidade resolvida'
         : 'Resposta não aceita',
@@ -239,14 +239,14 @@ export class NotificacoesService {
   async certificadoEmitido(
     para: string,
     nomeCliente: string,
-    produto: string,
+    processo: string,
     certificado: { numero: string; dataValidade: Date },
   ): Promise<void> {
-    await this.enviar(para, `Certificado emitido — ${produto}`, {
+    await this.enviar(para, `Certificado emitido — ${processo}`, {
       titulo: 'Certificado emitido',
       destinatario: nomeCliente,
       corpo: seguro`
-        <p>O produto <strong>${produto}</strong> concluiu todas as etapas
+        <p>O processo <strong>${processo}</strong> concluiu todas as etapas
            obrigatórias e teve o certificado emitido.</p>
         <ul style="padding-left:18px">
           <li style="margin-bottom:6px"><strong>Número</strong>: ${certificado.numero}</li>
@@ -267,7 +267,7 @@ export class NotificacoesService {
   async certificadoAlterado(
     para: string,
     nomeCliente: string,
-    produto: string,
+    processo: string,
     certificado: { numero: string; cancelado: boolean; motivo?: string | null },
   ): Promise<void> {
     const acao = certificado.cancelado ? 'cancelado' : 'suspenso';
@@ -278,13 +278,13 @@ export class NotificacoesService {
 
     await this.enviar(
       para,
-      `Certificado ${certificado.numero} ${acao} — ${produto}`,
+      `Certificado ${certificado.numero} ${acao} — ${processo}`,
       {
         titulo: `Certificado ${acao}`,
         destinatario: nomeCliente,
         corpo: seguro`
-        <p>O certificado <strong>${certificado.numero}</strong>, do produto
-           <strong>${produto}</strong>, foi <strong>${acao}</strong>.</p>${html(motivo)}
+        <p>O certificado <strong>${certificado.numero}</strong>, do processo
+           <strong>${processo}</strong>, foi <strong>${acao}</strong>.</p>${html(motivo)}
         <p>Em caso de dúvida, entre em contato com a equipe da ProCert.</p>`,
         acao: { texto: 'Ver no painel', url: this.link('/certificados') },
       },

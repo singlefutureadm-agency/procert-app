@@ -37,9 +37,9 @@ export function HomePage() {
   useAncoraInicial();
 
   useSeo({
-    titulo: 'ProCert | Certificação de EPI e de produtos',
+    titulo: 'ProCert | Certificação de EPI e de processos',
     descricao:
-      'Organismo de Certificação de Produto especializado em equipamentos de proteção individual para trabalho em altura. Certificação, auditoria de fábrica, ensaios e emissão de certificado.',
+      'Organismo de Certificação de Processo especializado em equipamentos de proteção individual para trabalho em altura. Certificação, auditoria de fábrica, ensaios e emissão de certificado.',
     caminho: '/',
     dadosEstruturados: grafo(organizacao(), {
       '@type': 'WebSite',

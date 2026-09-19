@@ -29,7 +29,7 @@ import type { RelatorioCiclo } from './ciclo.service';
 const CABECALHOS = [
   'Trilha / Etapa',
   'Lead time da trilha (dias)',
-  'Lead time — base (produtos)',
+  'Lead time — base (processos)',
   'Tempo de tratamento da etapa (dias)',
   'Tratamento — base (etapas)',
   'Tempo em fila (dias)',
@@ -41,7 +41,7 @@ const CABECALHOS = [
 
 const NOTA_METRICAS =
   'Três medidas diferentes, NÃO comparáveis entre si. ' +
-  'Lead time da trilha: da submissão do produto até a aprovação da última etapa obrigatória. ' +
+  'Lead time da trilha: da submissão do processo até a aprovação da última etapa obrigatória. ' +
   'Tempo de tratamento da etapa: da primeira saída de Pendente até a aprovação. ' +
   'Tempo em fila: da criação da etapa até alguém encostar nela. ' +
   'Aprovação direta: etapas que foram de Pendente a Aprovado sem tratamento registrado — ' +

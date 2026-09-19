@@ -126,7 +126,7 @@ export type MotivoProcesso =
 
 /**
  * Item de checklist definido na trilha. É a DEFINIÇÃO — o que se marca é a
- * cópia que o produto recebe (`MicroEtapaCertificacao`).
+ * cópia que o processo recebe (`MicroEtapaCertificacao`).
  */
 export interface ModeloMicroEtapa {
   id: number;
@@ -138,7 +138,7 @@ export interface ModeloMicroEtapa {
   prazoSlaHoras: number | null;
 }
 
-/** Item de checklist DE UM PRODUTO. É este que se marca. */
+/** Item de checklist DE UM PROCESSO. É este que se marca. */
 export interface MicroEtapaCertificacao {
   id: number;
   nome: string;
@@ -200,8 +200,8 @@ export interface ModeloTrilha {
   vigenteAte: string | null;
   criadoEm: string;
   etapas: ModeloEtapa[];
-  totalProdutos: number;
-  /** Versão sem produtos vinculados ainda aceita edição direta das etapas. */
+  totalProcessos: number;
+  /** Versão sem processos vinculados ainda aceita edição direta das etapas. */
   editavel: boolean;
 }
 
@@ -210,7 +210,7 @@ export interface ResumoModeloVigente {
   versao: number;
   vigenteDe?: string;
   totalEtapas: number;
-  totalProdutos?: number;
+  totalProcessos?: number;
 }
 
 /** Trilha do catálogo vista de dentro de uma categoria. */
@@ -220,7 +220,7 @@ export interface TrilhaVinculada {
   status: StatusRegistro;
 }
 
-export interface CategoriaProduto {
+export interface CategoriaProcesso {
   id: number;
   nome: string;
   /** Abreviação usada no código do processo (`PROCERT-<SIGLA>-<NNN>-<AA>`). */
@@ -232,7 +232,7 @@ export interface CategoriaProduto {
   criadoEm: string;
   atualizadoEm: string;
   trilhaId: number | null;
-  totalProdutos: number;
+  totalProcessos: number;
   /** Trilha do catálogo que esta categoria segue. */
   trilha: TrilhaVinculada | null;
   /** Versões da TRILHA vinculada — 0 quando não há trilha. */
@@ -240,7 +240,7 @@ export interface CategoriaProduto {
   modeloVigente: ResumoModeloVigente | null;
 }
 
-/** Item do select de categorias no cadastro de produto. */
+/** Item do select de categorias no cadastro de processo. */
 export interface CategoriaResumo {
   id: number;
   nome: string;
@@ -257,7 +257,7 @@ export interface ResumoVersaoTrilha {
   vigenteDe: string;
   vigenteAte: string | null;
   totalEtapas: number;
-  totalProdutos: number;
+  totalProcessos: number;
   editavel: boolean;
 }
 
@@ -283,7 +283,7 @@ export interface Trilha {
   totalCategorias: number;
   totalVersoes: number;
   /** Soma de TODAS as versões, não só da vigente. */
-  totalProdutos: number;
+  totalProcessos: number;
   modeloVigente: ResumoModeloVigente | null;
   versoes: ResumoVersaoTrilha[];
 }
@@ -301,13 +301,13 @@ export interface SituacaoVersaoTrilha {
    * Nome da trilha de cada lado.
    *
    * Trilhas diferentes numeram versões de forma independente, então
-   * `versaoProduto` e `versaoVigente` podem ser ambas 1 e ainda assim descrever
+   * `versaoProcesso` e `versaoVigente` podem ser ambas 1 e ainda assim descrever
    * processos distintos — acontece quando a categoria troca de trilha. Só o
    * nome desambigua.
    */
-  trilhaProduto: string;
+  trilhaProcesso: string;
   trilhaVigente: string;
-  versaoProduto: number;
+  versaoProcesso: number;
   versaoVigente: number;
   etapasAAdicionar: Array<{
     id: number;
@@ -327,12 +327,12 @@ export interface ResumoCertificacao {
   concluida: boolean;
 }
 
-export interface Produto {
+export interface Processo {
   id: number;
   clienteId: number;
   categoriaId: number;
   modeloTrilhaId: number;
-  /** `PROCERT-EPI-012-26`. Null em produto anterior à mudança e em categoria sem sigla. */
+  /** `PROCERT-EPI-012-26`. Null em processo anterior à mudança e em categoria sem sigla. */
   codigoProcesso: string | null;
   motivoProcesso: MotivoProcesso;
   /**
@@ -350,7 +350,7 @@ export interface Produto {
   cliente: { id: number; nome: string; fotoUrl: string | null };
   categoria: { id: number; nome: string; normaReferencia: string | null };
   /**
-   * A VERSÃO da trilha que o produto carrega como retrato, com a família a que
+   * A VERSÃO da trilha que o processo carrega como retrato, com a família a que
    * ela pertence. O `trilha` já vinha do servidor e faltava aqui — sem ele não
    * havia como linkar do processo para o modelo que o gerou.
    */
@@ -362,7 +362,7 @@ export interface Produto {
   };
   certificacao: Array<{
     id: number;
-    /** Posição na trilha do produto. */
+    /** Posição na trilha do processo. */
     ordem: number;
     status: StatusCertificacao;
     etapa: { id: number; nome: string; tipo: TipoEtapa; obrigatoria: boolean };
@@ -384,7 +384,7 @@ export type StatusCertificado =
 
 export interface Certificado {
   id: number;
-  produtoId: number;
+  processoId: number;
   numero: string;
   escopo: string;
   dataEmissao: string;
@@ -394,7 +394,7 @@ export interface Certificado {
   emitidoPorNome: string;
   arquivoPdf: string | null;
   criadoEm: string;
-  produto: {
+  processo: {
     id: number;
     nome: string;
     clienteId: number;
@@ -453,7 +453,7 @@ export interface NaoConformidade {
   criadoEm: string;
 }
 
-/** NC com o contexto da etapa e do produto — usado na listagem dedicada. */
+/** NC com o contexto da etapa e do processo — usado na listagem dedicada. */
 export interface NaoConformidadeDetalhada extends NaoConformidade {
   certificacaoId: number;
   certificacao: {
@@ -461,7 +461,7 @@ export interface NaoConformidadeDetalhada extends NaoConformidade {
     status: StatusCertificacao;
     ordem: number;
     etapa: { id: number; nome: string };
-    produto: {
+    processo: {
       id: number;
       nome: string;
       clienteId: number;
@@ -498,7 +498,7 @@ export interface HistoricoCertificacao {
 
 export interface EtapaTimeline {
   id: number;
-  /** Posição na trilha do produto (não a do modelo, que pode colidir). */
+  /** Posição na trilha do processo (não a do modelo, que pode colidir). */
   ordem: number;
   status: StatusCertificacao;
   observacao: string | null;
@@ -514,14 +514,14 @@ export interface EtapaTimeline {
     fase: FaseProcesso;
     prazoSlaHoras: number | null;
   };
-  /** Checklist DESTE produto nesta etapa. É o que se marca. */
+  /** Checklist DESTE processo nesta etapa. É o que se marca. */
   microEtapas: MicroEtapaCertificacao[];
   naoConformidades: NaoConformidade[];
   historico: HistoricoCertificacao[];
 }
 
 export interface CertificacaoDetalhe {
-  produto: {
+  processo: {
     id: number;
     nome: string;
     descricao: string | null;
@@ -542,9 +542,9 @@ export interface CertificacaoDetalhe {
 }
 
 export interface LinhaPainelCertificacao {
-  produtoId: number;
-  produto: string;
-  produtoFotoUrl: string | null;
+  processoId: number;
+  processo: string;
+  processoFotoUrl: string | null;
   cliente: { id: number; nome: string; fotoUrl: string | null };
   etapaAtual: string | null;
   status: StatusCertificacao;
@@ -591,9 +591,9 @@ export type SituacaoSla =
     };
 
 export interface CartaoQuadro {
-  produtoId: number;
+  processoId: number;
   codigoProcesso: string | null;
-  produto: string;
+  processo: string;
   motivoProcesso: MotivoProcesso;
   cliente: { id: number; nome: string };
   categoria: { id: number; nome: string };
@@ -637,14 +637,14 @@ export interface QuadroProcessos {
 
 export interface MetricasDashboard {
   totalClientes: number;
-  totalProdutos: number;
+  totalProcessos: number;
   certificacoesConcluidas: number;
   certificacoesEmAndamento: number;
   certificacoesPendentes: number;
   percentualPendentes: number;
   ultimasAtualizacoes: Array<{
-    produtoId: number;
-    produto: string;
+    processoId: number;
+    processo: string;
     cliente: string;
     etapa: string;
     status: StatusCertificacao;
@@ -735,15 +735,15 @@ export interface DadosGraficos {
   acompanhamento: {
     etapasPorStatus: Array<{ status: StatusCertificacao; total: number }>;
     ranking: Array<{
-      produtoId: number;
-      produto: string;
+      processoId: number;
+      processo: string;
       cliente: string;
       aprovadas: number;
       total: number;
       progresso: number;
     }>;
-    totalProdutos: number;
-    /** Produtos que não couberam no ranking — some no rodapé do gráfico. */
+    totalProcessos: number;
+    /** Processos que não couberam no ranking — some no rodapé do gráfico. */
     foraDoRanking: number;
   };
   certificados: {

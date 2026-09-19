@@ -101,7 +101,7 @@ export function NaoConformidadesPage() {
         titulo="Não conformidades"
         descricao={
           ehCliente
-            ? 'Pendências levantadas na avaliação dos seus produtos, ordenadas por prazo.'
+            ? 'Pendências levantadas na avaliação dos seus processos, ordenadas por prazo.'
             : 'Não conformidades abertas nas etapas reprovadas, ordenadas por prazo.'
         }
       />
@@ -165,12 +165,12 @@ export function NaoConformidadesPage() {
                     nc={nc}
                     contexto={
                       <>
-                        <Link to={`/certificacoes/produto/${nc.certificacao.produto.id}`}>
-                          {nc.certificacao.produto.nome}
+                        <Link to={`/certificacoes/processo/${nc.certificacao.processo.id}`}>
+                          {nc.certificacao.processo.nome}
                         </Link>
                         {' · etapa '}
                         {nc.certificacao.ordem}. {nc.certificacao.etapa.nome}
-                        {!ehCliente && ` · ${nc.certificacao.produto.cliente.nome}`}
+                        {!ehCliente && ` · ${nc.certificacao.processo.cliente.nome}`}
                       </>
                     }
                     acoes={
