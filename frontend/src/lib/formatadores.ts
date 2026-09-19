@@ -92,7 +92,7 @@ export function diasAteOPrazo(prazo?: string | null): number | null {
  * dias entre parênteses para dar a escala ("720h (30 dias)").
  *
  * Função única, usada nas três telas que exibem prazo de etapa (detalhe da
- * trilha, modal de etapa e prévia da trilha no cadastro de produto). Eram três
+ * trilha, modal de etapa e prévia da trilha no cadastro de processo). Eram três
  * interpolações copiadas, e foi assim que as três continuaram escrevendo
  * "dia(s)" depois que o campo passou a guardar horas — cada uma mentindo por
  * um fator de 24, sem erro em lugar nenhum.

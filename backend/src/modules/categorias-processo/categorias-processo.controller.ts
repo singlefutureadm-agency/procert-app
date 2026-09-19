@@ -13,31 +13,31 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CategoriasProdutoService } from './categorias-produto.service';
+import { CategoriasProcessoService } from './categorias-processo.service';
 import {
   AlterarStatusCategoriaDto,
-  AtualizarCategoriaProdutoDto,
-  CriarCategoriaProdutoDto,
-  ListarCategoriasProdutoDto,
-} from './dto/categoria-produto.dto';
+  AtualizarCategoriaProcessoDto,
+  CriarCategoriaProcessoDto,
+  ListarCategoriasProcessoDto,
+} from './dto/categoria-processo.dto';
 import { VincularTrilhaDto } from '../modelos-trilha/dto/trilha.dto';
 
 /**
  * Módulo inteiro restrito à equipe, leitura inclusive: o catálogo de categorias
  * e suas normas é configuração interna do organismo certificador. O cliente
- * continua vendo a categoria do próprio produto, que vem embutida no payload
- * de `/produtos`.
+ * continua vendo a categoria do próprio processo, que vem embutida no payload
+ * de `/processos`.
  */
-@ApiTags('Categorias de produto')
+@ApiTags('Categorias de processo')
 @ApiBearerAuth()
 @Roles(Role.ADMIN, Role.FUNCIONARIO)
-@Controller('categorias-produto')
-export class CategoriasProdutoController {
-  constructor(private readonly categoriasService: CategoriasProdutoService) {}
+@Controller('categorias-processo')
+export class CategoriasProcessoController {
+  constructor(private readonly categoriasService: CategoriasProcessoService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista categorias de produto' })
-  listar(@Query() filtros: ListarCategoriasProdutoDto) {
+  @ApiOperation({ summary: 'Lista categorias de processo' })
+  listar(@Query() filtros: ListarCategoriasProcessoDto) {
     return this.categoriasService.listar(filtros);
   }
 
@@ -56,8 +56,8 @@ export class CategoriasProdutoController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Cadastra uma categoria de produto' })
-  criar(@Body() dto: CriarCategoriaProdutoDto) {
+  @ApiOperation({ summary: 'Cadastra uma categoria de processo' })
+  criar(@Body() dto: CriarCategoriaProcessoDto) {
     return this.categoriasService.criar(dto);
   }
 
@@ -65,7 +65,7 @@ export class CategoriasProdutoController {
   @ApiOperation({ summary: 'Atualiza uma categoria' })
   atualizar(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: AtualizarCategoriaProdutoDto,
+    @Body() dto: AtualizarCategoriaProcessoDto,
   ) {
     return this.categoriasService.atualizar(id, dto);
   }
@@ -95,7 +95,7 @@ export class CategoriasProdutoController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Exclui definitivamente (somente ADMIN); 409 se houver produtos',
+    summary: 'Exclui definitivamente (somente ADMIN); 409 se houver processos',
   })
   remover(@Param('id', ParseIntPipe) id: number) {
     return this.categoriasService.remover(id);

@@ -150,7 +150,7 @@ function aplicarDadosEstruturados(
  *
  * Só declara o que é verificável no próprio site: razão social, CNPJ, endereço
  * e canais de contato. **Não afirma acreditação, escopo de certificação nem
- * número de norma** — para um Organismo de Certificação de Produto essas são
+ * número de norma** — para um Organismo de Certificação de Processo essas são
  * declarações com efeito regulatório, e schema.org é lido por agregadores. Se
  * a acreditação junto ao Inmetro/Cgcre for confirmada, o campo próprio é
  * `hasCredential`.
@@ -159,7 +159,7 @@ export function organizacao(): Record<string, unknown> {
   return {
     '@type': 'Organization',
     '@id': `${URL_SITE}/#organizacao`,
-    name: 'ProCert Certificação de Produtos LTDA',
+    name: 'ProCert Certificação de Processos LTDA',
     alternateName: 'ProCert',
     url: URL_SITE,
     logo: `${URL_SITE}/img/logo.png`,

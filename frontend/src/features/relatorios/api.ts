@@ -75,14 +75,14 @@ export const relatoriosApi = {
 
 // ------------------------------------------------------------ comparativos
 
-export type OrdemProdutos = 'progresso' | 'progresso_asc' | 'paradas' | 'nome';
-export type OrdemClientes = 'produtos' | 'produtos_asc' | 'certificados' | 'nome';
+export type OrdemProcessos = 'progresso' | 'progresso_asc' | 'paradas' | 'nome';
+export type OrdemClientes = 'processos' | 'processos_asc' | 'certificados' | 'nome';
 
-export interface FiltrosComparativoProdutos {
+export interface FiltrosComparativoProcessos {
   pagina?: number;
   limite?: number;
   busca?: string;
-  ordem?: OrdemProdutos;
+  ordem?: OrdemProcessos;
   clienteId?: number;
   categoriaId?: number;
 }
@@ -95,7 +95,7 @@ export interface FiltrosComparativoClientes {
   responsavelId?: number;
 }
 
-export interface LinhaComparativoProduto {
+export interface LinhaComparativoProcesso {
   id: number;
   nome: string;
   clienteId: number;
@@ -122,8 +122,8 @@ export interface LinhaComparativoCliente {
   email: string;
   responsavel: string | null;
   ultimoAcessoEm: string | null;
-  produtos: number;
-  produtosConcluidos: number;
+  processos: number;
+  processosConcluidos: number;
   certificadosVigentes: number;
   ncsAbertas: number;
   ultimaMovimentacao: string | null;
@@ -149,22 +149,22 @@ async function baixar(
 }
 
 export const comparativosApi = {
-  produtos: async (filtros: FiltrosComparativoProdutos) => {
-    const { data } = await api.get<RespostaPaginada<LinhaComparativoProduto>>(
-      '/relatorios/produtos',
+  processos: async (filtros: FiltrosComparativoProcessos) => {
+    const { data } = await api.get<RespostaPaginada<LinhaComparativoProcesso>>(
+      '/relatorios/processos',
       { params: filtros },
     );
     return data;
   },
 
-  exportarProdutos: (
-    filtros: Omit<FiltrosComparativoProdutos, 'pagina' | 'limite'>,
+  exportarProcessos: (
+    filtros: Omit<FiltrosComparativoProcessos, 'pagina' | 'limite'>,
     formato: 'xlsx' | 'csv',
   ) =>
     baixar(
-      '/relatorios/produtos/exportacao',
+      '/relatorios/processos/exportacao',
       { ...filtros, formato },
-      `comparativo-produtos.${formato}`,
+      `comparativo-processos.${formato}`,
     ),
 
   clientes: async (filtros: FiltrosComparativoClientes) => {
@@ -204,7 +204,7 @@ export interface Medida {
  */
 export interface GrupoCiclo {
   chave: string;
-  /** Medida do PRODUTO. `null` no agrupamento por etapa, onde não se aplica. */
+  /** Medida do PROCESSO. `null` no agrupamento por etapa, onde não se aplica. */
   leadTimeTrilha: Medida | null;
   tempoTratamentoEtapa: Medida;
   tempoEmFila: Medida;

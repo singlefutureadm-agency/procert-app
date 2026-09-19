@@ -12,7 +12,7 @@
 # -----------------------------------------------------------------------------
 # Rotas do React Router
 #
-# O painel é uma SPA: /dashboard, /produtos e /certificacoes não existem em
+# O painel é uma SPA: /dashboard, /processos e /certificacoes não existem em
 # disco, quem resolve é o JavaScript depois que a página carrega. Navegando por
 # dentro do app funciona sem isto; o que quebra é dar F5 ou abrir um link
 # direto — o Apache procura a pasta /dashboard, não acha e devolve 404.

@@ -21,84 +21,84 @@ import {
   UsuarioAutenticado,
 } from '../../common/decorators/current-user.decorator';
 import { AlterarStatusDto } from '../clientes/dto/cliente.dto';
-import { ProdutosService } from './produtos.service';
+import { ProcessosService } from './processos.service';
 import {
-  AtualizarProdutoDto,
-  CriarProdutoDto,
-  ListarProdutosDto,
-} from './dto/produto.dto';
+  AtualizarProcessoDto,
+  CriarProcessoDto,
+  ListarProcessosDto,
+} from './dto/processo.dto';
 
-@ApiTags('Produtos')
+@ApiTags('Processos')
 @ApiBearerAuth()
-@Controller('produtos')
-export class ProdutosController {
-  constructor(private readonly produtosService: ProdutosService) {}
+@Controller('processos')
+export class ProcessosController {
+  constructor(private readonly processosService: ProcessosService) {}
 
   @Get()
   @ApiOperation({
-    summary: 'Lista produtos (clientes recebem apenas os próprios)',
+    summary: 'Lista processos (clientes recebem apenas os próprios)',
   })
   listar(
-    @Query() filtros: ListarProdutosDto,
+    @Query() filtros: ListarProcessosDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.produtosService.listar(filtros, usuario);
+    return this.processosService.listar(filtros, usuario);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Detalha um produto com o resumo da certificação' })
+  @ApiOperation({ summary: 'Detalha um processo com o resumo da certificação' })
   buscar(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.produtosService.buscarPorId(id, usuario);
+    return this.processosService.buscarPorId(id, usuario);
   }
 
   @Post()
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({
-    summary: 'Cadastra um produto e abre automaticamente a certificação',
+    summary: 'Cadastra um processo e abre automaticamente a certificação',
   })
-  criar(@Body() dto: CriarProdutoDto) {
-    return this.produtosService.criar(dto);
+  criar(@Body() dto: CriarProcessoDto) {
+    return this.processosService.criar(dto);
   }
 
   @Patch(':id')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
-  @ApiOperation({ summary: 'Atualiza um produto' })
+  @ApiOperation({ summary: 'Atualiza um processo' })
   atualizar(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: AtualizarProdutoDto,
+    @Body() dto: AtualizarProcessoDto,
   ) {
-    return this.produtosService.atualizar(id, dto);
+    return this.processosService.atualizar(id, dto);
   }
 
   @Patch(':id/status')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
-  @ApiOperation({ summary: 'Ativa ou desativa um produto (soft delete)' })
+  @ApiOperation({ summary: 'Ativa ou desativa um processo (soft delete)' })
   alterarStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AlterarStatusDto,
   ) {
-    return this.produtosService.alterarStatus(id, dto.status);
+    return this.processosService.alterarStatus(id, dto.status);
   }
 
   @Post(':id/foto')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @UseInterceptors(FileInterceptor('foto'))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Envia ou substitui a foto do produto' })
+  @ApiOperation({ summary: 'Envia ou substitui a foto do processo' })
   atualizarFoto(
     @Param('id', ParseIntPipe) id: number,
     @UploadedFile() arquivo: Express.Multer.File,
   ) {
-    return this.produtosService.atualizarFoto(id, arquivo);
+    return this.processosService.atualizarFoto(id, arquivo);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Exclui o produto e toda a sua certificação' })
+  @ApiOperation({ summary: 'Exclui o processo e toda a sua certificação' })
   remover(@Param('id', ParseIntPipe) id: number) {
-    return this.produtosService.remover(id);
+    return this.processosService.remover(id);
   }
 }

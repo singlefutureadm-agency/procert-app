@@ -27,20 +27,20 @@ import {
   ListarEmRiscoDto,
 } from './dto/certificado.dto';
 
-/** Emissão e consulta no contexto do produto. */
+/** Emissão e consulta no contexto do processo. */
 @ApiTags('Certificados')
 @ApiBearerAuth()
-@Controller('produtos/:produtoId/certificados')
-export class CertificadosProdutoController {
+@Controller('processos/:processoId/certificados')
+export class CertificadosProcessoController {
   constructor(private readonly certificados: CertificadosService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista os certificados de um produto' })
+  @ApiOperation({ summary: 'Lista os certificados de um processo' })
   listar(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificados.listarPorProduto(produtoId, usuario);
+    return this.certificados.listarPorProcesso(processoId, usuario);
   }
 
   @Post()
@@ -50,11 +50,11 @@ export class CertificadosProdutoController {
       'Emite o certificado (somente ADMIN); exige todas as etapas obrigatórias aprovadas',
   })
   emitir(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @Body() dto: EmitirCertificadoDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificados.emitir(produtoId, dto, usuario);
+    return this.certificados.emitir(processoId, dto, usuario);
   }
 }
 

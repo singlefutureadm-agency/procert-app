@@ -14,34 +14,34 @@ import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro } from '@/lib/api';
 import { formatarDataHora } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
-import { categoriasApi } from '@/features/categorias-produto/api';
+import { categoriasApi } from '@/features/categorias-processo/api';
 import {
   comparativosApi,
-  type FiltrosComparativoProdutos,
-  type OrdemProdutos,
+  type FiltrosComparativoProcessos,
+  type OrdemProcessos,
 } from './api';
 
 /**
- * Comparativo de avanço por produto.
+ * Comparativo de avanço por processo.
  *
  * **Progresso sozinho engana.** 60% parado há 90 dias é pior que 30% mexido
  * ontem, e a coluna "Dias parado" existe justamente para isso não passar
  * despercebido — é ela que a ordenação `paradas` usa.
  *
  * **"Obrigatórias pendentes" ≠ "Pendentes".** Só a etapa obrigatória trava a
- * emissão do certificado; opcional pendente não bloqueia. Um produto pode estar
+ * emissão do certificado; opcional pendente não bloqueia. Um processo pode estar
  * em 80% e já poder emitir, ou em 95% e não poder.
  */
 
-const ORDENS: Array<{ valor: OrdemProdutos; rotulo: string }> = [
+const ORDENS: Array<{ valor: OrdemProcessos; rotulo: string }> = [
   { valor: 'progresso', rotulo: 'Maior progresso' },
   { valor: 'progresso_asc', rotulo: 'Menor progresso' },
   { valor: 'paradas', rotulo: 'Mais tempo parado' },
   { valor: 'nome', rotulo: 'Nome' },
 ];
 
-export function ComparativoProdutosPage() {
-  const [filtros, setFiltros] = useState<FiltrosComparativoProdutos>({
+export function ComparativoProcessosPage() {
+  const [filtros, setFiltros] = useState<FiltrosComparativoProcessos>({
     pagina: 1,
     limite: 20,
     ordem: 'progresso',
@@ -49,8 +49,8 @@ export function ComparativoProdutosPage() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: chaves.comparativoProdutos(filtros),
-    queryFn: () => comparativosApi.produtos(filtros),
+    queryKey: chaves.comparativoProcessos(filtros),
+    queryFn: () => comparativosApi.processos(filtros),
   });
 
   const { data: categorias } = useQuery({
@@ -65,7 +65,7 @@ export function ComparativoProdutosPage() {
     setExportando(formato);
     try {
       const { pagina: _p, limite: _l, ...recorte } = filtros;
-      await comparativosApi.exportarProdutos(recorte, formato);
+      await comparativosApi.exportarProcessos(recorte, formato);
     } catch (erro) {
       toast.error(mensagemDeErro(erro, 'Não foi possível gerar a planilha.'));
     } finally {
@@ -78,8 +78,8 @@ export function ComparativoProdutosPage() {
   return (
     <>
       <CabecalhoPagina
-        titulo="Comparativo de produtos"
-        descricao="Qual produto avança melhor, e qual está parado."
+        titulo="Comparativo de processos"
+        descricao="Qual processo avança melhor, e qual está parado."
         acoes={
           <>
             <button
@@ -107,7 +107,7 @@ export function ComparativoProdutosPage() {
       <div className="entre">
         <CampoBusca
           valor={filtros.busca ?? ''}
-          placeholder="Buscar por produto ou cliente"
+          placeholder="Buscar por processo ou cliente"
           aoMudar={(busca) => setFiltros((a) => ({ ...a, busca, pagina: 1 }))}
         />
 
@@ -117,7 +117,7 @@ export function ComparativoProdutosPage() {
             onChange={(e) =>
               setFiltros((a) => ({
                 ...a,
-                ordem: e.target.value as OrdemProdutos,
+                ordem: e.target.value as OrdemProcessos,
                 pagina: 1,
               }))
             }
@@ -157,16 +157,16 @@ export function ComparativoProdutosPage() {
         ) : listaVazia ? (
           <EstadoVazio
             icone="caixa"
-            titulo="Nenhum produto no recorte"
+            titulo="Nenhum processo no recorte"
             descricao="Ajuste a busca ou a categoria."
           />
         ) : (
           <>
-            <TabelaRolavel rotulo="Comparativo de produtos">
+            <TabelaRolavel rotulo="Comparativo de processos">
               <table className="tabela" role="table">
                 <thead role="rowgroup">
                   <tr role="row">
-                    <th role="columnheader">Produto</th>
+                    <th role="columnheader">Processo</th>
                     <th role="columnheader">Cliente</th>
                     <th role="columnheader">Categoria</th>
                     <th role="columnheader">Progresso</th>
@@ -182,7 +182,7 @@ export function ComparativoProdutosPage() {
                   {data?.dados.map((l) => (
                     <tr role="row" key={l.id}>
                       <td role="cell" data-principal style={{ fontWeight: 600 }}>
-                        <Link to={`/certificacoes/produto/${l.id}`}>{l.nome}</Link>
+                        <Link to={`/certificacoes/processo/${l.id}`}>{l.nome}</Link>
                       </td>
                       <td role="cell" data-rotulo="Cliente" className="texto-suave">
                         {l.cliente}

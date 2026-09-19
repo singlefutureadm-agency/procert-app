@@ -14,7 +14,7 @@ import { Paginacao } from '@/components/Paginacao';
 import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro } from '@/lib/api';
 import { chaves } from '@/lib/queryClient';
-import type { CategoriaProduto, StatusRegistro } from '@/types';
+import type { CategoriaProcesso, StatusRegistro } from '@/types';
 import { categoriasApi, type FiltrosCategorias } from './api';
 import { ModalCategoria } from './ModalCategoria';
 
@@ -27,8 +27,8 @@ export function CategoriasPage() {
     busca: '',
   });
   const [modalAberto, setModalAberto] = useState(false);
-  const [emEdicao, setEmEdicao] = useState<CategoriaProduto | null>(null);
-  const [alvo, setAlvo] = useState<CategoriaProduto | null>(null);
+  const [emEdicao, setEmEdicao] = useState<CategoriaProcesso | null>(null);
+  const [alvo, setAlvo] = useState<CategoriaProcesso | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: chaves.categorias(filtros),
@@ -56,7 +56,7 @@ export function CategoriasPage() {
   return (
     <>
       <CabecalhoPagina
-        titulo={vendoInativas ? 'Categorias inativas' : 'Categorias de produto'}
+        titulo={vendoInativas ? 'Categorias inativas' : 'Categorias de processo'}
         descricao="Cada categoria segue uma trilha do catálogo, e a mesma trilha pode servir a várias."
         acoes={
           <>
@@ -128,14 +128,14 @@ export function CategoriasPage() {
             }
           />
         ) : (
-          <TabelaRolavel rotulo="Categorias de produto">
+          <TabelaRolavel rotulo="Categorias de processo">
             <table className="tabela" role="table">
               <thead role="rowgroup">
                 <tr role="row">
                   <th role="columnheader">Categoria</th>
                   <th role="columnheader">Norma</th>
                   <th role="columnheader">Trilha</th>
-                  <th role="columnheader">Produtos</th>
+                  <th role="columnheader">Processos</th>
                   <th role="columnheader">Situação</th>
                   <th role="columnheader" className="texto-direita">Ações</th>
                 </tr>
@@ -171,7 +171,7 @@ export function CategoriasPage() {
                               `v${categoria.modeloVigente.versao} · ${categoria.modeloVigente.totalEtapas} etapa(s)`
                             ) : (
                               /* Vinculada e sem versão vigente: a categoria
-                                 parece pronta e recusa todo produto novo. */
+                                 parece pronta e recusa todo processo novo. */
                               <span className="badge badge--reprovado sem-quebra">
                                 sem versão vigente
                               </span>
@@ -179,14 +179,14 @@ export function CategoriasPage() {
                           </div>
                         </>
                       ) : (
-                        // Sem trilha a categoria não aceita produto — o alerta
+                        // Sem trilha a categoria não aceita processo — o alerta
                         // precisa aparecer na listagem, não só no cadastro.
                         <span className="badge badge--reprovado sem-quebra">
                           sem trilha
                         </span>
                       )}
                     </td>
-                    <td role="cell" data-rotulo="Produtos" className="texto-suave">{categoria.totalProdutos}</td>
+                    <td role="cell" data-rotulo="Processos" className="texto-suave">{categoria.totalProcessos}</td>
                     <td role="cell" data-rotulo="Situação">
                       <BadgeStatus status={categoria.status} />
                     </td>
@@ -256,8 +256,8 @@ export function CategoriasPage() {
         titulo={alvo?.status === 'ATIVO' ? 'Desativar categoria' : 'Reativar categoria'}
         mensagem={
           alvo?.status === 'ATIVO'
-            ? `Desativar "${alvo?.nome}"? Ela deixa de aceitar novos produtos; os produtos em andamento não são afetados.`
-            : `Reativar "${alvo?.nome}"? Ela volta a aceitar novos produtos.`
+            ? `Desativar "${alvo?.nome}"? Ela deixa de aceitar novos processos; os processos em andamento não são afetados.`
+            : `Reativar "${alvo?.nome}"? Ela volta a aceitar novos processos.`
         }
         rotuloConfirmar={alvo?.status === 'ATIVO' ? 'Desativar' : 'Reativar'}
         perigo={alvo?.status === 'ATIVO'}

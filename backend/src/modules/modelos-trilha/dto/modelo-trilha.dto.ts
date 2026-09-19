@@ -132,7 +132,7 @@ export class EtapaModeloDto {
     type: [MicroEtapaModeloDto],
     description:
       'Itens de checklist desta etapa, na ordem. Fazem parte da DEFINIÇÃO do ' +
-      'processo: cada produto recebe uma cópia própria na abertura da trilha, ' +
+      'processo: cada processo recebe uma cópia própria na abertura da trilha, ' +
       'e é a cópia que se marca. Lista vazia = etapa sem checklist.',
   })
   @IsOptional()
@@ -162,7 +162,7 @@ export class CriarVersaoTrilhaDto {
     default: false,
     description:
       'Padrão do processo: concluir todas as microetapas de uma etapa a aprova ' +
-      'sozinha. Cada produto pode sobrepor em `Produto.aprovacaoAutomatica`. ' +
+      'sozinha. Cada processo pode sobrepor em `Processo.aprovacaoAutomatica`. ' +
       'Omitido ao copiar da versão vigente, herda o valor dela.',
   })
   @IsOptional()

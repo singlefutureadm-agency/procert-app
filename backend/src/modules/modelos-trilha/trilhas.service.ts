@@ -21,8 +21,8 @@ import { paraCriacao } from './modelos-trilha.service';
 /**
  * Resumo por trilha para a listagem não precisar de uma segunda consulta.
  *
- * As versões vêm sem as etapas — só a contagem delas e a de produtos. "Qual é
- * a vigente", "quantas versões existem" e "quantos produtos dependem disto"
+ * As versões vêm sem as etapas — só a contagem delas e a de processos. "Qual é
+ * a vigente", "quantas versões existem" e "quantos processos dependem disto"
  * saem todos daqui: três consultas viraram uma.
  */
 const INCLUDE_TRILHA = {
@@ -34,7 +34,7 @@ const INCLUDE_TRILHA = {
       ativo: true,
       vigenteDe: true,
       vigenteAte: true,
-      _count: { select: { etapas: true, produtos: true } },
+      _count: { select: { etapas: true, processos: true } },
     },
   },
   categorias: {
@@ -51,7 +51,7 @@ type TrilhaComResumo = Prisma.TrilhaGetPayload<{ include: typeof INCLUDE_TRILHA 
  * Este service cuida da FAMÍLIA: identidade, vínculo com categorias, ciclo de
  * vida. As VERSÕES e suas etapas são de `ModelosTrilhaService`. A separação
  * acompanha a do schema e existe porque as duas têm regras opostas — a família
- * é editável a qualquer momento, a versão vira imutável assim que tem produto.
+ * é editável a qualquer momento, a versão vira imutável assim que tem processo.
  */
 @Injectable()
 export class TrilhasService {
@@ -104,7 +104,7 @@ export class TrilhasService {
     });
 
     // Trilha sem versão vigente com etapas não serve para vincular: a categoria
-    // que a adotasse continuaria recusando produto, sem dizer por quê.
+    // que a adotasse continuaria recusando processo, sem dizer por quê.
     return trilhas.map(({ versoes, ...trilha }) => ({
       ...trilha,
       modeloVigente: versoes[0]
@@ -167,17 +167,17 @@ export class TrilhasService {
     return this.comResumo(trilha);
   }
 
-  /** Soft delete / reativação — mesmo padrão de clientes, produtos e categorias. */
+  /** Soft delete / reativação — mesmo padrão de clientes, processos e categorias. */
   async alterarStatus(id: number, status: StatusRegistro) {
     await this.garantirExiste(id);
 
     /*
      * Desativar trilha em uso a esconderia do catálogo enquanto as categorias
-     * continuassem apontando para ela — e produto novo seguiria entrando por
+     * continuassem apontando para ela — e processo novo seguiria entrando por
      * uma trilha que o painel diz não existir mais.
      */
     if (status === StatusRegistro.INATIVO) {
-      const emUso = await this.prisma.categoriaProduto.findMany({
+      const emUso = await this.prisma.categoriaProcesso.findMany({
         where: { trilhaId: id },
         select: { nome: true },
       });
@@ -200,10 +200,10 @@ export class TrilhasService {
   }
 
   /**
-   * Exclusão definitiva. Recusada enquanto houver produto ou categoria presos.
+   * Exclusão definitiva. Recusada enquanto houver processo ou categoria presos.
    *
-   * A checagem é explícita, e não deixada para o erro de FK, porque produto
-   * pende da VERSÃO (`produtos.modelo_trilha_id`, Restrict) e categoria pende
+   * A checagem é explícita, e não deixada para o erro de FK, porque processo
+   * pende da VERSÃO (`processos.modelo_trilha_id`, Restrict) e categoria pende
    * da FAMÍLIA: o banco recusaria as duas com uma mensagem que não diz qual é.
    */
   async remover(id: number): Promise<{ mensagem: string }> {
@@ -211,7 +211,7 @@ export class TrilhasService {
       where: { id },
       include: {
         categorias: { select: { nome: true } },
-        versoes: { select: { _count: { select: { produtos: true } } } },
+        versoes: { select: { _count: { select: { processos: true } } } },
       },
     });
 
@@ -227,20 +227,20 @@ export class TrilhasService {
       );
     }
 
-    const produtos = trilha.versoes.reduce(
-      (soma, versao) => soma + versao._count.produtos,
+    const processos = trilha.versoes.reduce(
+      (soma, versao) => soma + versao._count.processos,
       0,
     );
 
-    if (produtos > 0) {
+    if (processos > 0) {
       throw new ConflictException(
-        `Esta trilha tem ${produtos} produto(s) em avaliação por alguma de suas ` +
+        `Esta trilha tem ${processos} processo(s) em avaliação por alguma de suas ` +
           'versões. Use a desativação em vez da exclusão definitiva.',
       );
     }
 
     // Versões e etapas caem por cascade (ModeloTrilha → Trilha, ModeloEtapa →
-    // ModeloTrilha). Sem produto nenhum, não há histórico a preservar.
+    // ModeloTrilha). Sem processo nenhum, não há histórico a preservar.
     await this.prisma.trilha.delete({ where: { id } });
 
     return { mensagem: 'Trilha excluída definitivamente.' };
@@ -319,7 +319,7 @@ export class TrilhasService {
   async vincularCategorias(id: number, { categoriaIds }: VincularCategoriasDto) {
     await this.garantirExiste(id);
 
-    const encontradas = await this.prisma.categoriaProduto.findMany({
+    const encontradas = await this.prisma.categoriaProcesso.findMany({
       where: { id: { in: categoriaIds } },
       select: { id: true },
     });
@@ -334,7 +334,7 @@ export class TrilhasService {
       );
     }
 
-    await this.prisma.categoriaProduto.updateMany({
+    await this.prisma.categoriaProcesso.updateMany({
       where: { id: { in: categoriaIds } },
       data: { trilhaId: id },
     });
@@ -372,8 +372,8 @@ export class TrilhasService {
       categorias,
       totalCategorias: categorias.length,
       totalVersoes: versoes.length,
-      totalProdutos: versoes.reduce(
-        (soma, versao) => soma + versao._count.produtos,
+      totalProcessos: versoes.reduce(
+        (soma, versao) => soma + versao._count.processos,
         0,
       ),
       modeloVigente: vigente
@@ -381,14 +381,14 @@ export class TrilhasService {
             id: vigente.id,
             versao: vigente.versao,
             totalEtapas: vigente._count.etapas,
-            totalProdutos: vigente._count.produtos,
+            totalProcessos: vigente._count.processos,
           }
         : null,
       versoes: versoes.map(({ _count, ...versao }) => ({
         ...versao,
         totalEtapas: _count.etapas,
-        totalProdutos: _count.produtos,
-        editavel: _count.produtos === 0,
+        totalProcessos: _count.processos,
+        editavel: _count.processos === 0,
       })),
     };
   }

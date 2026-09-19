@@ -18,18 +18,18 @@ import {
  *
  * | Métrica | De | Até |
  * |---|---|---|
- * | Lead time da trilha | `Produto.criadoEm` | aprovação da última etapa OBRIGATÓRIA |
+ * | Lead time da trilha | `Processo.criadoEm` | aprovação da última etapa OBRIGATÓRIA |
  * | Tempo de tratamento da etapa | 1ª saída de `PENDENTE` | aprovação |
- * | Tempo em fila | `CertificacaoProduto.criadoEm` | 1ª saída de `PENDENTE` |
+ * | Tempo em fila | `CertificacaoProcesso.criadoEm` | 1ª saída de `PENDENTE` |
  *
  * Os números **não são comparáveis entre si** e nunca entram na mesma série.
  *
  * ## Por que os marcos são esses
  *
- * `CertificacaoProduto.criadoEm` é `DEFAULT CURRENT_TIMESTAMP` e a trilha nasce
- * num único `createMany` dentro da transação que cria o produto — em Postgres
+ * `CertificacaoProcesso.criadoEm` é `DEFAULT CURRENT_TIMESTAMP` e a trilha nasce
+ * num único `createMany` dentro da transação que cria o processo — em Postgres
  * `CURRENT_TIMESTAMP` é o início da transação, então **todas as etapas de um
- * produto nascem com o mesmo timestamp**. Ele marca a entrada da etapa NA FILA,
+ * processo nascem com o mesmo timestamp**. Ele marca a entrada da etapa NA FILA,
  * nunca o início do trabalho nela. É por isso que ele só aparece no tempo em
  * fila e no lead time.
  *
@@ -46,7 +46,7 @@ import {
  * - Etapa que foi de `PENDENTE` direto a `APROVADO` tem tratamento zero por
  *   construção e sai da mediana, contada em "Aprovação direta". Incluída, um
  *   time que aprova em lote exibiria ciclo de 0 dia.
- * - **Mediana**, não média: um produto abandonado há dois anos destrói a média.
+ * - **Mediana**, não média: um processo abandonado há dois anos destrói a média.
  * - Agrupamento por trilha usa categoria **+ versão**. Juntar v1 e v3 compara
  *   réguas diferentes.
  */
@@ -54,13 +54,13 @@ import {
 /** Uma métrica de duração, sempre acompanhada da base sobre a qual foi medida. */
 export interface Medida {
   medianaDias: number | null;
-  /** Quantas etapas (ou produtos) entraram no cálculo. */
+  /** Quantas etapas (ou processos) entraram no cálculo. */
   base: number;
 }
 
 export interface GrupoCiclo {
   chave: string;
-  /** Só existe no agrupamento por trilha: é uma medida do produto, não da etapa. */
+  /** Só existe no agrupamento por trilha: é uma medida do processo, não da etapa. */
   leadTimeTrilha: Medida | null;
   tempoTratamentoEtapa: Medida;
   tempoEmFila: Medida;
@@ -102,7 +102,7 @@ export class CicloService {
 
     const grupos = await this.consultarEtapas(agrupamento, de, ate);
 
-    // Lead time é medida do PRODUTO: não faz sentido por etapa.
+    // Lead time é medida do PROCESSO: não faz sentido por etapa.
     const leadTimes =
       agrupamento === 'trilha' ? await this.consultarLeadTime(de, ate) : [];
     const porChave = new Map(leadTimes.map((l) => [l.chave, l]));
@@ -186,14 +186,14 @@ export class CicloService {
               AND h.status_anterior = 'PENDENTE'
               AND h.status_novo = 'APROVADO'
           ) AS direta
-        FROM certificacoes_produto cp
+        FROM certificacoes_processo cp
         JOIN modelos_etapa me       ON me.id = cp.etapa_id
-        JOIN produtos p             ON p.id = cp.produto_id
+        JOIN processos p             ON p.id = cp.processo_id
         JOIN modelos_trilha mt      ON mt.id = p.modelo_trilha_id
-        -- Pela categoria DO PRODUTO. Era por mt.categoria_id, que deixou de
+        -- Pela categoria DO PROCESSO. Era por mt.categoria_id, que deixou de
         -- existir quando a trilha virou catálogo; o agrupamento é o mesmo,
         -- porque a versão sempre foi resolvida a partir desta categoria.
-        JOIN categorias_produto cat ON cat.id = p.categoria_id
+        JOIN categorias_processo cat ON cat.id = p.categoria_id
         WHERE p.status = 'ATIVO'
           AND (${de}::timestamp IS NULL OR cp.criado_em >= ${de}::timestamp)
           AND (${ate}::timestamp IS NULL OR cp.criado_em <= ${ate}::timestamp)
@@ -234,9 +234,9 @@ export class CicloService {
   }
 
   /**
-   * Lead time por trilha, medido no PRODUTO.
+   * Lead time por trilha, medido no PROCESSO.
    *
-   * Só entra o produto cujas etapas obrigatórias estão TODAS aprovadas — é a
+   * Só entra o processo cujas etapas obrigatórias estão TODAS aprovadas — é a
    * mesma regra que libera a emissão do certificado. A emissão em si fica de
    * fora de propósito: emitir é ato manual e pode demorar dias depois de a
    * trilha fechar, e misturar os dois mede a secretaria, não o processo.
@@ -246,35 +246,35 @@ export class CicloService {
     ate: Date | null,
   ): Promise<LeadTimeBruto[]> {
     return this.prisma.$queryRaw<LeadTimeBruto[]>(Prisma.sql`
-      WITH produto AS (
+      WITH processo AS (
         SELECT
           cat.nome || ' · v' || mt.versao AS chave,
           p.id,
           p.criado_em,
           (
             SELECT MAX(h.alterado_em)
-            FROM certificacoes_produto cp
+            FROM certificacoes_processo cp
             JOIN modelos_etapa me ON me.id = cp.etapa_id
             JOIN certificacoes_historico h ON h.certificacao_id = cp.id
-            WHERE cp.produto_id = p.id
+            WHERE cp.processo_id = p.id
               AND me.obrigatoria
               AND h.status_anterior IS DISTINCT FROM h.status_novo
               AND h.status_novo = 'APROVADO'
           ) AS concluido_em,
           NOT EXISTS (
             SELECT 1
-            FROM certificacoes_produto cp2
+            FROM certificacoes_processo cp2
             JOIN modelos_etapa me2 ON me2.id = cp2.etapa_id
-            WHERE cp2.produto_id = p.id
+            WHERE cp2.processo_id = p.id
               AND me2.obrigatoria
               AND cp2.status <> 'APROVADO'
           ) AS concluido
-        FROM produtos p
+        FROM processos p
         JOIN modelos_trilha mt      ON mt.id = p.modelo_trilha_id
-        -- Pela categoria DO PRODUTO. Era por mt.categoria_id, que deixou de
+        -- Pela categoria DO PROCESSO. Era por mt.categoria_id, que deixou de
         -- existir quando a trilha virou catálogo; o agrupamento é o mesmo,
         -- porque a versão sempre foi resolvida a partir desta categoria.
-        JOIN categorias_produto cat ON cat.id = p.categoria_id
+        JOIN categorias_processo cat ON cat.id = p.categoria_id
         WHERE p.status = 'ATIVO'
           AND (${de}::timestamp IS NULL OR p.criado_em >= ${de}::timestamp)
           AND (${ate}::timestamp IS NULL OR p.criado_em <= ${ate}::timestamp)
@@ -285,7 +285,7 @@ export class CicloService {
           ORDER BY EXTRACT(EPOCH FROM (concluido_em - criado_em))
         ) FILTER (WHERE concluido AND concluido_em IS NOT NULL) AS mediana,
         COUNT(*) FILTER (WHERE concluido AND concluido_em IS NOT NULL) AS base
-      FROM produto
+      FROM processo
       GROUP BY chave
       ORDER BY chave
     `);

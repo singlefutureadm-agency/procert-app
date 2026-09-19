@@ -22,9 +22,9 @@ import { admin, cliente } from '../../testing/usuarios.fixture';
  * usasse `number` aqui passaria e a API devolveria `"3n"` em produção.
  */
 const linha = (extra: Record<string, unknown> = {}) => ({
-  produto_id: 1,
+  processo_id: 1,
   codigo_processo: 'PROCERT-EPI-012-26',
-  produto: 'Cinturão paraquedista',
+  processo: 'Cinturão paraquedista',
   motivo_processo: 'INICIAL',
   cliente_id: 100,
   cliente_nome: 'Indústria Alfa',
@@ -123,7 +123,7 @@ describe('QuadroService', () => {
       expect(cartao.progresso).toBe(25);
     });
 
-    it('produto sem etapa nenhuma não divide por zero', async () => {
+    it('processo sem etapa nenhuma não divide por zero', async () => {
       banco.prisma.$queryRaw.mockResolvedValue([
         linha({
           total_etapas: 0n,
@@ -148,8 +148,8 @@ describe('QuadroService', () => {
       // do corte. Um quadro que mostra 2 cartões e diz "2" havendo 87 esconde
       // a fila em vez de mostrá-la.
       banco.prisma.$queryRaw.mockResolvedValue([
-        linha({ produto_id: 1, total_da_coluna: 87n }),
-        linha({ produto_id: 2, total_da_coluna: 87n }),
+        linha({ processo_id: 1, total_da_coluna: 87n }),
+        linha({ processo_id: 2, total_da_coluna: 87n }),
       ] as never);
 
       const quadro = await servico.listar({ limitePorFase: 2 }, admin());

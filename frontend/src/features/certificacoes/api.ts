@@ -65,7 +65,7 @@ export const certificacoesApi = {
   /**
    * Marca ou desmarca um item do checklist.
    *
-   * O `id` é da microetapa DO PRODUTO. Fechar o checklist pode aprovar a
+   * O `id` é da microetapa DO PROCESSO. Fechar o checklist pode aprovar a
    * etapa — a resposta diz se aprovou e, quando não, por quê.
    */
   alternarMicroEtapa: async (id: number, concluida: boolean) => {
@@ -84,33 +84,33 @@ export const certificacoesApi = {
     return data;
   },
 
-  porProduto: async (produtoId: number) => {
+  porProcesso: async (processoId: number) => {
     const { data } = await api.get<CertificacaoDetalhe>(
-      `/certificacoes/produto/${produtoId}`,
+      `/certificacoes/processo/${processoId}`,
     );
     return data;
   },
 
   /** Salva todas as etapas em um único PUT — o backend grava o histórico. */
-  salvar: async (produtoId: number, etapas: EtapaAlteracao[]) => {
+  salvar: async (processoId: number, etapas: EtapaAlteracao[]) => {
     const { data } = await api.put<CertificacaoDetalhe>(
-      `/certificacoes/produto/${produtoId}`,
+      `/certificacoes/processo/${processoId}`,
       { etapas },
     );
     return data;
   },
 
-  /** Consulta pura: diz se o produto ficou preso a uma versão antiga da trilha. */
-  verificarVersao: async (produtoId: number) => {
+  /** Consulta pura: diz se o processo ficou preso a uma versão antiga da trilha. */
+  verificarVersao: async (processoId: number) => {
     const { data } = await api.get<SituacaoVersaoTrilha>(
-      `/certificacoes/produto/${produtoId}/versao-trilha`,
+      `/certificacoes/processo/${processoId}/versao-trilha`,
     );
     return data;
   },
 
   /** Anexa uma evidência à etapa (`certificacaoId` é a linha da timeline). */
   anexarDocumento: async (
-    produtoId: number,
+    processoId: number,
     certificacaoId: number,
     arquivo: File,
   ) => {
@@ -118,7 +118,7 @@ export const certificacoesApi = {
     formulario.append('documento', arquivo);
 
     const { data } = await api.post<DocumentoCertificacao>(
-      `/certificacoes/produto/${produtoId}/etapas/${certificacaoId}/documento`,
+      `/certificacoes/processo/${processoId}/etapas/${certificacaoId}/documento`,
       formulario,
       { headers: { 'Content-Type': 'multipart/form-data' } },
     );
@@ -146,35 +146,35 @@ export const certificacoesApi = {
    * Escreve ETAPA, não posição: marca a primeira etapa não aprovada da fase
    * como "em andamento". A coluna continua sendo derivada disso.
    */
-  moverParaFase: async (produtoId: number, fase: FaseProcesso) => {
+  moverParaFase: async (processoId: number, fase: FaseProcesso) => {
     const { data } = await api.post<{ mensagem: string; movido: boolean }>(
-      `/certificacoes/produto/${produtoId}/mover-fase`,
+      `/certificacoes/processo/${processoId}/mover-fase`,
       { fase },
     );
     return data;
   },
 
   /** Interrompe o processo. O motivo é obrigatório no backend. */
-  cancelar: async (produtoId: number, motivo: string) => {
+  cancelar: async (processoId: number, motivo: string) => {
     const { data } = await api.post<{ mensagem: string }>(
-      `/certificacoes/produto/${produtoId}/cancelar`,
+      `/certificacoes/processo/${processoId}/cancelar`,
       { motivo },
     );
     return data;
   },
 
   /** Devolve ao fluxo um processo cancelado. */
-  reabrir: async (produtoId: number) => {
+  reabrir: async (processoId: number) => {
     const { data } = await api.post<{ mensagem: string }>(
-      `/certificacoes/produto/${produtoId}/reabrir`,
+      `/certificacoes/processo/${processoId}/reabrir`,
     );
     return data;
   },
 
   /** Aplica a migração — sempre com confirmação explícita do usuário. */
-  migrarVersao: async (produtoId: number) => {
+  migrarVersao: async (processoId: number) => {
     const { data } = await api.post<SituacaoVersaoTrilha>(
-      `/certificacoes/produto/${produtoId}/migrar-versao-trilha`,
+      `/certificacoes/processo/${processoId}/migrar-versao-trilha`,
     );
     return data;
   },
@@ -185,11 +185,11 @@ export const certificacoesApi = {
    * Vem por blob, e não por `<a href>`, porque a rota exige o Bearer — um link
    * direto sairia sem o cabeçalho e voltaria 401. O nome do arquivo é o que o
    * servidor mandou no `Content-Disposition`: quem sabe montar o nome é quem
-   * conhece o produto e a data, e duplicar essa regra aqui a faria divergir.
+   * conhece o processo e a data, e duplicar essa regra aqui a faria divergir.
    */
-  exportar: async (produtoId: number, formato: 'xlsx' | 'csv') => {
+  exportar: async (processoId: number, formato: 'xlsx' | 'csv') => {
     const resposta = await api.get<Blob>(
-      `/certificacoes/produto/${produtoId}/exportacao`,
+      `/certificacoes/processo/${processoId}/exportacao`,
       { params: { formato }, responseType: 'blob' },
     );
 
@@ -208,9 +208,9 @@ export const certificacoesApi = {
     URL.revokeObjectURL(url);
   },
 
-  reiniciar: async (produtoId: number) => {
+  reiniciar: async (processoId: number) => {
     const { data } = await api.post<{ mensagem: string }>(
-      `/certificacoes/produto/${produtoId}/reiniciar`,
+      `/certificacoes/processo/${processoId}/reiniciar`,
     );
     return data;
   },

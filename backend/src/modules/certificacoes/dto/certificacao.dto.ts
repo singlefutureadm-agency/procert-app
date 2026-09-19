@@ -22,7 +22,7 @@ import { AbrirNaoConformidadeDto } from '../../nao-conformidades/dto/nao-conform
 
 /** Uma etapa alterada dentro do lote enviado pela timeline. */
 export class EtapaCertificacaoAtualizacaoDto {
-  @ApiProperty({ description: 'ID da linha de certificação (produto × etapa)' })
+  @ApiProperty({ description: 'ID da linha de certificação (processo × etapa)' })
   @Type(() => Number)
   @IsInt()
   id!: number;
@@ -84,7 +84,7 @@ export class ListarCertificacoesDto extends PaginacaoDto {
  * Semáforo de aging do processo — quanto tempo ele está aberto.
  *
  * Não é enum do Prisma: nada disso é persistido. É derivado de
- * `Produto.criadoEm` contra `ALERTAS_AGING` a cada carga do quadro, do mesmo
+ * `Processo.criadoEm` contra `ALERTAS_AGING` a cada carga do quadro, do mesmo
  * jeito que a fase é derivada da etapa atual. Guardar o semáforo criaria uma
  * coluna que envelhece sozinha e que alguém teria de recalcular por cron.
  */
@@ -99,7 +99,7 @@ export type SemaforoAging = (typeof SEMAFOROS_AGING)[number];
  * paginar o quadro inteiro misturaria colunas.
  */
 export class ListarQuadroDto {
-  @ApiPropertyOptional({ description: 'Filtra por categoria de produto' })
+  @ApiPropertyOptional({ description: 'Filtra por categoria de processo' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -127,7 +127,7 @@ export class ListarQuadroDto {
   semaforo?: SemaforoAging;
 
   @ApiPropertyOptional({
-    description: 'Busca por produto, cliente ou código do processo',
+    description: 'Busca por processo, cliente ou código do processo',
   })
   @IsOptional()
   @IsString()

@@ -67,21 +67,21 @@ describe('ArmazenamentoDisco', () => {
   });
 
   it('grava e relê o mesmo conteúdo, criando a pasta', async () => {
-    await disco.gravar('produtos', 'a.png', Buffer.from('imagem'), 'image/png');
+    await disco.gravar('processos', 'a.png', Buffer.from('imagem'), 'image/png');
 
-    expect(readFileSync(join(baseDir, 'produtos', 'a.png')).toString()).toBe(
+    expect(readFileSync(join(baseDir, 'processos', 'a.png')).toString()).toBe(
       'imagem',
     );
-    expect((await disco.ler('produtos', 'a.png'))?.toString()).toBe('imagem');
+    expect((await disco.ler('processos', 'a.png'))?.toString()).toBe('imagem');
   });
 
   it('ler devolve null para arquivo ausente, em vez de lançar', async () => {
-    await expect(disco.ler('produtos', 'nao-existe.png')).resolves.toBeNull();
+    await expect(disco.ler('processos', 'nao-existe.png')).resolves.toBeNull();
   });
 
   it('remover não propaga falha de arquivo ausente', async () => {
     await expect(
-      disco.remover('produtos', 'nao-existe.png'),
+      disco.remover('processos', 'nao-existe.png'),
     ).resolves.toBeUndefined();
   });
 
@@ -91,9 +91,9 @@ describe('ArmazenamentoDisco', () => {
     // chama — e é o que sobra se um nome vier do banco populado pelo ETL.
     writeFileSync(join(baseDir, '..', 'segredo-procert.txt'), 'nao-deveria-sair');
 
-    expect(disco.caminho('produtos', '../../segredo-procert.txt')).toBeNull();
+    expect(disco.caminho('processos', '../../segredo-procert.txt')).toBeNull();
     await expect(
-      disco.ler('produtos', '../../segredo-procert.txt'),
+      disco.ler('processos', '../../segredo-procert.txt'),
     ).resolves.toBeNull();
   });
 
@@ -113,11 +113,11 @@ describe('ArmazenamentoSupabase', () => {
   });
 
   it('grava pasta pública no bucket público', async () => {
-    await supabase.gravar('produtos', 'a.png', Buffer.from('x'), 'image/png');
+    await supabase.gravar('processos', 'a.png', Buffer.from('x'), 'image/png');
 
     const [url, opcoes] = requisicao.mock.calls[0];
     expect(url).toBe(
-      'https://projeto.supabase.co/storage/v1/object/procert-publico/produtos/a.png',
+      'https://projeto.supabase.co/storage/v1/object/procert-publico/processos/a.png',
     );
     expect(opcoes.method).toBe('POST');
     expect(opcoes.headers['Content-Type']).toBe('image/png');
@@ -143,7 +143,7 @@ describe('ArmazenamentoSupabase', () => {
     requisicao.mockResolvedValue(respostaFalsa(false, 'Bucket not found', 404));
 
     await expect(
-      supabase.gravar('produtos', 'a.png', Buffer.from('x'), 'image/png'),
+      supabase.gravar('processos', 'a.png', Buffer.from('x'), 'image/png'),
     ).rejects.toThrow(/404.*Bucket not found/s);
   });
 
@@ -160,7 +160,7 @@ describe('ArmazenamentoSupabase', () => {
   it('remover não propaga erro de rede — remover é sempre acessório', async () => {
     requisicao.mockRejectedValue(new Error('rede caiu'));
 
-    await expect(supabase.remover('produtos', 'a.png')).resolves.toBeUndefined();
+    await expect(supabase.remover('processos', 'a.png')).resolves.toBeUndefined();
   });
 
   it('urlPublica aponta para o bucket público, sem assinatura', () => {
@@ -177,13 +177,13 @@ describe('criarArmazenamento', () => {
 
   it('resolve UPLOAD_DIR a partir do cwd', async () => {
     const raiz = mkdtempSync(join(tmpdir(), 'procert-driver-'));
-    await mkdir(join(raiz, 'produtos'), { recursive: true });
+    await mkdir(join(raiz, 'processos'), { recursive: true });
     const driver = criarArmazenamento(
       configCom({ UPLOAD_DIR: raiz }),
     ) as ArmazenamentoDisco;
 
-    expect(driver.caminho('produtos', 'a.png')).toBe(
-      join(raiz, 'produtos', 'a.png'),
+    expect(driver.caminho('processos', 'a.png')).toBe(
+      join(raiz, 'processos', 'a.png'),
     );
   });
 
@@ -198,8 +198,8 @@ describe('criarArmazenamento', () => {
 
     expect(driver).toBeInstanceOf(ArmazenamentoSupabase);
     // A barra final da URL é aparada: sem isso toda requisição sairia com `//`.
-    expect(driver.urlPublica('produtos', 'a.png')).toBe(
-      'https://projeto.supabase.co/storage/v1/object/public/procert-publico/produtos/a.png',
+    expect(driver.urlPublica('processos', 'a.png')).toBe(
+      'https://projeto.supabase.co/storage/v1/object/public/procert-publico/processos/a.png',
     );
   });
 

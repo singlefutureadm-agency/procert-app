@@ -2,27 +2,27 @@
  * Transposição do catálogo global de etapas para trilhas por categoria.
  *
  * Contexto: até esta versão, `EtapaCertificacao` era um catálogo único e toda
- * etapa ativa valia para todo produto. Agora a trilha pertence a uma
- * `CategoriaProduto` e é versionada em `ModeloTrilha` → `ModeloEtapa`.
+ * etapa ativa valia para todo processo. Agora a trilha pertence a uma
+ * `CategoriaProcesso` e é versionada em `ModeloTrilha` → `ModeloEtapa`.
  *
  * Uso:
  *   Simulação (não grava nada):  npm run migrate:categorias -- --dry-run
  *   Execução:                    npm run migrate:categorias
  *
  * Ordem das operações:
- *   1. cria a categoria "Geral", que recebe todos os produtos existentes
+ *   1. cria a categoria "Geral", que recebe todos os processos existentes
  *   2. cria a versão 1 da trilha dessa categoria
  *   3. copia cada etapa do catálogo antigo para uma `ModeloEtapa` da versão 1
- *   4. aponta os produtos existentes para a categoria/modelo "Geral"
- *   5. remapeia `certificacoes_produto.etapa_id` para as novas `ModeloEtapa`
+ *   4. aponta os processos existentes para a categoria/modelo "Geral"
+ *   5. remapeia `certificacoes_processo.etapa_id` para as novas `ModeloEtapa`
  *
  * Pré-requisito: a migration `categorias_e_modelos_trilha` já aplicada — ela
- * derruba a FK antiga de `certificacoes_produto`, sem o que o passo 5 falha.
+ * derruba a FK antiga de `certificacoes_processo`, sem o que o passo 5 falha.
  * Depois deste script, rode `npx prisma migrate dev` para fechar a transição
- * (NOT NULL nas colunas de produtos e FK nova em certificacoes_produto).
+ * (NOT NULL nas colunas de processos e FK nova em certificacoes_processo).
  *
  * O script é idempotente: rodar duas vezes não duplica categoria, modelo nem
- * etapas, e produtos/certificações já migrados são ignorados.
+ * etapas, e processos/certificações já migrados são ignorados.
  */
 // Precisa vir antes de qualquer outro import: `ts-node` não carrega o `.env`.
 import 'dotenv/config';
@@ -35,7 +35,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const CATEGORIA_PADRAO = 'Geral';
 const DESCRICAO_CATEGORIA =
   'Categoria criada na migração do catálogo global de etapas. ' +
-  'Agrupa os produtos cadastrados antes das trilhas por categoria.';
+  'Agrupa os processos cadastrados antes das trilhas por categoria.';
 
 /**
  * Classificação das etapas herdadas. O catálogo antigo não tinha o conceito de
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
   );
 
   // --- 1. Categoria que recebe o acervo existente ---------------------------
-  let categoria = await prisma.categoriaProduto.findUnique({
+  let categoria = await prisma.categoriaProcesso.findUnique({
     where: { nome: CATEGORIA_PADRAO },
   });
 
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   } else if (DRY_RUN) {
     log(`Criaria a categoria "${CATEGORIA_PADRAO}".`);
   } else {
-    categoria = await prisma.categoriaProduto.create({
+    categoria = await prisma.categoriaProcesso.create({
       data: { nome: CATEGORIA_PADRAO, descricao: DESCRICAO_CATEGORIA },
     });
     log(`Categoria "${CATEGORIA_PADRAO}" criada (id ${categoria.id}).`);
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
   // sem isso as linhas ficariam órfãs e a FK da próxima migration falharia.
   const [catalogo, etapasEmUso] = await Promise.all([
     prisma.etapaCertificacao.findMany({ orderBy: { ordem: 'asc' } }),
-    prisma.certificacaoProduto.findMany({
+    prisma.certificacaoProcesso.findMany({
       distinct: ['etapaId'],
       select: { etapaId: true },
     }),
@@ -167,29 +167,29 @@ async function main(): Promise<void> {
     log(`Etapa "${etapa.nome}" migrada (modelo_etapa ${criada.id}).`);
   }
 
-  // --- 4. Produtos existentes → categoria/modelo "Geral" -------------------
+  // --- 4. Processos existentes → categoria/modelo "Geral" -------------------
   // As colunas ainda são nulas nesta fase; por isso o filtro por null.
-  const produtosSemCategoria = await prisma.$queryRaw<Array<{ id: number }>>`
-    SELECT id FROM produtos WHERE categoria_id IS NULL OR modelo_trilha_id IS NULL
+  const processosSemCategoria = await prisma.$queryRaw<Array<{ id: number }>>`
+    SELECT id FROM processos WHERE categoria_id IS NULL OR modelo_trilha_id IS NULL
   `;
 
-  if (produtosSemCategoria.length === 0) {
-    log('Nenhum produto pendente de categoria.');
+  if (processosSemCategoria.length === 0) {
+    log('Nenhum processo pendente de categoria.');
   } else if (DRY_RUN || !modelo || !categoria) {
-    log(`Apontaria ${produtosSemCategoria.length} produto(s) para "${CATEGORIA_PADRAO}".`);
+    log(`Apontaria ${processosSemCategoria.length} processo(s) para "${CATEGORIA_PADRAO}".`);
   } else {
     await prisma.$executeRaw`
-      UPDATE produtos
+      UPDATE processos
          SET categoria_id = ${categoria.id}, modelo_trilha_id = ${modelo.id}
        WHERE categoria_id IS NULL OR modelo_trilha_id IS NULL
     `;
     log(
-      `${produtosSemCategoria.length} produto(s) apontado(s) para "${CATEGORIA_PADRAO}".`,
+      `${processosSemCategoria.length} processo(s) apontado(s) para "${CATEGORIA_PADRAO}".`,
     );
   }
 
   // --- 5. Remapeia as certificações para as novas etapas -------------------
-  const certificacoes = await prisma.certificacaoProduto.findMany({
+  const certificacoes = await prisma.certificacaoProcesso.findMany({
     select: { id: true, etapaId: true },
   });
 
@@ -211,7 +211,7 @@ async function main(): Promise<void> {
     }
 
     if (!DRY_RUN && novoId !== PENDENTE) {
-      await prisma.certificacaoProduto.update({
+      await prisma.certificacaoProcesso.update({
         where: { id: certificacao.id },
         data: { etapaId: novoId },
       });

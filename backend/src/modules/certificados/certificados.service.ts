@@ -44,8 +44,8 @@ const SELECT_CERTIFICADO = {
   emitidoPorNome: true,
   arquivoPdf: true,
   criadoEm: true,
-  produtoId: true,
-  produto: {
+  processoId: true,
+  processo: {
     select: {
       id: true,
       nome: true,
@@ -75,12 +75,12 @@ export class CertificadosService {
 
     const where: Prisma.CertificadoWhereInput = {
       ...(filtros.status && { status: filtros.status }),
-      ...(filtros.produtoId && { produtoId: filtros.produtoId }),
-      ...(clienteId && { produto: { clienteId } }),
+      ...(filtros.processoId && { processoId: filtros.processoId }),
+      ...(clienteId && { processo: { clienteId } }),
       ...(filtros.busca && {
         OR: [
           { numero: { contains: filtros.busca, mode: 'insensitive' } },
-          { produto: { nome: { contains: filtros.busca, mode: 'insensitive' } } },
+          { processo: { nome: { contains: filtros.busca, mode: 'insensitive' } } },
         ],
       }),
     };
@@ -131,7 +131,7 @@ export class CertificadosService {
 
     const escopo: Prisma.CertificadoWhereInput = {
       status: { in: VIGENTES },
-      ...(clienteId && { produto: { clienteId } }),
+      ...(clienteId && { processo: { clienteId } }),
     };
     const where: Prisma.CertificadoWhereInput = {
       ...escopo,
@@ -193,34 +193,34 @@ export class CertificadosService {
     if (!certificado) {
       throw new NotFoundException(`Certificado ${id} não encontrado.`);
     }
-    this.garantirAcesso(certificado.produto.clienteId, usuario);
+    this.garantirAcesso(certificado.processo.clienteId, usuario);
 
     return certificado;
   }
 
-  async listarPorProduto(produtoId: number, usuario: UsuarioAutenticado) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+  async listarPorProcesso(processoId: number, usuario: UsuarioAutenticado) {
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
       select: { clienteId: true },
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
-    this.garantirAcesso(produto.clienteId, usuario);
+    this.garantirAcesso(processo.clienteId, usuario);
 
     return this.prisma.certificado.findMany({
-      where: { produtoId },
+      where: { processoId },
       select: SELECT_CERTIFICADO,
       orderBy: { dataEmissao: 'desc' },
     });
   }
 
   /**
-   * Emite o certificado de um produto.
+   * Emite o certificado de um processo.
    *
    * Exige todas as etapas OBRIGATÓRIAS aprovadas — etapas opcionais pendentes
-   * não bloqueiam. A validade vem de `CategoriaProduto.validadeMeses`, salvo
+   * não bloqueiam. A validade vem de `CategoriaProcesso.validadeMeses`, salvo
    * data informada explicitamente.
    *
    * O PDF é gerado depois do commit, de propósito: escrita em disco não
@@ -228,12 +228,12 @@ export class CertificadosService {
    * certificado existe e o PDF é gerado sob demanda no primeiro download.
    */
   async emitir(
-    produtoId: number,
+    processoId: number,
     dto: EmitirCertificadoDto,
     usuario: UsuarioAutenticado,
   ) {
-    const produto = await this.prisma.produto.findUnique({
-      where: { id: produtoId },
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
       include: {
         cliente: { select: { nome: true, cnpj: true, cpf: true } },
         categoria: true,
@@ -243,11 +243,11 @@ export class CertificadosService {
       },
     });
 
-    if (!produto) {
-      throw new NotFoundException(`Produto ${produtoId} não encontrado.`);
+    if (!processo) {
+      throw new NotFoundException(`Processo ${processoId} não encontrado.`);
     }
 
-    const pendentes = produto.certificacao.filter(
+    const pendentes = processo.certificacao.filter(
       (certificacao) =>
         certificacao.etapa.obrigatoria &&
         certificacao.status !== StatusCertificacao.APROVADO,
@@ -261,13 +261,13 @@ export class CertificadosService {
     }
 
     const jaVigente = await this.prisma.certificado.findFirst({
-      where: { produtoId, status: { in: VIGENTES } },
+      where: { processoId, status: { in: VIGENTES } },
       select: { numero: true, status: true },
     });
 
     if (jaVigente) {
       throw new ConflictException(
-        `Este produto já possui o certificado ${jaVigente.numero} em vigor. ` +
+        `Este processo já possui o certificado ${jaVigente.numero} em vigor. ` +
           'Cancele-o antes de emitir um novo.',
       );
     }
@@ -275,7 +275,7 @@ export class CertificadosService {
     const dataEmissao = new Date();
     const dataValidade = dto.dataValidade
       ? new Date(dto.dataValidade)
-      : this.somarMeses(dataEmissao, produto.categoria.validadeMeses);
+      : this.somarMeses(dataEmissao, processo.categoria.validadeMeses);
 
     if (dataValidade <= dataEmissao) {
       throw new BadRequestException(
@@ -288,7 +288,7 @@ export class CertificadosService {
 
       return tx.certificado.create({
         data: {
-          produtoId,
+          processoId,
           numero,
           escopo: dto.escopo,
           dataEmissao,
@@ -392,7 +392,7 @@ export class CertificadosService {
         numero: true,
         dataValidade: true,
         motivoStatus: true,
-        produto: {
+        processo: {
           select: {
             nome: true,
             cliente: { select: { nome: true, email: true } },
@@ -407,11 +407,11 @@ export class CertificadosService {
       const certificado = await this.carregarParaAviso(id);
       if (!certificado) return;
 
-      const { produto } = certificado;
+      const { processo } = certificado;
       await this.notificacoes.certificadoEmitido(
-        produto.cliente.email,
-        produto.cliente.nome,
-        produto.nome,
+        processo.cliente.email,
+        processo.cliente.nome,
+        processo.nome,
         {
           numero: certificado.numero,
           dataValidade: certificado.dataValidade,
@@ -429,11 +429,11 @@ export class CertificadosService {
       const certificado = await this.carregarParaAviso(id);
       if (!certificado) return;
 
-      const { produto } = certificado;
+      const { processo } = certificado;
       await this.notificacoes.certificadoAlterado(
-        produto.cliente.email,
-        produto.cliente.nome,
-        produto.nome,
+        processo.cliente.email,
+        processo.cliente.nome,
+        processo.nome,
         {
           numero: certificado.numero,
           cancelado,
@@ -511,7 +511,7 @@ export class CertificadosService {
     const certificado = await this.prisma.certificado.findUniqueOrThrow({
       where: { id },
       include: {
-        produto: {
+        processo: {
           include: {
             cliente: { select: { nome: true, cnpj: true, cpf: true } },
             categoria: { select: { nome: true, normaReferencia: true } },
@@ -526,13 +526,13 @@ export class CertificadosService {
       dataEmissao: certificado.dataEmissao,
       dataValidade: certificado.dataValidade,
       emitidoPorNome: certificado.emitidoPorNome,
-      produto: certificado.produto.nome,
-      produtoDescricao: certificado.produto.descricao,
-      cliente: certificado.produto.cliente.nome,
+      processo: certificado.processo.nome,
+      processoDescricao: certificado.processo.descricao,
+      cliente: certificado.processo.cliente.nome,
       clienteDocumento:
-        certificado.produto.cliente.cnpj ?? certificado.produto.cliente.cpf,
-      categoria: certificado.produto.categoria.nome,
-      normaReferencia: certificado.produto.categoria.normaReferencia,
+        certificado.processo.cliente.cnpj ?? certificado.processo.cliente.cpf,
+      categoria: certificado.processo.categoria.nome,
+      normaReferencia: certificado.processo.categoria.normaReferencia,
     });
 
     const caminhoAntigo = certificado.arquivoPdf;
@@ -589,7 +589,7 @@ export class CertificadosService {
   private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {
     if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) {
       throw new ForbiddenException(
-        'Você só pode acessar os certificados dos seus produtos.',
+        'Você só pode acessar os certificados dos seus processos.',
       );
     }
   }

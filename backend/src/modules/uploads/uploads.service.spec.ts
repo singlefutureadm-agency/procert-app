@@ -42,17 +42,17 @@ describe('UploadsService', () => {
 
   describe('salvarImagem', () => {
     it('grava com nome em UUID e devolve a URL relativa', async () => {
-      const url = await servico.salvarImagem(arquivo('image/png'), 'produtos');
+      const url = await servico.salvarImagem(arquivo('image/png'), 'processos');
 
       // A forma da URL é contrato: é ela que vai para o banco e é a mesma nos
       // dois drivers.
       expect(url).toMatch(
-        /^\/uploads\/produtos\/[0-9a-f-]{36}\.png$/,
+        /^\/uploads\/processos\/[0-9a-f-]{36}\.png$/,
       );
 
       const [pasta, nomeArquivo, conteudo, tipoMime] =
         armazenamento.gravar.mock.calls[0];
-      expect(pasta).toBe('produtos');
+      expect(pasta).toBe('processos');
       expect(url.endsWith(nomeArquivo)).toBe(true);
       expect(conteudo.toString()).toBe('conteudo');
       expect(tipoMime).toBe('image/png');
@@ -63,7 +63,7 @@ describe('UploadsService', () => {
       // legado deixava passar `.php`.
       const url = await servico.salvarImagem(
         arquivo('image/png', { nome: 'foto.php' }),
-        'produtos',
+        'processos',
       );
 
       expect(url.endsWith('.png')).toBe(true);
@@ -75,7 +75,7 @@ describe('UploadsService', () => {
       ['application/x-httpd-php'],
     ])('recusa %s e não chega a gravar', async (mime) => {
       await expect(
-        servico.salvarImagem(arquivo(mime), 'produtos'),
+        servico.salvarImagem(arquivo(mime), 'processos'),
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(armazenamento.gravar).not.toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe('UploadsService', () => {
       await expect(
         servico.salvarImagem(
           arquivo('image/png', { tamanho: 6 * 1024 * 1024 }),
-          'produtos',
+          'processos',
         ),
       ).rejects.toThrow(/Máximo: 5 MB/);
     });
@@ -136,16 +136,16 @@ describe('UploadsService', () => {
 
     it.each([
       ['fora do prefixo', '/etc/passwd'],
-      ['prefixo parcial', '/uploadsx/produtos/a.png'],
-      ['travessia', '/uploads/produtos/../../etc/passwd'],
-      ['travessia codificada', '/uploads/produtos/%2e%2e%2fcertificados/a.pdf'],
+      ['prefixo parcial', '/uploadsx/processos/a.png'],
+      ['travessia', '/uploads/processos/../../etc/passwd'],
+      ['travessia codificada', '/uploads/processos/%2e%2e%2fcertificados/a.pdf'],
       // No Windows a barra invertida também separa diretório: sem ela na
-      // separação, `produtos\..\certificados` seria UM segmento, passaria pela
+      // separação, `processos\..\certificados` seria UM segmento, passaria pela
       // allowlist como nome de arquivo e o driver de disco resolveria o `..`.
-      ['travessia com barra invertida', '/uploads/produtos/..%5ccertificados'],
+      ['travessia com barra invertida', '/uploads/processos/..%5ccertificados'],
       ['pasta fora da allowlist', '/uploads/inventada/a.png'],
-      ['sem arquivo', '/uploads/produtos'],
-      ['subpasta', '/uploads/produtos/sub/a.png'],
+      ['sem arquivo', '/uploads/processos'],
+      ['subpasta', '/uploads/processos/sub/a.png'],
       ['vazio', ''],
     ])('%s → null, sem tocar no armazenamento', async (_, url) => {
       // A URL vem do banco, e as colunas foram populadas pelo ETL do legado —
@@ -172,7 +172,7 @@ describe('UploadsService', () => {
     it.each([
       ['nula', null],
       ['indefinida', undefined],
-      ['com travessia', '/uploads/produtos/../certificados/a.pdf'],
+      ['com travessia', '/uploads/processos/../certificados/a.pdf'],
     ])('URL %s é ignorada', async (_, url) => {
       await servico.remover(url);
 

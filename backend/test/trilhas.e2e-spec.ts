@@ -8,8 +8,8 @@ import { Cenario, prepararCenario } from './utils/cenario';
  * uma categoria de ficar sem processo sem que ninguém perceba.
  *
  * O que só é alcançável aqui, e não no unitário, é a integridade real do banco:
- * o `Restrict` de `categorias_produto.trilha_id`, o `Cascade` das versões e o
- * fato de `produtos.modelo_trilha_id` NÃO se mover quando a categoria troca de
+ * o `Restrict` de `categorias_processo.trilha_id`, o `Cascade` das versões e o
+ * fato de `processos.modelo_trilha_id` NÃO se mover quando a categoria troca de
  * trilha — a propriedade que a migração inteira existe para preservar.
  */
 describe('Trilhas do catálogo (e2e)', () => {
@@ -40,9 +40,9 @@ describe('Trilhas do catálogo (e2e)', () => {
       ['PATCH /api/trilhas/:id', 'patch' as const, '/api/trilhas/1'],
       ['DELETE /api/trilhas/:id', 'delete' as const, '/api/trilhas/1'],
       [
-        'PATCH /api/categorias-produto/:id/trilha',
+        'PATCH /api/categorias-processo/:id/trilha',
         'patch' as const,
-        '/api/categorias-produto/1/trilha',
+        '/api/categorias-processo/1/trilha',
       ],
     ])('%s — FUNCIONARIO recebe 403', async (_, metodo, rota) => {
       // Alterar uma trilha muda o processo de avaliação de TODA categoria
@@ -95,21 +95,21 @@ describe('Trilhas do catálogo (e2e)', () => {
     });
   });
 
-  describe('PATCH /api/categorias-produto/:id/trilha — o vínculo', () => {
-    it('trocar a trilha da categoria NÃO move produto em andamento', async () => {
+  describe('PATCH /api/categorias-processo/:id/trilha — o vínculo', () => {
+    it('trocar a trilha da categoria NÃO move processo em andamento', async () => {
       const nova = await pedir('post', '/api/trilhas', c.admin).send({
         nome: 'Trilha de destino',
         etapas: [{ nome: 'Etapa única', tipo: 'OUTRO' }],
       });
 
-      const antes = await prisma(app).produto.findUniqueOrThrow({
-        where: { id: c.produtoDonoId },
+      const antes = await prisma(app).processo.findUniqueOrThrow({
+        where: { id: c.processoDonoId },
         select: { modeloTrilhaId: true },
       });
 
       const resposta = await pedir(
         'patch',
-        `/api/categorias-produto/${c.categoriaId}/trilha`,
+        `/api/categorias-processo/${c.categoriaId}/trilha`,
         c.admin,
       ).send({ trilhaId: nova.body.id });
 
@@ -117,13 +117,13 @@ describe('Trilhas do catálogo (e2e)', () => {
       expect(resposta.body.trilha).toMatchObject({ nome: 'Trilha de destino' });
 
       /*
-       * O ponto da mudança inteira. `Produto.modeloTrilhaId` é o retrato da
-       * versão pela qual o produto entrou; se ele acompanhasse a categoria, uma
+       * O ponto da mudança inteira. `Processo.modeloTrilhaId` é o retrato da
+       * versão pela qual o processo entrou; se ele acompanhasse a categoria, uma
        * troca de trilha reescreveria a régua de todo mundo que já está em
        * avaliação — em silêncio, e sem caminho de volta.
        */
-      const depois = await prisma(app).produto.findUniqueOrThrow({
-        where: { id: c.produtoDonoId },
+      const depois = await prisma(app).processo.findUniqueOrThrow({
+        where: { id: c.processoDonoId },
         select: { modeloTrilhaId: true },
       });
       expect(depois.modeloTrilhaId).toBe(antes.modeloTrilhaId);
@@ -132,7 +132,7 @@ describe('Trilhas do catálogo (e2e)', () => {
       // devolve o cenário ao estado original para os testes seguintes
       await pedir(
         'patch',
-        `/api/categorias-produto/${c.categoriaId}/trilha`,
+        `/api/categorias-processo/${c.categoriaId}/trilha`,
         c.admin,
       ).send({ trilhaId: c.trilhaId });
     });
@@ -145,19 +145,19 @@ describe('Trilhas do catálogo (e2e)', () => {
 
       const resposta = await pedir(
         'patch',
-        `/api/categorias-produto/${c.categoriaId}/trilha`,
+        `/api/categorias-processo/${c.categoriaId}/trilha`,
         c.admin,
       ).send({ trilhaId: vazia.body.id });
 
       // Vincular aqui deixaria a categoria aparentemente configurada e
-      // recusando todo produto novo, sem nada na tela explicando por quê.
+      // recusando todo processo novo, sem nada na tela explicando por quê.
       expect(resposta.status).toBe(409);
     });
 
     it('recusa trilha inexistente com 404', async () => {
       const resposta = await pedir(
         'patch',
-        `/api/categorias-produto/${c.categoriaId}/trilha`,
+        `/api/categorias-processo/${c.categoriaId}/trilha`,
         c.admin,
       ).send({ trilhaId: 999999 });
       expect(resposta.status).toBe(404);
@@ -173,7 +173,7 @@ describe('Trilhas do catálogo (e2e)', () => {
       );
 
       expect(resposta.status).toBe(409);
-      // A trilha do cenário está vinculada E tem produtos: a mensagem precisa
+      // A trilha do cenário está vinculada E tem processos: a mensagem precisa
       // apontar o vínculo, que é o que o usuário resolve primeiro.
       expect(resposta.body.message).toMatch(/Material elétrico/);
     });

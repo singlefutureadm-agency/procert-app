@@ -130,19 +130,19 @@ describe('conteúdo de ajuda das telas', () => {
   });
 
   it('resolve rota com parâmetro a partir de uma URL concreta', () => {
-    expect(ajudaDaRota('/certificacoes/produto/42')?.rota).toBe(
-      '/certificacoes/produto/:produtoId',
+    expect(ajudaDaRota('/certificacoes/processo/42')?.rota).toBe(
+      '/certificacoes/processo/:processoId',
     );
-    expect(ajudaDaRota('/produtos/7/editar')?.rota).toBe('/produtos/:id/editar');
+    expect(ajudaDaRota('/processos/7/editar')?.rota).toBe('/processos/:id/editar');
     expect(ajudaDaRota('/categorias/3')?.rota).toBe('/categorias/:id');
   });
 
   it('não deixa um padrão curto capturar a URL de outro mais longo', () => {
-    // `matchPath` casa o caminho inteiro, então `/produtos` não pega
-    // `/produtos/novo`. Se isso mudasse, a ajuda de "cadastrar produto" seria
+    // `matchPath` casa o caminho inteiro, então `/processos` não pega
+    // `/processos/novo`. Se isso mudasse, a ajuda de "cadastrar processo" seria
     // substituída pela da listagem sem nenhum sintoma visível.
-    expect(ajudaDaRota('/produtos/novo')?.rota).toBe('/produtos/novo');
-    expect(ajudaDaRota('/produtos')?.rota).toBe('/produtos');
+    expect(ajudaDaRota('/processos/novo')?.rota).toBe('/processos/novo');
+    expect(ajudaDaRota('/processos')?.rota).toBe('/processos');
     expect(ajudaDaRota('/dashboard/aparencia')?.rota).toBe('/dashboard/aparencia');
     expect(ajudaDaRota('/dashboard')?.rota).toBe('/dashboard');
     expect(ajudaDaRota('/certificacoes/em-risco')?.rota).toBe(
@@ -225,11 +225,11 @@ describe('conteúdo de ajuda das telas', () => {
   });
 
   it('não vaza o próximo passo da equipe para o cliente', () => {
-    // `/produtos` leva a equipe para `/categorias` (restrita) e o cliente para
+    // `/processos` leva a equipe para `/categorias` (restrita) e o cliente para
     // `/certificacoes`. Se o fallback voltasse, este caso reprovaria.
-    const produtos = ajudaDaRota('/produtos');
-    expect(produtos?.proximoPasso?.para).toBe('/categorias');
-    expect(resolverAjuda(produtos!, true).proximoPasso?.para).toBe('/certificacoes');
+    const processos = ajudaDaRota('/processos');
+    expect(processos?.proximoPasso?.para).toBe('/categorias');
+    expect(resolverAjuda(processos!, true).proximoPasso?.para).toBe('/certificacoes');
   });
 
   it('cai no texto da equipe quando a variante não define o campo', () => {

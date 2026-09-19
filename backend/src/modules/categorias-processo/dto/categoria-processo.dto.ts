@@ -15,7 +15,7 @@ import {
 
 import { PaginacaoDto } from '../../../common/dto/paginacao.dto';
 
-export class CriarCategoriaProdutoDto {
+export class CriarCategoriaProcessoDto {
   @ApiProperty({ example: 'EPIs para trabalho em altura' })
   @IsString()
   @MinLength(3)
@@ -26,7 +26,7 @@ export class CriarCategoriaProdutoDto {
     example: 'EPI',
     description:
       'Abreviação usada no código do processo (PROCERT-<SIGLA>-<NNN>-<AA>). ' +
-      'Sem sigla, os produtos desta categoria nascem sem código de processo — ' +
+      'Sem sigla, os processos desta categoria nascem sem código de processo — ' +
       'não é erro, é a escolha entre nenhum identificador e um inventado.',
   })
   @IsOptional()
@@ -65,11 +65,11 @@ export class CriarCategoriaProdutoDto {
   validadeMeses?: number;
 }
 
-export class AtualizarCategoriaProdutoDto extends PartialType(
-  CriarCategoriaProdutoDto,
+export class AtualizarCategoriaProcessoDto extends PartialType(
+  CriarCategoriaProcessoDto,
 ) {}
 
-export class ListarCategoriasProdutoDto extends PaginacaoDto {
+export class ListarCategoriasProcessoDto extends PaginacaoDto {
   @ApiPropertyOptional({ enum: StatusRegistro, default: StatusRegistro.ATIVO })
   @IsOptional()
   @IsEnum(StatusRegistro)

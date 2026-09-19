@@ -14,19 +14,19 @@ import { marcosDaTransicao } from './certificacoes.service';
 /**
  * Resolve a política de aprovação automática de um processo.
  *
- * Duas fontes, e a ordem importa: o produto sobrepõe a trilha, mas **só quando
- * opinou**. `null` no produto NÃO é "não" — é "herda". Um `Boolean` com default
- * `false` no produto não distinguiria "o admin desligou aqui" de "o admin não
+ * Duas fontes, e a ordem importa: o processo sobrepõe a trilha, mas **só quando
+ * opinou**. `null` no processo NÃO é "não" — é "herda". Um `Boolean` com default
+ * `false` no processo não distinguiria "o admin desligou aqui" de "o admin não
  * mexeu", e a segunda precisa acompanhar a trilha quando a política dela mudar.
  *
  * Ponto único da regra: nenhum outro lugar deve ler
- * `Produto.aprovacaoAutomatica` cru para decidir.
+ * `Processo.aprovacaoAutomatica` cru para decidir.
  */
-export function aprovacaoAutomaticaDoProduto(produto: {
+export function aprovacaoAutomaticaDoProcesso(processo: {
   aprovacaoAutomatica: boolean | null;
   modeloTrilha: { aprovacaoAutomatica: boolean };
 }): boolean {
-  return produto.aprovacaoAutomatica ?? produto.modeloTrilha.aprovacaoAutomatica;
+  return processo.aprovacaoAutomatica ?? processo.modeloTrilha.aprovacaoAutomatica;
 }
 
 /** O que a marcação de uma microetapa produziu, para a tela poder explicar. */
@@ -49,7 +49,7 @@ export interface ResultadoMarcacao {
  *
  * Marcar a última microetapa PODE aprovar a etapa. Mas "todas marcadas" nunca é
  * lido como "logo, aprovada": a aprovação acontece aqui, no instante da
- * marcação, e fica gravada em `CertificacaoProduto.status` como qualquer outra.
+ * marcação, e fica gravada em `CertificacaoProcesso.status` como qualquer outra.
  *
  * A diferença não é estilo. Uma não conformidade resolvida devolve a etapa para
  * `EM_ANDAMENTO` com todos os itens ainda marcados — se o status fosse derivado
@@ -100,7 +100,7 @@ export class MicroEtapasService {
             status: true,
             iniciadaEm: true,
             etapa: { select: { nome: true, exigeDocumento: true } },
-            produto: {
+            processo: {
               select: {
                 id: true,
                 aprovacaoAutomatica: true,
@@ -148,7 +148,7 @@ export class MicroEtapasService {
       return { etapaAprovada: false, aviso: null, concluidas, total };
     }
 
-    if (!aprovacaoAutomaticaDoProduto(certificacao.produto)) {
+    if (!aprovacaoAutomaticaDoProcesso(certificacao.processo)) {
       return {
         etapaAprovada: false,
         aviso:
@@ -216,7 +216,7 @@ export class MicroEtapasService {
     usuario: UsuarioAutenticado,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.certificacaoProduto.update({
+      await tx.certificacaoProcesso.update({
         where: { id: certificacao.id },
         data: {
           status: StatusCertificacao.APROVADO,

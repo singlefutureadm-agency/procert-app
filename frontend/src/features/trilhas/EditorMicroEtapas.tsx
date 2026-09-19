@@ -48,7 +48,7 @@ export function EditorMicroEtapas({
     <fieldset className="micro-editor">
       <legend>Microetapas (checklist)</legend>
       <p className="texto-pequeno texto-fraco micro-editor__dica">
-        Cada produto recebe uma cópia própria desta lista ao entrar na trilha, e
+        Cada processo recebe uma cópia própria desta lista ao entrar na trilha, e
         é a cópia que a equipe marca. Área e prazo em branco seguem os da etapa.
       </p>
 

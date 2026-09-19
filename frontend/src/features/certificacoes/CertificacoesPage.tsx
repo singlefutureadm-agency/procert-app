@@ -46,8 +46,8 @@ export function CertificacoesPage() {
         titulo="Acompanhamento das certificações"
         descricao={
           equipe
-            ? 'Situação de cada produto no processo de certificação.'
-            : 'Acompanhe o andamento dos seus produtos.'
+            ? 'Situação de cada processo de certificação.'
+            : 'Acompanhe o andamento dos seus processos.'
         }
         // Só a equipe: o quadro é visão interna e o cliente receberia 403.
         acoes={equipe ? <AlternarVisaoCertificacoes atual="lista" /> : undefined}
@@ -56,7 +56,7 @@ export function CertificacoesPage() {
       <div className="entre">
         <CampoBusca
           valor={filtros.busca ?? ''}
-          placeholder="Buscar por produto ou cliente"
+          placeholder="Buscar por processo ou cliente"
           aoMudar={(busca) => setFiltros((atual) => ({ ...atual, busca, pagina: 1 }))}
         />
 
@@ -93,13 +93,13 @@ export function CertificacoesPage() {
             titulo="Nenhuma certificação encontrada"
             descricao={
               equipe
-                ? 'Cadastre um produto para abrir automaticamente a trilha de certificação.'
-                : 'Você ainda não possui produtos em processo de certificação.'
+                ? 'Cadastre um processo para abrir automaticamente a trilha de certificação.'
+                : 'Você ainda não possui processos em processo de certificação.'
             }
             acao={
               equipe && (
-                <Link to="/produtos/novo" className="btn btn--primario">
-                  Cadastrar produto
+                <Link to="/processos/novo" className="btn btn--primario">
+                  Cadastrar processo
                 </Link>
               )
             }
@@ -111,7 +111,7 @@ export function CertificacoesPage() {
                 <thead role="rowgroup">
                   <tr role="row">
                     <th role="columnheader" />
-                    <th role="columnheader">Produto</th>
+                    <th role="columnheader">Processo</th>
                     {equipe && <th role="columnheader">Cliente</th>}
                     <th role="columnheader">Etapa atual</th>
                     <th role="columnheader">Status</th>
@@ -122,18 +122,18 @@ export function CertificacoesPage() {
                 </thead>
                 <tbody role="rowgroup">
                   {data?.dados.map((linha) => (
-                    <tr role="row" key={linha.produtoId}>
+                    <tr role="row" key={linha.processoId}>
                       <td role="cell" className="tabela__celula-inicial" style={{ width: 56 }}>
                         <img
                           className="avatar"
-                          src={urlArquivo(linha.produtoFotoUrl)}
+                          src={urlArquivo(linha.processoFotoUrl)}
                           alt=""
                           onError={(evento) => {
                             evento.currentTarget.style.visibility = 'hidden';
                           }}
                         />
                       </td>
-                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{linha.produto}</td>
+                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{linha.processo}</td>
                       {equipe && <td role="cell" data-rotulo="Cliente" className="texto-suave">{linha.cliente.nome}</td>}
                       <td role="cell" data-rotulo="Etapa atual" className="texto-suave">{linha.etapaAtual ?? '—'}</td>
                       <td role="cell" data-rotulo="Status">
@@ -151,7 +151,7 @@ export function CertificacoesPage() {
                       <td role="cell" className="tabela__celula-acoes">
                         <div className="tabela__acoes">
                           <Link
-                            to={`/certificacoes/produto/${linha.produtoId}`}
+                            to={`/certificacoes/processo/${linha.processoId}`}
                             className="btn btn--pequeno"
                           >
                             {equipe ? 'Gerenciar' : 'Ver detalhes'}

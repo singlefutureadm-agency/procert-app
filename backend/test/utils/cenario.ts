@@ -30,12 +30,12 @@ const TABELAS = [
   'certificados',
   'pagamentos',
   'micro_etapas_certificacao',
-  'certificacoes_produto',
-  'produtos',
+  'certificacoes_processo',
+  'processos',
   'modelos_micro_etapa',
   'modelos_etapa',
   'modelos_trilha',
-  'categorias_produto',
+  'categorias_processo',
   'trilhas',
   'etapas_certificacao',
   'tokens_redefinicao_senha',
@@ -49,15 +49,15 @@ const TABELAS = [
 export interface Cenario {
   admin: string;
   funcionario: string;
-  /** Token do cliente DONO do produto/certificado/documento sob teste. */
+  /** Token do cliente DONO do processo/certificado/documento sob teste. */
   clienteDono: string;
   /** Token de um segundo cliente, sem nenhuma relação com eles. */
   clienteAlheio: string;
 
   clienteDonoId: number;
   clienteAlheioId: number;
-  produtoDonoId: number;
-  produtoAlheioId: number;
+  processoDonoId: number;
+  processoAlheioId: number;
 
   certificadoId: number;
   documentoId: number;
@@ -67,21 +67,21 @@ export interface Cenario {
   categoriaId: number;
   /** Trilha do catálogo à qual a categoria está vinculada. */
   trilhaId: number;
-  /** Versão vigente dessa trilha — a que os produtos do cenário carregam. */
+  /** Versão vigente dessa trilha — a que os processos do cenário carregam. */
   modeloTrilhaId: number;
 
   /** Nomes dos arquivos gravados EM DISCO, por pasta. */
   arquivos: {
     certificados: string;
     certificacoes: string;
-    produtos: string;
+    processos: string;
     aparencia: string;
   };
 }
 
 /**
  * Zera o banco e monta o cenário mínimo da matriz de autorização:
- * dois clientes, um produto de cada, e — no do primeiro — trilha aberta,
+ * dois clientes, um processo de cada, e — no do primeiro — trilha aberta,
  * evidência anexada e certificado emitido.
  *
  * Os arquivos são gravados de verdade em `UPLOAD_DIR`. Isso é parte do teste:
@@ -179,7 +179,7 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     include: { versoes: { include: { etapas: true } } },
   });
 
-  const categoria = await db.categoriaProduto.create({
+  const categoria = await db.categoriaProcesso.create({
     data: {
       nome: 'Material elétrico',
       normaReferencia: 'NBR 5361',
@@ -191,8 +191,8 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
   const trilha = catalogo.versoes[0];
   const etapas = [...trilha.etapas].sort((a, b) => a.ordem - b.ordem);
 
-  const criarProduto = async (clienteId: number, nome: string) =>
-    db.produto.create({
+  const criarProcesso = async (clienteId: number, nome: string) =>
+    db.processo.create({
       data: {
         clienteId,
         categoriaId: categoria.id,
@@ -218,8 +218,8 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
       include: { certificacao: { orderBy: { ordem: 'asc' } } },
     });
 
-  const produtoDono = await criarProduto(dono.id, 'Disjuntor DIN 25A');
-  const produtoAlheio = await criarProduto(alheio.id, 'Tomada 20A');
+  const processoDono = await criarProcesso(dono.id, 'Disjuntor DIN 25A');
+  const processoAlheio = await criarProcesso(alheio.id, 'Tomada 20A');
 
   const arquivos = gravarArquivos();
 
@@ -227,7 +227,7 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
   // ponto da trilha, e por quem, o arquivo entrou.
   const historico = await db.certificacaoHistorico.create({
     data: {
-      certificacaoId: produtoDono.certificacao[1].id,
+      certificacaoId: processoDono.certificacao[1].id,
       statusAnterior: StatusCertificacao.EM_ANDAMENTO,
       statusNovo: StatusCertificacao.APROVADO,
       observacao: 'Laudo de ensaio recebido',
@@ -248,7 +248,7 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
 
   const certificado = await db.certificado.create({
     data: {
-      produtoId: produtoDono.id,
+      processoId: processoDono.id,
       numero: 'PROCERT-2026-000001',
       escopo: 'Disjuntores termomagnéticos até 25A',
       dataValidade: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -266,12 +266,12 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
 
     clienteDonoId: dono.id,
     clienteAlheioId: alheio.id,
-    produtoDonoId: produtoDono.id,
-    produtoAlheioId: produtoAlheio.id,
+    processoDonoId: processoDono.id,
+    processoAlheioId: processoAlheio.id,
 
     certificadoId: certificado.id,
     documentoId: documento.id,
-    certificacaoId: produtoDono.certificacao[1].id,
+    certificacaoId: processoDono.certificacao[1].id,
 
     categoriaId: categoria.id,
     trilhaId: catalogo.id,
@@ -311,7 +311,7 @@ function gravarArquivos(): Cenario['arquivos'] {
   return {
     certificados: gravar('certificados', 'e2e-certificado.pdf', pdf),
     certificacoes: gravar('certificacoes', 'e2e-evidencia.pdf', pdf),
-    produtos: gravar('produtos', 'e2e-foto-produto.png', png),
+    processos: gravar('processos', 'e2e-foto-processo.png', png),
     aparencia: gravar('aparencia', 'e2e-logo.png', png),
   };
 }

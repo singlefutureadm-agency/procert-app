@@ -7,13 +7,13 @@ import { UsuarioAutenticado } from '../../common/decorators/current-user.decorat
 import {
   LIMITE_LINHAS_EXPORTACAO,
   ListarComparativoClientesDto,
-  ListarComparativoProdutosDto,
+  ListarComparativoProcessosDto,
   OrdemComparativoCliente,
-  OrdemComparativoProduto,
+  OrdemComparativoProcesso,
 } from './dto/relatorios.dto';
 
 /**
- * Comparativos de produtos e de clientes.
+ * Comparativos de processos e de clientes.
  *
  * ## Escopo do CLIENTE
  *
@@ -27,13 +27,13 @@ import {
  *
  * ## Por que não reaproveitar o gráfico do dashboard
  *
- * `GraficosService.montarAcompanhamento` faz `findMany` de todos os produtos e
+ * `GraficosService.montarAcompanhamento` faz `findMany` de todos os processos e
  * agrega em JS, limitado ao top 8 — dimensionado para um card. Aqui a listagem
  * é paginada e ordenável sobre a base inteira, então a conta é do Postgres. O
  * gráfico do dashboard **fica como está**; são consumidores diferentes.
  */
 
-const ORDENACAO_PRODUTO: Record<OrdemComparativoProduto, Prisma.Sql> = {
+const ORDENACAO_PROCESSO: Record<OrdemComparativoProcesso, Prisma.Sql> = {
   progresso: Prisma.sql`progresso DESC, p.nome ASC`,
   progresso_asc: Prisma.sql`progresso ASC, p.nome ASC`,
   paradas: Prisma.sql`dias_parado DESC NULLS LAST, p.nome ASC`,
@@ -41,13 +41,13 @@ const ORDENACAO_PRODUTO: Record<OrdemComparativoProduto, Prisma.Sql> = {
 };
 
 const ORDENACAO_CLIENTE: Record<OrdemComparativoCliente, Prisma.Sql> = {
-  produtos: Prisma.sql`produtos DESC, c.nome ASC`,
-  produtos_asc: Prisma.sql`produtos ASC, c.nome ASC`,
+  processos: Prisma.sql`processos DESC, c.nome ASC`,
+  processos_asc: Prisma.sql`processos ASC, c.nome ASC`,
   certificados: Prisma.sql`certificados_vigentes DESC, c.nome ASC`,
   nome: Prisma.sql`c.nome ASC`,
 };
 
-interface LinhaProdutoBruta {
+interface LinhaProcessoBruta {
   id: number;
   nome: string;
   cliente: string;
@@ -66,7 +66,7 @@ interface LinhaProdutoBruta {
   criado_em: Date;
 }
 
-export interface LinhaProduto {
+export interface LinhaProcesso {
   id: number;
   nome: string;
   clienteId: number;
@@ -80,7 +80,7 @@ export interface LinhaProduto {
   /** Quantas etapas OBRIGATÓRIAS ainda faltam — é o que trava o certificado. */
   obrigatoriasPendentes: number;
   ncsAbertas: number;
-  /** 0 a 100, sobre o total de etapas da trilha do produto. */
+  /** 0 a 100, sobre o total de etapas da trilha do processo. */
   progresso: number;
   ultimaMovimentacao: Date | null;
   /** Dias desde a última movimentação. `null` quando nunca houve nenhuma. */
@@ -94,8 +94,8 @@ interface LinhaClienteBruta {
   email: string;
   responsavel: string | null;
   ultimo_acesso_em: Date | null;
-  produtos: bigint;
-  produtos_concluidos: bigint;
+  processos: bigint;
+  processos_concluidos: bigint;
   certificados_vigentes: bigint;
   ncs_abertas: bigint;
   ultima_movimentacao: Date | null;
@@ -107,9 +107,9 @@ export interface LinhaCliente {
   email: string;
   responsavel: string | null;
   ultimoAcessoEm: Date | null;
-  produtos: number;
-  /** Produtos com TODAS as etapas obrigatórias aprovadas. */
-  produtosConcluidos: number;
+  processos: number;
+  /** Processos com TODAS as etapas obrigatórias aprovadas. */
+  processosConcluidos: number;
   certificadosVigentes: number;
   ncsAbertas: number;
   ultimaMovimentacao: Date | null;
@@ -119,28 +119,28 @@ export interface LinhaCliente {
 export class ComparativosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ------------------------------------------------------------- produtos
+  // ------------------------------------------------------------- processos
 
-  async produtos(
-    filtros: ListarComparativoProdutosDto,
+  async processos(
+    filtros: ListarComparativoProcessosDto,
     usuario: UsuarioAutenticado,
-  ): Promise<RespostaPaginada<LinhaProduto>> {
+  ): Promise<RespostaPaginada<LinhaProcesso>> {
     const where = this.wherePodutos(filtros, usuario);
 
     const [linhas, total] = await Promise.all([
-      this.consultarProdutos(where, filtros.ordem, filtros.limite, filtros.skip),
-      this.contarProdutos(where),
+      this.consultarProcessos(where, filtros.ordem, filtros.limite, filtros.skip),
+      this.contarProcessos(where),
     ]);
 
     return paginar(linhas, total, filtros);
   }
 
-  async produtosParaExportacao(
-    filtros: ListarComparativoProdutosDto,
+  async processosParaExportacao(
+    filtros: ListarComparativoProcessosDto,
     usuario: UsuarioAutenticado,
-  ): Promise<LinhaProduto[]> {
+  ): Promise<LinhaProcesso[]> {
     const where = this.wherePodutos(filtros, usuario);
-    const linhas = await this.consultarProdutos(
+    const linhas = await this.consultarProcessos(
       where,
       filtros.ordem,
       LIMITE_LINHAS_EXPORTACAO + 1,
@@ -152,13 +152,13 @@ export class ComparativosService {
   }
 
   /**
-   * Filtros do comparativo de produtos.
+   * Filtros do comparativo de processos.
    *
    * O `clienteId` vem do TOKEN quando o papel é CLIENTE; o da query é ignorado.
-   * É o mesmo padrão de `produtos`, `certificacoes` e `certificados`.
+   * É o mesmo padrão de `processos`, `certificacoes` e `certificados`.
    */
   private wherePodutos(
-    filtros: ListarComparativoProdutosDto,
+    filtros: ListarComparativoProcessosDto,
     usuario: UsuarioAutenticado,
   ): Prisma.Sql {
     const clienteId =
@@ -174,11 +174,11 @@ export class ComparativosService {
     `;
   }
 
-  private async contarProdutos(where: Prisma.Sql): Promise<number> {
+  private async contarProcessos(where: Prisma.Sql): Promise<number> {
     const [{ total }] = await this.prisma.$queryRaw<[{ total: bigint }]>(
       Prisma.sql`
         SELECT COUNT(*) AS total
-        FROM produtos p
+        FROM processos p
         JOIN clientes c ON c.id = p.cliente_id
         WHERE ${where}
       `,
@@ -186,13 +186,13 @@ export class ComparativosService {
     return Number(total);
   }
 
-  private async consultarProdutos(
+  private async consultarProcessos(
     where: Prisma.Sql,
-    ordem: OrdemComparativoProduto,
+    ordem: OrdemComparativoProcesso,
     limite: number,
     pular: number,
-  ): Promise<LinhaProduto[]> {
-    const brutas = await this.prisma.$queryRaw<LinhaProdutoBruta[]>(Prisma.sql`
+  ): Promise<LinhaProcesso[]> {
+    const brutas = await this.prisma.$queryRaw<LinhaProcessoBruta[]>(Prisma.sql`
       SELECT
         p.id, p.nome, p.criado_em, p.cliente_id,
         c.nome AS cliente,
@@ -221,9 +221,9 @@ export class ComparativosService {
         CASE WHEN mov.ultima IS NULL THEN NULL
              ELSE EXTRACT(DAY FROM (now() - mov.ultima))::int
         END AS dias_parado
-      FROM produtos p
+      FROM processos p
       JOIN clientes c            ON c.id = p.cliente_id
-      JOIN categorias_produto cat ON cat.id = p.categoria_id
+      JOIN categorias_processo cat ON cat.id = p.categoria_id
       JOIN modelos_trilha mt      ON mt.id = p.modelo_trilha_id
 
       LEFT JOIN LATERAL (
@@ -237,28 +237,28 @@ export class ComparativosService {
           COUNT(*) FILTER (
             WHERE me.obrigatoria AND cp.status <> 'APROVADO'
           ) AS obrigatorias_pendentes
-        FROM certificacoes_produto cp
+        FROM certificacoes_processo cp
         JOIN modelos_etapa me ON me.id = cp.etapa_id
-        WHERE cp.produto_id = p.id
+        WHERE cp.processo_id = p.id
       ) et ON TRUE
 
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS total
         FROM nao_conformidades n
-        JOIN certificacoes_produto cp2 ON cp2.id = n.certificacao_id
-        WHERE cp2.produto_id = p.id
+        JOIN certificacoes_processo cp2 ON cp2.id = n.certificacao_id
+        WHERE cp2.processo_id = p.id
           AND n.status IN ('ABERTA', 'EM_TRATATIVA')
       ) nc ON TRUE
 
       LEFT JOIN LATERAL (
         SELECT MAX(h.alterado_em) AS ultima
         FROM certificacoes_historico h
-        JOIN certificacoes_produto cp3 ON cp3.id = h.certificacao_id
-        WHERE cp3.produto_id = p.id
+        JOIN certificacoes_processo cp3 ON cp3.id = h.certificacao_id
+        WHERE cp3.processo_id = p.id
       ) mov ON TRUE
 
       WHERE ${where}
-      ORDER BY ${ORDENACAO_PRODUTO[ordem]}
+      ORDER BY ${ORDENACAO_PROCESSO[ordem]}
       LIMIT ${limite} OFFSET ${pular}
     `);
 
@@ -275,7 +275,7 @@ export class ComparativosService {
       pendentes: Number(b.pendentes),
       obrigatoriasPendentes: Number(b.obrigatorias_pendentes),
       ncsAbertas: Number(b.ncs_abertas),
-      // Vem pronto do banco; o CASE lá cobre o produto sem etapa nenhuma, que
+      // Vem pronto do banco; o CASE lá cobre o processo sem etapa nenhuma, que
       // daria divisão por zero.
       progresso: Number(b.progresso),
       ultimaMovimentacao: b.ultima_movimentacao,
@@ -320,7 +320,7 @@ export class ComparativosService {
     filtros: ListarComparativoClientesDto,
     usuario: UsuarioAutenticado,
   ): Prisma.Sql {
-    // Mesma defesa em profundidade do comparativo de produtos.
+    // Mesma defesa em profundidade do comparativo de processos.
     const proprio = usuario.role === Role.CLIENTE ? usuario.id : null;
     const busca = filtros.busca ? `%${filtros.busca}%` : null;
 
@@ -350,8 +350,8 @@ export class ComparativosService {
       SELECT
         c.id, c.nome, c.email, c.ultimo_acesso_em,
         f.nome AS responsavel,
-        COALESCE(pr.total, 0)        AS produtos,
-        COALESCE(pr.concluidos, 0)   AS produtos_concluidos,
+        COALESCE(pr.total, 0)        AS processos,
+        COALESCE(pr.concluidos, 0)   AS processos_concluidos,
         COALESCE(ct.total, 0)        AS certificados_vigentes,
         COALESCE(nc.total, 0)        AS ncs_abertas,
         mov.ultima                   AS ultima_movimentacao
@@ -363,18 +363,18 @@ export class ComparativosService {
           COUNT(*) AS total,
           -- Concluído = nenhuma etapa OBRIGATÓRIA fora de APROVADO. É a mesma
           -- regra que libera a emissão do certificado; contar "todas as etapas"
-          -- deixaria de fora produto pronto com opcional pendente.
+          -- deixaria de fora processo pronto com opcional pendente.
           COUNT(*) FILTER (
             WHERE NOT EXISTS (
               SELECT 1
-              FROM certificacoes_produto cp
+              FROM certificacoes_processo cp
               JOIN modelos_etapa me ON me.id = cp.etapa_id
-              WHERE cp.produto_id = p.id
+              WHERE cp.processo_id = p.id
                 AND me.obrigatoria
                 AND cp.status <> 'APROVADO'
             )
           ) AS concluidos
-        FROM produtos p
+        FROM processos p
         WHERE p.cliente_id = c.id
           AND p.status = 'ATIVO'
       ) pr ON TRUE
@@ -382,7 +382,7 @@ export class ComparativosService {
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS total
         FROM certificados cert
-        JOIN produtos p2 ON p2.id = cert.produto_id
+        JOIN processos p2 ON p2.id = cert.processo_id
         WHERE p2.cliente_id = c.id
           -- Vigente = EMITIDO ou SUSPENSO. CANCELADO é terminal e VENCIDO já
           -- passou; incluí-los infla a contagem (ver vencimento.constantes.ts).
@@ -392,8 +392,8 @@ export class ComparativosService {
       LEFT JOIN LATERAL (
         SELECT COUNT(*) AS total
         FROM nao_conformidades n
-        JOIN certificacoes_produto cp2 ON cp2.id = n.certificacao_id
-        JOIN produtos p3 ON p3.id = cp2.produto_id
+        JOIN certificacoes_processo cp2 ON cp2.id = n.certificacao_id
+        JOIN processos p3 ON p3.id = cp2.processo_id
         WHERE p3.cliente_id = c.id
           AND n.status IN ('ABERTA', 'EM_TRATATIVA')
       ) nc ON TRUE
@@ -401,8 +401,8 @@ export class ComparativosService {
       LEFT JOIN LATERAL (
         SELECT MAX(h.alterado_em) AS ultima
         FROM certificacoes_historico h
-        JOIN certificacoes_produto cp3 ON cp3.id = h.certificacao_id
-        JOIN produtos p4 ON p4.id = cp3.produto_id
+        JOIN certificacoes_processo cp3 ON cp3.id = h.certificacao_id
+        JOIN processos p4 ON p4.id = cp3.processo_id
         WHERE p4.cliente_id = c.id
       ) mov ON TRUE
 
@@ -417,8 +417,8 @@ export class ComparativosService {
       email: b.email,
       responsavel: b.responsavel,
       ultimoAcessoEm: b.ultimo_acesso_em,
-      produtos: Number(b.produtos),
-      produtosConcluidos: Number(b.produtos_concluidos),
+      processos: Number(b.processos),
+      processosConcluidos: Number(b.processos_concluidos),
       certificadosVigentes: Number(b.certificados_vigentes),
       ncsAbertas: Number(b.ncs_abertas),
       ultimaMovimentacao: b.ultima_movimentacao,

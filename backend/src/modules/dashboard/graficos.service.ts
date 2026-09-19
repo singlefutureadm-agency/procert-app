@@ -42,14 +42,14 @@ export interface DadosGraficos {
   acompanhamento: {
     etapasPorStatus: Array<{ status: StatusCertificacao; total: number }>;
     ranking: Array<{
-      produtoId: number;
-      produto: string;
+      processoId: number;
+      processo: string;
       cliente: string;
       aprovadas: number;
       total: number;
       progresso: number;
     }>;
-    totalProdutos: number;
+    totalProcessos: number;
     foraDoRanking: number;
   };
   certificados: {
@@ -75,11 +75,11 @@ export class GraficosService {
 
   async dados(usuario: UsuarioAutenticado): Promise<DadosGraficos> {
     const ehCliente = usuario.role === Role.CLIENTE;
-    const escopoProduto = ehCliente ? { clienteId: usuario.id } : {};
+    const escopoProcesso = ehCliente ? { clienteId: usuario.id } : {};
 
-    const [produtos, certificados, naoConformidades] = await Promise.all([
-      this.prisma.produto.findMany({
-        where: { status: StatusRegistro.ATIVO, ...escopoProduto },
+    const [processos, certificados, naoConformidades] = await Promise.all([
+      this.prisma.processo.findMany({
+        where: { status: StatusRegistro.ATIVO, ...escopoProcesso },
         select: {
           id: true,
           nome: true,
@@ -90,14 +90,14 @@ export class GraficosService {
 
       this.prisma.certificado.findMany({
         where: ehCliente
-          ? { produto: { clienteId: usuario.id } }
+          ? { processo: { clienteId: usuario.id } }
           : {},
         select: { status: true, dataValidade: true },
       }),
 
       this.prisma.naoConformidade.findMany({
         where: ehCliente
-          ? { certificacao: { produto: { clienteId: usuario.id } } }
+          ? { certificacao: { processo: { clienteId: usuario.id } } }
           : {},
         select: {
           status: true,
@@ -108,7 +108,7 @@ export class GraficosService {
     ]);
 
     return {
-      acompanhamento: this.montarAcompanhamento(produtos),
+      acompanhamento: this.montarAcompanhamento(processos),
       certificados: this.montarCertificados(certificados),
       naoConformidades: this.montarNaoConformidades(naoConformidades),
     };
@@ -117,7 +117,7 @@ export class GraficosService {
   // ------------------------------------------------------------ acompanhamento
 
   private montarAcompanhamento(
-    produtos: Array<{
+    processos: Array<{
       id: number;
       nome: string;
       cliente: { nome: string };
@@ -131,21 +131,21 @@ export class GraficosService {
       REPROVADO: 0,
     };
 
-    const linhas = produtos.map((produto) => {
+    const linhas = processos.map((processo) => {
       let aprovadas = 0;
-      for (const etapa of produto.certificacao) {
+      for (const etapa of processo.certificacao) {
         contagem[etapa.status] += 1;
         if (etapa.status === StatusCertificacao.APROVADO) aprovadas += 1;
       }
 
-      const total = produto.certificacao.length;
+      const total = processo.certificacao.length;
       return {
-        produtoId: produto.id,
-        produto: produto.nome,
-        cliente: produto.cliente.nome,
+        processoId: processo.id,
+        processo: processo.nome,
+        cliente: processo.cliente.nome,
         aprovadas,
         total,
-        // Produto sem trilha aberta não é 100%: é 0 de 0, e arredondar para
+        // Processo sem trilha aberta não é 100%: é 0 de 0, e arredondar para
         // cima o colocaria no topo do ranking sem ter feito nada.
         progresso: total === 0 ? 0 : Math.round((aprovadas / total) * 100),
       };
@@ -153,7 +153,7 @@ export class GraficosService {
 
     /*
      * Ordem: mais avançado primeiro; empate desempata por quantidade absoluta
-     * de etapas aprovadas, senão um produto de trilha curta com 2/2 apareceria
+     * de etapas aprovadas, senão um processo de trilha curta com 2/2 apareceria
      * na frente de um de 9/10.
      */
     linhas.sort((a, b) => b.progresso - a.progresso || b.aprovadas - a.aprovadas);
@@ -163,8 +163,8 @@ export class GraficosService {
         Object.keys(contagem) as StatusCertificacao[]
       ).map((status) => ({ status, total: contagem[status] })),
       ranking: linhas.slice(0, RANKING_MAXIMO),
-      totalProdutos: produtos.length,
-      foraDoRanking: Math.max(0, produtos.length - RANKING_MAXIMO),
+      totalProcessos: processos.length,
+      foraDoRanking: Math.max(0, processos.length - RANKING_MAXIMO),
     };
   }
 

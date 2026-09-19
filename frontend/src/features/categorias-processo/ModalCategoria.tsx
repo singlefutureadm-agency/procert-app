@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import { Campo } from '@/components/Campo';
 import { mensagemDeErro } from '@/lib/api';
-import type { CategoriaProduto } from '@/types';
+import type { CategoriaProcesso } from '@/types';
 import { categoriasApi } from './api';
 
 const esquema = z.object({
@@ -25,7 +25,7 @@ type Formulario = z.infer<typeof esquema>;
 
 interface Props {
   aberto: boolean;
-  categoria: CategoriaProduto | null;
+  categoria: CategoriaProcesso | null;
   aoFechar: () => void;
 }
 
@@ -92,7 +92,7 @@ export function ModalCategoria({ aberto, categoria, aoFechar }: Props) {
         <Campo
           label="Norma de referência"
           erro={errors.normaReferencia?.message}
-          dica="Norma técnica que rege a certificação desta família de produtos."
+          dica="Norma técnica que rege a certificação desta família de processos."
         >
           <input type="text" placeholder="ABNT NBR 15836" {...register('normaReferencia')} />
         </Campo>
@@ -113,7 +113,7 @@ export function ModalCategoria({ aberto, categoria, aoFechar }: Props) {
         {!editando && (
           <p className="texto-pequeno texto-fraco">
             Depois de criar a categoria, vincule a ela uma trilha do catálogo —
-            sem trilha vinculada, a categoria não aceita produtos.
+            sem trilha vinculada, a categoria não aceita processos.
           </p>
         )}
 

@@ -102,9 +102,9 @@ describe('AjudaDaTela', () => {
   it('não oferece ao cliente um próximo passo para tela restrita', async () => {
     const usuario = userEvent.setup();
 
-    // Para a equipe, o passo seguinte de /produtos é /categorias — restrita.
+    // Para a equipe, o passo seguinte de /processos é /categorias — restrita.
     temPapel.mockReturnValue(false);
-    const { unmount } = montar('/produtos');
+    const { unmount } = montar('/processos');
     await usuario.click(screen.getByRole('button', { name: /ajuda sobre a tela/i }));
     expect(screen.getByRole('link', { name: /categorias definem a trilha/i })).toHaveAttribute(
       'href',
@@ -115,7 +115,7 @@ describe('AjudaDaTela', () => {
     // Para o cliente, o mesmo botão precisa levar a uma tela que ele abre —
     // herdar o da equipe o mandaria para "sem permissão".
     temPapel.mockReturnValue(true);
-    montar('/produtos');
+    montar('/processos');
     await usuario.click(screen.getByRole('button', { name: /ajuda sobre a tela/i }));
     const links = screen.getAllByRole('link');
     expect(links).toHaveLength(1);

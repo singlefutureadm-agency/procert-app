@@ -68,7 +68,7 @@ describe('NotificacoesService', () => {
   describe('certificacaoAtualizada', () => {
     const mudancas = [{ etapa: 'Ensaios laboratoriais', status: 'Reprovado' }];
 
-    it('monta assunto, destinatário e link do produto', async () => {
+    it('monta assunto, destinatário e link do processo', async () => {
       await servico.certificacaoAtualizada(
         'cliente@exemplo.com',
         'Indústria Cliente Ltda',
@@ -81,18 +81,18 @@ describe('NotificacoesService', () => {
       expect(para).toBe('cliente@exemplo.com');
       expect(assunto).toBe('Atualização na certificação — Disjuntor DIN 25A');
       expect(corpo).toContain(
-        'https://painel.exemplo.com.br/certificacoes/produto/7',
+        'https://painel.exemplo.com.br/certificacoes/processo/7',
       );
       expect(corpo).toContain('Olá, Indústria Cliente Ltda.');
       expect(corpo).toContain('Ensaios laboratoriais');
     });
 
     /**
-     * Nome de produto e de etapa são texto livre digitado no painel. Antes o
+     * Nome de processo e de etapa são texto livre digitado no painel. Antes o
      * escape era um `this.escapar(x)` manual em cada interpolação; o teste
      * continua aqui porque a garantia mudou de dono, não de importância.
      */
-    it('escapa nome de produto e de etapa antes de montar o HTML', async () => {
+    it('escapa nome de processo e de etapa antes de montar o HTML', async () => {
       await servico.certificacaoAtualizada(
         'cliente@exemplo.com',
         'Cliente',
@@ -121,7 +121,7 @@ describe('NotificacoesService', () => {
     /**
      * Fecha o risco aberto que estava registrado em `DOCUMENTACAO.md` §15.
      *
-     * O assunto carrega o nome do produto vindo do banco, e cabeçalho de
+     * O assunto carrega o nome do processo vindo do banco, e cabeçalho de
      * e-mail é delimitado por CRLF: um nome colado de planilha com `\r\n`
      * dentro emendaria um cabeçalho falso. O `nodemailer` 9 recusa a mensagem
      * inteira nesse caso — e como `MailService.enviar` engole a exceção, o
@@ -131,7 +131,7 @@ describe('NotificacoesService', () => {
      * (`expect(subject).toContain` do CRLF) e um comentário dizendo que ele
      * passaria a falhar quando o saneamento existisse. É este commit.
      */
-    it('saneia o CRLF do assunto — nome de produto não emenda cabeçalho', async () => {
+    it('saneia o CRLF do assunto — nome de processo não emenda cabeçalho', async () => {
       await servico.certificacaoAtualizada(
         'cliente@exemplo.com',
         'Cliente',
@@ -147,7 +147,7 @@ describe('NotificacoesService', () => {
       );
     });
 
-    it('nome de produto normal continua intacto no assunto', async () => {
+    it('nome de processo normal continua intacto no assunto', async () => {
       await servico.certificacaoAtualizada(
         'cliente@exemplo.com',
         'Cliente',
@@ -209,7 +209,7 @@ describe('NotificacoesService', () => {
       await servico.certificacaoAtualizada('c@e.com', 'C', 'P', 9, []);
 
       expect(ultimoEnvio().corpo).toContain(
-        'https://procert-app.vercel.app/certificacoes/produto/9',
+        'https://procert-app.vercel.app/certificacoes/processo/9',
       );
     });
   });

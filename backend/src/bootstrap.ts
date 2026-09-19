@@ -240,7 +240,7 @@ export function configurarSwagger(
   const swaggerConfig = new DocumentBuilder()
     .setTitle('ProCert API')
     .setDescription(
-      'API da plataforma de certificação de produtos ProCert. ' +
+      'API da plataforma de certificação de processos ProCert. ' +
         'Migração do sistema PHP legado para NestJS + PostgreSQL.',
     )
     .setVersion('1.0.0')

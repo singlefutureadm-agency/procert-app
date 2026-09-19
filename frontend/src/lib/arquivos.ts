@@ -14,7 +14,7 @@
  * Em desenvolvimento e em deploy de mesma origem, `VITE_API_URL` é `/api` e o
  * caminho relativo já resolve sozinho — o proxy do Vite ou o do Apache leva a
  * requisição ao Node. Quando a API mora em outro host, `/uploads/foto.png`
- * bateria no domínio do SITE, que não tem esse arquivo, e toda foto de produto,
+ * bateria no domínio do SITE, que não tem esse arquivo, e toda foto de processo,
  * avatar e logo viraria imagem quebrada. Aqui a origem é derivada do próprio
  * `VITE_API_URL` justamente para não existir uma segunda variável capaz de sair
  * de sincronia com a primeira.
@@ -38,7 +38,7 @@ const ORIGEM_ARQUIVOS = ((): string => {
 /**
  * Converte o caminho que a API devolve na URL que o `<img>` consegue carregar.
  *
- * @param caminho `/uploads/produtos/uuid.png`, uma URL absoluta, ou nada.
+ * @param caminho `/uploads/processos/uuid.png`, uma URL absoluta, ou nada.
  * @param padrao  Placeholder usado quando não há arquivo.
  */
 export function urlArquivo(

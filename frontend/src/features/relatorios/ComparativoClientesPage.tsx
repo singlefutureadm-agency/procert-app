@@ -23,7 +23,7 @@ import {
 /**
  * Comparativo de clientes.
  *
- * Responde "qual cliente cadastrou mais produtos", "qual está com mais NCs
+ * Responde "qual cliente cadastrou mais processos", "qual está com mais NCs
  * abertas" e "quem sumiu da plataforma", numa tabela só.
  *
  * Duas definições que a tela declara no rodapé porque não são óbvias:
@@ -33,8 +33,8 @@ import {
  */
 
 const ORDENS: Array<{ valor: OrdemClientes; rotulo: string }> = [
-  { valor: 'produtos', rotulo: 'Mais produtos' },
-  { valor: 'produtos_asc', rotulo: 'Menos produtos' },
+  { valor: 'processos', rotulo: 'Mais processos' },
+  { valor: 'processos_asc', rotulo: 'Menos processos' },
   { valor: 'certificados', rotulo: 'Mais certificados vigentes' },
   { valor: 'nome', rotulo: 'Nome' },
 ];
@@ -43,7 +43,7 @@ export function ComparativoClientesPage() {
   const [filtros, setFiltros] = useState<FiltrosComparativoClientes>({
     pagina: 1,
     limite: 20,
-    ordem: 'produtos',
+    ordem: 'processos',
     busca: '',
   });
 
@@ -169,7 +169,7 @@ export function ComparativoClientesPage() {
                   <tr role="row">
                     <th role="columnheader">Cliente</th>
                     <th role="columnheader">Responsável</th>
-                    <th role="columnheader">Produtos</th>
+                    <th role="columnheader">Processos</th>
                     <th role="columnheader">Concluídos</th>
                     <th role="columnheader">Certificados vigentes</th>
                     <th role="columnheader">NCs abertas</th>
@@ -186,11 +186,11 @@ export function ComparativoClientesPage() {
                       <td role="cell" data-rotulo="Responsável" className="texto-suave">
                         {l.responsavel ?? 'Sem responsável'}
                       </td>
-                      <td role="cell" data-rotulo="Produtos">
-                        {l.produtos}
+                      <td role="cell" data-rotulo="Processos">
+                        {l.processos}
                       </td>
                       <td role="cell" data-rotulo="Concluídos">
-                        {l.produtosConcluidos}
+                        {l.processosConcluidos}
                       </td>
                       <td role="cell" data-rotulo="Certificados vigentes">
                         {l.certificadosVigentes}
@@ -219,7 +219,7 @@ export function ComparativoClientesPage() {
             </TabelaRolavel>
 
             <p className="texto-suave" style={{ marginTop: 'var(--espaco-3)' }}>
-              <strong>Concluídos</strong> conta os produtos com todas as etapas
+              <strong>Concluídos</strong> conta os processos com todas as etapas
               obrigatórias aprovadas — a mesma regra que libera a emissão do
               certificado. <strong>Certificados vigentes</strong> soma apenas os
               emitidos e suspensos; cancelado e vencido ficam de fora.{' '}

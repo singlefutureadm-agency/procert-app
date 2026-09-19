@@ -90,13 +90,13 @@ describe('Campo', () => {
     // Ele pode estar referenciado em outro lugar; sobrescrever quebraria o elo.
     render(
       <Campo label="Categoria">
-        <select id="categoria-do-produto" />
+        <select id="categoria-do-processo" />
       </Campo>,
     );
 
     expect(screen.getByLabelText('Categoria')).toHaveAttribute(
       'id',
-      'categoria-do-produto',
+      'categoria-do-processo',
     );
   });
 

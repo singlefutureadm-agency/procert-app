@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
-import type { Produto, RespostaPaginada, StatusRegistro } from '@/types';
+import type { Processo, RespostaPaginada, StatusRegistro } from '@/types';
 
-export interface FiltrosProdutos {
+export interface FiltrosProcessos {
   pagina?: number;
   limite?: number;
   busca?: string;
@@ -10,7 +10,7 @@ export interface FiltrosProdutos {
   categoriaId?: number;
 }
 
-export interface DadosProduto {
+export interface DadosProcesso {
   clienteId: number;
   nome: string;
   descricao?: string;
@@ -24,40 +24,40 @@ export interface DadosProduto {
 }
 
 /** A categoria só entra na criação: é ela que define a trilha aberta. */
-export interface DadosNovoProduto extends DadosProduto {
+export interface DadosNovoProcesso extends DadosProcesso {
   categoriaId: number;
 }
 
-export const produtosApi = {
-  listar: async (filtros: FiltrosProdutos) => {
-    const { data } = await api.get<RespostaPaginada<Produto>>('/produtos', {
+export const processosApi = {
+  listar: async (filtros: FiltrosProcessos) => {
+    const { data } = await api.get<RespostaPaginada<Processo>>('/processos', {
       params: filtros,
     });
     return data;
   },
 
   buscar: async (id: number) => {
-    const { data } = await api.get<Produto>(`/produtos/${id}`);
+    const { data } = await api.get<Processo>(`/processos/${id}`);
     return data;
   },
 
-  criar: async (dados: DadosNovoProduto) => {
-    const { data } = await api.post<Produto>('/produtos', dados);
+  criar: async (dados: DadosNovoProcesso) => {
+    const { data } = await api.post<Processo>('/processos', dados);
     return data;
   },
 
-  atualizar: async (id: number, dados: Partial<DadosProduto>) => {
-    const { data } = await api.patch<Produto>(`/produtos/${id}`, dados);
+  atualizar: async (id: number, dados: Partial<DadosProcesso>) => {
+    const { data } = await api.patch<Processo>(`/processos/${id}`, dados);
     return data;
   },
 
   alterarStatus: async (id: number, status: StatusRegistro) => {
-    const { data } = await api.patch<Produto>(`/produtos/${id}/status`, { status });
+    const { data } = await api.patch<Processo>(`/processos/${id}/status`, { status });
     return data;
   },
 
   remover: async (id: number) => {
-    const { data } = await api.delete<{ mensagem: string }>(`/produtos/${id}`);
+    const { data } = await api.delete<{ mensagem: string }>(`/processos/${id}`);
     return data;
   },
 
@@ -65,7 +65,7 @@ export const produtosApi = {
     const formulario = new FormData();
     formulario.append('foto', arquivo);
 
-    const { data } = await api.post<Produto>(`/produtos/${id}/foto`, formulario, {
+    const { data } = await api.post<Processo>(`/processos/${id}/foto`, formulario, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data;

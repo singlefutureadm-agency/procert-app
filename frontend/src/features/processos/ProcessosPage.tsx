@@ -16,33 +16,33 @@ import { TabelaRolavel } from '@/components/TabelaRolavel';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { moeda } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
-import type { Produto, StatusRegistro } from '@/types';
-import { produtosApi, type FiltrosProdutos } from './api';
+import type { Processo, StatusRegistro } from '@/types';
+import { processosApi, type FiltrosProcessos } from './api';
 
-export function ProdutosPage() {
+export function ProcessosPage() {
   const { temPapel } = useAuth();
   const queryClient = useQueryClient();
   const equipe = temPapel('ADMIN', 'FUNCIONARIO');
 
-  const [filtros, setFiltros] = useState<FiltrosProdutos>({
+  const [filtros, setFiltros] = useState<FiltrosProcessos>({
     pagina: 1,
     limite: 20,
     status: 'ATIVO',
     busca: '',
   });
-  const [alvo, setAlvo] = useState<Produto | null>(null);
+  const [alvo, setAlvo] = useState<Processo | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: chaves.produtos(filtros),
-    queryFn: () => produtosApi.listar(filtros),
+    queryKey: chaves.processos(filtros),
+    queryFn: () => processosApi.listar(filtros),
   });
 
   const alterarStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: StatusRegistro }) =>
-      produtosApi.alterarStatus(id, status),
+      processosApi.alterarStatus(id, status),
     onSuccess: () => {
-      toast.success('Status do produto atualizado.');
-      void queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      toast.success('Status do processo atualizado.');
+      void queryClient.invalidateQueries({ queryKey: ['processos'] });
       setAlvo(null);
     },
     onError: (erro) => toast.error(mensagemDeErro(erro)),
@@ -54,7 +54,7 @@ export function ProdutosPage() {
   return (
     <>
       <CabecalhoPagina
-        titulo={vendoInativos ? 'Produtos inativos' : 'Produtos'}
+        titulo={vendoInativos ? 'Processos inativos' : 'Processos'}
         descricao="Itens submetidos ao processo de certificação."
         acoes={
           equipe && (
@@ -82,8 +82,8 @@ export function ProdutosPage() {
                 </>
               )}
               </button>
-              <Link to="/produtos/novo" className="btn btn--primario">
-                + Novo produto
+              <Link to="/processos/novo" className="btn btn--primario">
+                + Novo processo
               </Link>
             </>
           )
@@ -93,7 +93,7 @@ export function ProdutosPage() {
       <div className="entre">
         <CampoBusca
           valor={filtros.busca ?? ''}
-          placeholder="Buscar por produto ou cliente"
+          placeholder="Buscar por processo ou cliente"
           aoMudar={(busca) => setFiltros((atual) => ({ ...atual, busca, pagina: 1 }))}
         />
       </div>
@@ -104,28 +104,28 @@ export function ProdutosPage() {
         ) : listaVazia ? (
           <EstadoVazio
             icone="caixa"
-            titulo="Nenhum produto encontrado"
+            titulo="Nenhum processo encontrado"
             descricao={
               equipe
-                ? 'Ao cadastrar um produto, a trilha de certificação é aberta automaticamente.'
-                : 'Você ainda não possui produtos em certificação.'
+                ? 'Ao cadastrar um processo, a trilha de certificação é aberta automaticamente.'
+                : 'Você ainda não possui processos em certificação.'
             }
             acao={
               equipe && (
-                <Link to="/produtos/novo" className="btn btn--primario">
-                  Cadastrar produto
+                <Link to="/processos/novo" className="btn btn--primario">
+                  Cadastrar processo
                 </Link>
               )
             }
           />
         ) : (
           <>
-            <TabelaRolavel rotulo="Produtos">
+            <TabelaRolavel rotulo="Processos">
               <table className="tabela" role="table">
                 <thead role="rowgroup">
                   <tr role="row">
                     <th role="columnheader" />
-                    <th role="columnheader">Produto</th>
+                    <th role="columnheader">Processo</th>
                     {equipe && <th role="columnheader">Cliente</th>}
                     <th role="columnheader">Etapa atual</th>
                     <th role="columnheader" style={{ minWidth: 160 }}>Progresso</th>
@@ -134,33 +134,33 @@ export function ProdutosPage() {
                   </tr>
                 </thead>
                 <tbody role="rowgroup">
-                  {data?.dados.map((produto) => (
-                    <tr role="row" key={produto.id}>
+                  {data?.dados.map((processo) => (
+                    <tr role="row" key={processo.id}>
                       <td role="cell" className="tabela__celula-inicial" style={{ width: 56 }}>
                         <img
                           className="avatar"
-                          src={urlArquivo(produto.fotoUrl, '/placeholder-produto.svg')}
+                          src={urlArquivo(processo.fotoUrl, '/placeholder-processo.svg')}
                           alt=""
                           onError={(evento) => {
                             evento.currentTarget.style.visibility = 'hidden';
                           }}
                         />
                       </td>
-                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{produto.nome}</td>
+                      <td role="cell" data-principal style={{ fontWeight: 600 }}>{processo.nome}</td>
                       {equipe && (
-                        <td role="cell" data-rotulo="Cliente" className="texto-suave">{produto.cliente.nome}</td>
+                        <td role="cell" data-rotulo="Cliente" className="texto-suave">{processo.cliente.nome}</td>
                       )}
                       <td role="cell" data-rotulo="Etapa atual" className="texto-suave">
-                        {produto.resumoCertificacao.etapaAtual ?? '—'}
+                        {processo.resumoCertificacao.etapaAtual ?? '—'}
                       </td>
                       <td role="cell" data-rotulo="Progresso">
-                        <Progresso valor={produto.resumoCertificacao.progresso} />
+                        <Progresso valor={processo.resumoCertificacao.progresso} />
                       </td>
-                      <td role="cell" data-rotulo="Valor" className="sem-quebra">{moeda.format(produto.preco)}</td>
+                      <td role="cell" data-rotulo="Valor" className="sem-quebra">{moeda.format(processo.preco)}</td>
                       <td role="cell" className="tabela__celula-acoes">
                         <div className="tabela__acoes">
                           <Link
-                            to={`/certificacoes/produto/${produto.id}`}
+                            to={`/certificacoes/processo/${processo.id}`}
                             className="btn btn--icone"
                             title="Ver certificação"
                             aria-label="Ver certificação"
@@ -170,7 +170,7 @@ export function ProdutosPage() {
                           {equipe && (
                             <>
                               <Link
-                                to={`/produtos/${produto.id}/editar`}
+                                to={`/processos/${processo.id}/editar`}
                                 className="btn btn--icone"
                                 title="Editar"
                                 aria-label="Editar"
@@ -181,12 +181,12 @@ export function ProdutosPage() {
                                 type="button"
                                 className="btn btn--icone"
                                 title={
-                                  produto.status === 'ATIVO' ? 'Desativar' : 'Reativar'
+                                  processo.status === 'ATIVO' ? 'Desativar' : 'Reativar'
                                 }
-                                aria-label={ produto.status === 'ATIVO' ? 'Desativar' : 'Reativar' }
-                                onClick={() => setAlvo(produto)}
+                                aria-label={ processo.status === 'ATIVO' ? 'Desativar' : 'Reativar' }
+                                onClick={() => setAlvo(processo)}
                               >
-                                <Icone nome={produto.status === 'ATIVO' ? 'proibido' : 'reciclar'} />
+                                <Icone nome={processo.status === 'ATIVO' ? 'proibido' : 'reciclar'} />
                               </button>
                             </>
                           )}
@@ -213,8 +213,8 @@ export function ProdutosPage() {
         titulo="Confirmar ação"
         mensagem={
           alvo?.status === 'ATIVO'
-            ? `Desativar o produto "${alvo?.nome}"? O histórico de certificação é preservado.`
-            : `Reativar o produto "${alvo?.nome}"?`
+            ? `Desativar o processo "${alvo?.nome}"? O histórico de certificação é preservado.`
+            : `Reativar o processo "${alvo?.nome}"?`
         }
         rotuloConfirmar={alvo?.status === 'ATIVO' ? 'Desativar' : 'Reativar'}
         perigo={alvo?.status === 'ATIVO'}

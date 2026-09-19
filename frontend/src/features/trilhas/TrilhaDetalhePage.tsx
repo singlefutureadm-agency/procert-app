@@ -416,7 +416,7 @@ export function TrilhaDetalhePage() {
             <p className="texto-pequeno texto-fraco" style={{ margin: '4px 0 0' }}>
               {categorias.length === 0
                 ? 'Nenhuma ainda. O vínculo é feito na tela da categoria.'
-                : 'Produto novo nestas categorias entra pela versão vigente abaixo.'}
+                : 'Processo novo nestas categorias entra pela versão vigente abaixo.'}
             </p>
           </div>
         </div>
@@ -444,7 +444,7 @@ export function TrilhaDetalhePage() {
                 <th role="columnheader">Versão</th>
                 <th role="columnheader">Vigência</th>
                 <th role="columnheader">Etapas</th>
-                <th role="columnheader">Produtos</th>
+                <th role="columnheader">Processos</th>
                 <th role="columnheader">Situação</th>
                 <th role="columnheader" className="texto-direita">
                   Ações
@@ -479,8 +479,8 @@ export function TrilhaDetalhePage() {
                   <td role="cell" data-rotulo="Etapas" className="texto-suave">
                     {versao.etapas.length}
                   </td>
-                  <td role="cell" data-rotulo="Produtos" className="texto-suave">
-                    {versao.totalProdutos}
+                  <td role="cell" data-rotulo="Processos" className="texto-suave">
+                    {versao.totalProcessos}
                   </td>
                   <td role="cell" data-rotulo="Situação">
                     <span
@@ -505,7 +505,7 @@ export function TrilhaDetalhePage() {
                           <Icone nome="reciclar" />
                         </button>
                       )}
-                      {versao.totalProdutos === 0 && (
+                      {versao.totalProcessos === 0 && (
                         <button
                           type="button"
                           className="btn btn--icone"
@@ -538,12 +538,12 @@ export function TrilhaDetalhePage() {
             </h3>
             <p className="texto-pequeno texto-fraco" style={{ margin: '4px 0 0' }}>
               {/* Sem versão, a mensagem de imutabilidade dizia "já está em uso
-                  por 0 produto(s)" — descrevia uma versão que não existe. */}
+                  por 0 processo(s)" — descrevia uma versão que não existe. */}
               {semVersao
                 ? 'Esta trilha ainda não tem versão. Crie a primeira para poder vinculá-la a uma categoria.'
                 : editavel
                   ? 'Arraste para reordenar. A ordem é salva automaticamente.'
-                  : `Esta versão já está em uso por ${modelo?.totalProdutos ?? 0} produto(s) e não pode ser alterada — crie uma nova versão para mudar o processo.`}
+                  : `Esta versão já está em uso por ${modelo?.totalProcessos ?? 0} processo(s) e não pode ser alterada — crie uma nova versão para mudar o processo.`}
             </p>
           </div>
           {editavel && (
@@ -682,7 +682,7 @@ export function TrilhaDetalhePage() {
         titulo="Criar nova versão da trilha"
         mensagem={
           `A versão ${modelo?.versao ?? 1} será encerrada e uma nova entra em vigor, ` +
-          'copiando as etapas atuais como ponto de partida. Produtos já submetidos ' +
+          'copiando as etapas atuais como ponto de partida. Processos já submetidos ' +
           'continuam na versão em que entraram.'
         }
         rotuloConfirmar="Criar versão"
@@ -696,7 +696,7 @@ export function TrilhaDetalhePage() {
         titulo="Tornar esta a versão vigente"
         mensagem={
           `A versão ${versaoAPromover?.versao} volta a vigorar e a atual é encerrada. ` +
-          `Vale para produtos NOVOS de ${categorias.length} categoria(s): os que já estão ` +
+          `Vale para processos NOVOS de ${categorias.length} categoria(s): os que já estão ` +
           'em avaliação seguem na versão pela qual entraram.'
         }
         rotuloConfirmar="Tornar vigente"
@@ -714,7 +714,7 @@ export function TrilhaDetalhePage() {
           `Excluir a versão ${versaoARemover?.versao} e suas etapas definitivamente? ` +
           (versaoARemover?.ativo
             ? 'Ela é a vigente — a versão anterior volta a vigorar no lugar dela.'
-            : 'Ela já está encerrada e nenhum produto a utiliza.')
+            : 'Ela já está encerrada e nenhum processo a utiliza.')
         }
         rotuloConfirmar="Excluir"
         perigo

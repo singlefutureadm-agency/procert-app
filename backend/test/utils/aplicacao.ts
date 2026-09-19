@@ -44,7 +44,7 @@ export async function criarApp(): Promise<NestExpressApplication> {
  * Existe porque todo cliente HTTP que segue a especificação de URL resolve os
  * segmentos `.` e `..` antes de abrir a conexão, **inclusive quando escritos
  * como `%2e%2e`**: o supertest transforma
- * `/uploads/produtos/%2e%2e/%2e%2e/certificados/x.pdf` em
+ * `/uploads/processos/%2e%2e/%2e%2e/certificados/x.pdf` em
  * `/certificados/x.pdf` e o request nem chega perto de `/uploads`. O 404 seria
  * real e não provaria nada sobre o servidor.
  *

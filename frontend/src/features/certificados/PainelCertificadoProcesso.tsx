@@ -11,21 +11,21 @@ import { certificadosApi } from './api';
 import { CartaoCertificado } from './CartaoCertificado';
 
 interface Props {
-  produtoId: number;
-  produtoNome: string;
+  processoId: number;
+  processoNome: string;
   /** Vem do resumo da timeline: opcionais pendentes não bloqueiam a emissão. */
   obrigatoriasAprovadas: boolean;
 }
 
 /**
- * Bloco de certificado dentro da tela de certificação do produto.
+ * Bloco de certificado dentro da tela de certificação do processo.
  *
  * Fica aqui, e não numa tela separada, porque a emissão é o desfecho da
  * trilha: quem acabou de aprovar a última etapa emite no mesmo lugar.
  */
-export function PainelCertificadoProduto({
-  produtoId,
-  produtoNome,
+export function PainelCertificadoProcesso({
+  processoId,
+  processoNome,
   obrigatoriasAprovadas,
 }: Props) {
   const { temPapel } = useAuth();
@@ -37,13 +37,13 @@ export function PainelCertificadoProduto({
   const [dataValidade, setDataValidade] = useState('');
 
   const { data: certificados, isLoading } = useQuery({
-    queryKey: chaves.certificadosDoProduto(produtoId),
-    queryFn: () => certificadosApi.listarPorProduto(produtoId),
+    queryKey: chaves.certificadosDoProcesso(processoId),
+    queryFn: () => certificadosApi.listarPorProcesso(processoId),
   });
 
   const emitir = useMutation({
     mutationFn: () =>
-      certificadosApi.emitir(produtoId, {
+      certificadosApi.emitir(processoId, {
         escopo,
         dataValidade: dataValidade || undefined,
       }),
@@ -72,9 +72,9 @@ export function PainelCertificadoProduto({
           <h2 style={{ fontSize: '1.05rem', margin: 0 }}>Certificado</h2>
           <p className="texto-pequeno texto-fraco" style={{ margin: '4px 0 0' }}>
             {temVigente
-              ? 'Documento formal emitido para este produto.'
+              ? 'Documento formal emitido para este processo.'
               : obrigatoriasAprovadas
-                ? 'Todas as etapas obrigatórias estão aprovadas — o produto pode ser certificado.'
+                ? 'Todas as etapas obrigatórias estão aprovadas — o processo pode ser certificado.'
                 : 'A emissão libera quando todas as etapas obrigatórias estiverem aprovadas.'}
           </p>
         </div>
@@ -90,7 +90,7 @@ export function PainelCertificadoProduto({
                 : 'Aprove todas as etapas obrigatórias primeiro'
             }
             onClick={() => {
-              setEscopo(produtoNome);
+              setEscopo(processoNome);
               setEmitindo(true);
             }}
           >
@@ -117,7 +117,7 @@ export function PainelCertificadoProduto({
 
           <Campo
             label="Validade"
-            dica="Em branco, usa a validade padrão da categoria do produto."
+            dica="Em branco, usa a validade padrão da categoria do processo."
           >
             <input
               type="date"

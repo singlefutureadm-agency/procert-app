@@ -119,7 +119,7 @@ export function CertificadosPage() {
         titulo="Certificados"
         descricao={
           ehCliente
-            ? 'Certificados emitidos para os seus produtos.'
+            ? 'Certificados emitidos para os seus processos.'
             : 'Certificados de conformidade emitidos pela ProCert.'
         }
       />
@@ -142,7 +142,7 @@ export function CertificadosPage() {
       <div className="entre">
         <CampoBusca
           valor={filtros.busca ?? ''}
-          placeholder="Buscar por número ou produto"
+          placeholder="Buscar por número ou processo"
           aoMudar={(busca) => setFiltros((atual) => ({ ...atual, busca, pagina: 1 }))}
         />
       </div>
@@ -156,7 +156,7 @@ export function CertificadosPage() {
             titulo="Nenhum certificado"
             descricao={
               ehCliente
-                ? 'Nenhum produto seu foi certificado ainda.'
+                ? 'Nenhum processo seu foi certificado ainda.'
                 : 'Os certificados aparecem aqui após a emissão pelo administrador.'
             }
           />
@@ -168,10 +168,10 @@ export function CertificadosPage() {
                   certificado={certificado}
                   contexto={
                     <>
-                      <Link to={`/certificacoes/produto/${certificado.produto.id}`}>
-                        {certificado.produto.nome}
+                      <Link to={`/certificacoes/processo/${certificado.processo.id}`}>
+                        {certificado.processo.nome}
                       </Link>
-                      {!ehCliente && ` · ${certificado.produto.cliente.nome}`}
+                      {!ehCliente && ` · ${certificado.processo.cliente.nome}`}
                     </>
                   }
                   acoes={

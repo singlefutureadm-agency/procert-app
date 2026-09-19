@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 import type {
-  CategoriaProduto,
+  CategoriaProcesso,
   CategoriaResumo,
   RespostaPaginada,
   StatusRegistro,
@@ -17,14 +17,14 @@ export interface CategoriaEntrada {
   nome: string;
   descricao?: string;
   normaReferencia?: string;
-  /** Validade do certificado emitido para produtos desta categoria, em meses. */
+  /** Validade do certificado emitido para processos desta categoria, em meses. */
   validadeMeses?: number;
 }
 
 export const categoriasApi = {
   listar: async (filtros: FiltrosCategorias) => {
-    const { data } = await api.get<RespostaPaginada<CategoriaProduto>>(
-      '/categorias-produto',
+    const { data } = await api.get<RespostaPaginada<CategoriaProcesso>>(
+      '/categorias-processo',
       { params: filtros },
     );
     return data;
@@ -32,31 +32,31 @@ export const categoriasApi = {
 
   /** Lista enxuta para selects, já com o modelo de trilha vigente. */
   resumo: async () => {
-    const { data } = await api.get<CategoriaResumo[]>('/categorias-produto/resumo');
+    const { data } = await api.get<CategoriaResumo[]>('/categorias-processo/resumo');
     return data;
   },
 
   buscarPorId: async (id: number) => {
-    const { data } = await api.get<CategoriaProduto>(`/categorias-produto/${id}`);
+    const { data } = await api.get<CategoriaProcesso>(`/categorias-processo/${id}`);
     return data;
   },
 
   criar: async (dados: CategoriaEntrada) => {
-    const { data } = await api.post<CategoriaProduto>('/categorias-produto', dados);
+    const { data } = await api.post<CategoriaProcesso>('/categorias-processo', dados);
     return data;
   },
 
   atualizar: async (id: number, dados: CategoriaEntrada) => {
-    const { data } = await api.patch<CategoriaProduto>(
-      `/categorias-produto/${id}`,
+    const { data } = await api.patch<CategoriaProcesso>(
+      `/categorias-processo/${id}`,
       dados,
     );
     return data;
   },
 
   alterarStatus: async (id: number, status: StatusRegistro) => {
-    const { data } = await api.patch<CategoriaProduto>(
-      `/categorias-produto/${id}/status`,
+    const { data } = await api.patch<CategoriaProcesso>(
+      `/categorias-processo/${id}/status`,
       { status },
     );
     return data;
@@ -64,11 +64,11 @@ export const categoriasApi = {
 
   /**
    * Vincula a trilha do catálogo que esta categoria segue.
-   * `null` desvincula — e categoria sem trilha não aceita produto novo.
+   * `null` desvincula — e categoria sem trilha não aceita processo novo.
    */
   vincularTrilha: async (id: number, trilhaId: number | null) => {
-    const { data } = await api.patch<CategoriaProduto>(
-      `/categorias-produto/${id}/trilha`,
+    const { data } = await api.patch<CategoriaProcesso>(
+      `/categorias-processo/${id}/trilha`,
       { trilhaId },
     );
     return data;
@@ -76,7 +76,7 @@ export const categoriasApi = {
 
   remover: async (id: number) => {
     const { data } = await api.delete<{ mensagem: string }>(
-      `/categorias-produto/${id}`,
+      `/categorias-processo/${id}`,
     );
     return data;
   },

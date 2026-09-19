@@ -29,14 +29,14 @@ const versao = (
   numero: number,
   ativo: boolean,
   etapas = 3,
-  produtos = 0,
+  processos = 0,
 ) => ({
   id,
   versao: numero,
   ativo,
   vigenteDe: new Date(),
   vigenteAte: ativo ? null : new Date(),
-  _count: { etapas, produtos },
+  _count: { etapas, processos },
 });
 
 describe('TrilhasService', () => {
@@ -101,7 +101,7 @@ describe('TrilhasService', () => {
   });
 
   describe('comResumo — o que a listagem publica', () => {
-    it('soma os produtos de TODAS as versões e aponta a vigente', async () => {
+    it('soma os processos de TODAS as versões e aponta a vigente', async () => {
       banco.prisma.trilha.findUnique.mockResolvedValue(
         trilhaPersistida({
           versoes: [versao(92, 3, true, 5, 2), versao(91, 2, false, 4, 7)],
@@ -110,7 +110,7 @@ describe('TrilhasService', () => {
       );
 
       const trilha = (await servico.buscarPorId(TRILHA)) as {
-        totalProdutos: number;
+        totalProcessos: number;
         totalVersoes: number;
         totalCategorias: number;
         modeloVigente: { id: number; versao: number } | null;
@@ -118,9 +118,9 @@ describe('TrilhasService', () => {
       };
 
       // A pergunta "posso excluir esta trilha?" depende do total em TODAS as
-      // versões, não só na vigente: uma v2 encerrada com 7 produtos ainda a
+      // versões, não só na vigente: uma v2 encerrada com 7 processos ainda a
       // prende.
-      expect(trilha.totalProdutos).toBe(9);
+      expect(trilha.totalProcessos).toBe(9);
       expect(trilha.totalVersoes).toBe(2);
       expect(trilha.totalCategorias).toBe(1);
       expect(trilha.modeloVigente).toMatchObject({ id: 92, versao: 3 });
@@ -142,7 +142,7 @@ describe('TrilhasService', () => {
   describe('alterarStatus', () => {
     it('recusa desativar trilha vinculada a categorias, nomeando-as', async () => {
       banco.prisma.trilha.findUnique.mockResolvedValue({ id: TRILHA } as never);
-      banco.prisma.categoriaProduto.findMany.mockResolvedValue([
+      banco.prisma.categoriaProcesso.findMany.mockResolvedValue([
         { nome: 'EPIs' },
         { nome: 'Brinquedos' },
       ] as never);
@@ -163,7 +163,7 @@ describe('TrilhasService', () => {
 
       await servico.alterarStatus(TRILHA, StatusRegistro.ATIVO);
 
-      expect(banco.prisma.categoriaProduto.findMany).not.toHaveBeenCalled();
+      expect(banco.prisma.categoriaProcesso.findMany).not.toHaveBeenCalled();
       expect(banco.prisma.trilha.update).toHaveBeenCalled();
     });
   });
@@ -180,24 +180,24 @@ describe('TrilhasService', () => {
       expect(banco.prisma.trilha.delete).not.toHaveBeenCalled();
     });
 
-    it('recusa quando alguma versão tem produtos, mesmo encerrada', async () => {
+    it('recusa quando alguma versão tem processos, mesmo encerrada', async () => {
       banco.prisma.trilha.findUnique.mockResolvedValue({
         id: TRILHA,
         categorias: [],
-        versoes: [{ _count: { produtos: 0 } }, { _count: { produtos: 4 } }],
+        versoes: [{ _count: { processos: 0 } }, { _count: { processos: 4 } }],
       } as never);
 
       await expect(servico.remover(TRILHA)).rejects.toThrow(
-        /4 produto\(s\) em avaliação/,
+        /4 processo\(s\) em avaliação/,
       );
       expect(banco.prisma.trilha.delete).not.toHaveBeenCalled();
     });
 
-    it('exclui quando não há vínculo nem produto', async () => {
+    it('exclui quando não há vínculo nem processo', async () => {
       banco.prisma.trilha.findUnique.mockResolvedValue({
         id: TRILHA,
         categorias: [],
-        versoes: [{ _count: { produtos: 0 } }],
+        versoes: [{ _count: { processos: 0 } }],
       } as never);
 
       await expect(servico.remover(TRILHA)).resolves.toEqual({
@@ -333,7 +333,7 @@ describe('TrilhasService', () => {
   describe('vincularCategorias', () => {
     it('recusa o lote inteiro quando alguma categoria não existe', async () => {
       banco.prisma.trilha.findUnique.mockResolvedValue({ id: TRILHA } as never);
-      banco.prisma.categoriaProduto.findMany.mockResolvedValue([
+      banco.prisma.categoriaProcesso.findMany.mockResolvedValue([
         { id: 1 },
       ] as never);
 
@@ -342,21 +342,21 @@ describe('TrilhasService', () => {
       ).rejects.toThrow(/4, 7/);
       // Vínculo parcial silencioso é pior que erro: o usuário veria "salvo" e
       // duas categorias continuariam sem trilha.
-      expect(banco.prisma.categoriaProduto.updateMany).not.toHaveBeenCalled();
+      expect(banco.prisma.categoriaProcesso.updateMany).not.toHaveBeenCalled();
     });
 
     it('aplica a trilha ao lote validado', async () => {
       banco.prisma.trilha.findUnique
         .mockResolvedValueOnce({ id: TRILHA } as never)
         .mockResolvedValue(trilhaPersistida() as never);
-      banco.prisma.categoriaProduto.findMany.mockResolvedValue([
+      banco.prisma.categoriaProcesso.findMany.mockResolvedValue([
         { id: 1 },
         { id: 4 },
       ] as never);
 
       await servico.vincularCategorias(TRILHA, { categoriaIds: [1, 4] });
 
-      expect(banco.prisma.categoriaProduto.updateMany).toHaveBeenCalledWith({
+      expect(banco.prisma.categoriaProcesso.updateMany).toHaveBeenCalledWith({
         where: { id: { in: [1, 4] } },
         data: { trilhaId: TRILHA },
       });
@@ -374,7 +374,7 @@ describe('TrilhasService', () => {
 
       expect(resumo[0].modeloVigente).toMatchObject({ versao: 2, totalEtapas: 4 });
       // A tela usa esse null para desabilitar a opção: vincular uma trilha sem
-      // versão deixaria a categoria aparentemente pronta e recusando produto.
+      // versão deixaria a categoria aparentemente pronta e recusando processo.
       expect(resumo[1].modeloVigente).toBeNull();
     });
   });

@@ -34,14 +34,14 @@ export const chaves = {
   funcionariosResumo: ['funcionarios', 'resumo'] as const,
   relatorioEquipe: (filtros?: unknown) =>
     ['relatorios', 'equipe', filtros ?? {}] as const,
-  comparativoProdutos: (filtros?: unknown) =>
-    ['relatorios', 'produtos', filtros ?? {}] as const,
+  comparativoProcessos: (filtros?: unknown) =>
+    ['relatorios', 'processos', filtros ?? {}] as const,
   comparativoClientes: (filtros?: unknown) =>
     ['relatorios', 'clientes', filtros ?? {}] as const,
   tempoCiclo: (filtros?: unknown) =>
     ['relatorios', 'tempo-ciclo', filtros ?? {}] as const,
-  produtos: (filtros?: unknown) => ['produtos', filtros ?? {}] as const,
-  produto: (id: number) => ['produtos', id] as const,
+  processos: (filtros?: unknown) => ['processos', filtros ?? {}] as const,
+  processo: (id: number) => ['processos', id] as const,
   categorias: (filtros?: unknown) => ['categorias', filtros ?? {}] as const,
   categoria: (id: number) => ['categorias', id] as const,
   categoriasResumo: ['categorias', 'resumo'] as const,
@@ -59,14 +59,14 @@ export const chaves = {
   certificados: (filtros?: unknown) => ['certificados', filtros ?? {}] as const,
   certificadosEmRisco: (dias: number, pagina: number) =>
     ['certificados', 'em-risco', dias, pagina] as const,
-  certificadosDoProduto: (produtoId: number) =>
-    ['certificados', 'produto', produtoId] as const,
+  certificadosDoProcesso: (processoId: number) =>
+    ['certificados', 'processo', processoId] as const,
   naoConformidades: (filtros?: unknown) =>
     ['nao-conformidades', filtros ?? {}] as const,
-  versaoTrilha: (produtoId: number) =>
-    ['certificacoes', 'produto', produtoId, 'versao-trilha'] as const,
+  versaoTrilha: (processoId: number) =>
+    ['certificacoes', 'processo', processoId, 'versao-trilha'] as const,
   certificacoes: (filtros?: unknown) => ['certificacoes', filtros ?? {}] as const,
-  certificacao: (produtoId: number) => ['certificacoes', 'produto', produtoId] as const,
+  certificacao: (processoId: number) => ['certificacoes', 'processo', processoId] as const,
   /**
    * Quadro de processos. Prefixo próprio (`'quadro'` no segundo segmento) para
    * não colidir com `certificacoes(filtros)`: as duas telas leem endpoints

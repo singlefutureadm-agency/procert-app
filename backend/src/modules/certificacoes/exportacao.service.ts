@@ -25,7 +25,7 @@ import {
  * Exportação de um acompanhamento para planilha.
  *
  * Roda no servidor, e não no navegador, por três motivos: os dados já vêm
- * montados por `detalharPorProduto` (que também é onde o escopo do CLIENTE é aplicado),
+ * montados por `detalharPorProcesso` (que também é onde o escopo do CLIENTE é aplicado),
  * gerar XLSX no cliente exigiria embarcar a mesma biblioteca no bundle, e há
  * precedente — o PDF do certificado também é gerado aqui.
  *
@@ -48,7 +48,7 @@ import {
  * Google Sheets ou num BI.
  */
 
-type Detalhe = Awaited<ReturnType<CertificacoesService['detalharPorProduto']>>;
+type Detalhe = Awaited<ReturnType<CertificacoesService['detalharPorProcesso']>>;
 type Etapa = Detalhe['etapas'][number];
 
 const ROTULO_STATUS: Record<StatusCertificacao, string> = {
@@ -133,8 +133,8 @@ export class ExportacaoCertificacaoService {
     titulo(aba, 'Acompanhamento de certificação');
 
     blocoChaveValor(aba, [
-      ['Produto', detalhe.produto.nome],
-      ['Descrição do produto', detalhe.produto.descricao ?? '—'],
+      ['Processo', detalhe.processo.nome],
+      ['Descrição do processo', detalhe.processo.descricao ?? '—'],
       ['Cliente', detalhe.cliente.nome],
       ['E-mail do cliente', detalhe.cliente.email],
       ['Telefone do cliente', detalhe.cliente.telefone ?? '—'],
@@ -298,7 +298,7 @@ export class ExportacaoCertificacaoService {
 
     /*
      * Ordem cronológica decrescente — o mais recente primeiro, como na
-     * timeline da tela. `porProduto` já devolve o histórico ordenado DENTRO de
+     * timeline da tela. `porProcesso` já devolve o histórico ordenado DENTRO de
      * cada etapa; aqui as etapas são intercaladas, então a ordenação precisa
      * ser refeita sobre o conjunto.
      */
@@ -351,8 +351,8 @@ export class ExportacaoCertificacaoService {
 
     secoes.push([
       ['ACOMPANHAMENTO DE CERTIFICAÇÃO'],
-      ['Produto', detalhe.produto.nome],
-      ['Descrição do produto', detalhe.produto.descricao ?? '—'],
+      ['Processo', detalhe.processo.nome],
+      ['Descrição do processo', detalhe.processo.descricao ?? '—'],
       ['Cliente', detalhe.cliente.nome],
       ['E-mail do cliente', detalhe.cliente.email],
       ['Telefone do cliente', detalhe.cliente.telefone ?? '—'],
@@ -510,7 +510,7 @@ export class ExportacaoCertificacaoService {
    * o que evita `acompanhamento.xlsx (3)` na pasta de Downloads.
    */
   nomeArquivo(detalhe: Detalhe, extensao: 'xlsx' | 'csv'): string {
-    const base = baseDeNomeArquivo(detalhe.produto.nome, 'produto');
+    const base = baseDeNomeArquivo(detalhe.processo.nome, 'processo');
     const dia = new Date().toISOString().slice(0, 10);
     return `acompanhamento-${base}-${dia}.${extensao}`;
   }

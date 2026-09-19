@@ -56,7 +56,7 @@ export function LoginPage() {
           <Icone nome="escudo" tamanho={36} className="icone tela-icone" />
           <h1 style={{ fontSize: '1.5rem' }}>ProCert</h1>
           <p className="texto-suave texto-pequeno">
-            Plataforma de certificação de produtos
+            Plataforma de certificação de processos
           </p>
         </div>
 

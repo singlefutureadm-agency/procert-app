@@ -96,7 +96,7 @@ describe('ExportacaoCicloService', () => {
       );
 
       // Mediana sem base não diz se veio de 40 etapas ou de uma.
-      expect(cabecalhos).toContain('Lead time — base (produtos)');
+      expect(cabecalhos).toContain('Lead time — base (processos)');
       expect(cabecalhos).toContain('Tratamento — base (etapas)');
       expect(cabecalhos).toContain('Fila — base (etapas)');
     });

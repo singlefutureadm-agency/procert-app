@@ -170,10 +170,10 @@ export function TempoCicloPage() {
             {porTrilha && (
               <Grafico
                 titulo="Lead time da trilha"
-                descricao="Da submissão do produto até a aprovação da última etapa obrigatória."
-                rodape="Mediana, sobre os produtos com todas as etapas obrigatórias aprovadas. A emissão do certificado é ato posterior e não entra."
+                descricao="Da submissão do processo até a aprovação da última etapa obrigatória."
+                rodape="Mediana, sobre os processos com todas as etapas obrigatórias aprovadas. A emissão do certificado é ato posterior e não entra."
                 vazio={fatias(grupos, (g) => g.leadTimeTrilha?.medianaDias ?? null, '').length === 0}
-                mensagemVazio="Nenhum produto concluiu a trilha no recorte."
+                mensagemVazio="Nenhum processo concluiu a trilha no recorte."
               >
                 <BarrasHorizontais
                   titulo="Lead time da trilha, em dias"
@@ -259,7 +259,7 @@ export function TempoCicloPage() {
                           {dias(g.leadTimeTrilha?.medianaDias ?? null)}
                           <span className="texto-suave texto-pequeno">
                             {' '}
-                            ({base(g.leadTimeTrilha?.base ?? 0, 'produto')})
+                            ({base(g.leadTimeTrilha?.base ?? 0, 'processo')})
                           </span>
                         </td>
                       )}
@@ -307,7 +307,7 @@ export function TempoCicloPage() {
               </p>
               <ul>
                 <li>
-                  <strong>Lead time da trilha</strong> — da submissão do produto
+                  <strong>Lead time da trilha</strong> — da submissão do processo
                   até a aprovação da última etapa obrigatória. A emissão do
                   certificado é ato posterior e fica de fora.
                 </li>
@@ -332,7 +332,7 @@ export function TempoCicloPage() {
               </ul>
               <p>
                 Todos os valores são <strong>medianas</strong>, nunca médias — um
-                produto abandonado há dois anos destruiria qualquer média.
+                processo abandonado há dois anos destruiria qualquer média.
               </p>
             </div>
           </section>

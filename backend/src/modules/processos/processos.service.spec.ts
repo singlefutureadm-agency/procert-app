@@ -1,7 +1,7 @@
 import { Prisma, StatusRegistro } from '@prisma/client';
 import { mockDeep } from 'jest-mock-extended';
 
-import { ProdutosService } from './produtos.service';
+import { ProcessosService } from './processos.service';
 import { ModelosTrilhaService } from '../modelos-trilha/modelos-trilha.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,8 +18,8 @@ const CATEGORIA = 7;
  * exclusão, e uma corrida entre duas aberturas simultâneas grava o mesmo
  * código nas duas.
  */
-describe('ProdutosService — código do processo', () => {
-  let servico: ProdutosService;
+describe('ProcessosService — código do processo', () => {
+  let servico: ProcessosService;
   let banco: PrismaMock;
   let modelosTrilha: jest.Mocked<ModelosTrilhaService>;
 
@@ -45,7 +45,7 @@ describe('ProdutosService — código do processo', () => {
     modelosTrilha = mockDeep<ModelosTrilhaService>();
 
     banco.prisma.cliente.findUnique.mockResolvedValue({ id: CLIENTE } as never);
-    banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+    banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
       categoria('EPI') as never,
     );
     modelosTrilha.resolverVigentePorCategoria.mockResolvedValue({
@@ -53,10 +53,10 @@ describe('ProdutosService — código do processo', () => {
       etapas: [{ id: 900, ordem: 1, microEtapas: [] }],
     } as never);
 
-    banco.tx.produto.create.mockResolvedValue({ id: 1 } as never);
-    banco.tx.produto.findUniqueOrThrow.mockResolvedValue({ id: 1 } as never);
+    banco.tx.processo.create.mockResolvedValue({ id: 1 } as never);
+    banco.tx.processo.findUniqueOrThrow.mockResolvedValue({ id: 1 } as never);
 
-    servico = new ProdutosService(
+    servico = new ProcessosService(
       banco.prisma as unknown as PrismaService,
       mockDeep<UploadsService>(),
       modelosTrilha,
@@ -67,8 +67,8 @@ describe('ProdutosService — código do processo', () => {
     jest.useRealTimers();
   });
 
-  /** O `data` do único `produto.create` da transação. */
-  const dadosDoCreate = () => banco.tx.produto.create.mock.calls[0][0].data;
+  /** O `data` do único `processo.create` da transação. */
+  const dadosDoCreate = () => banco.tx.processo.create.mock.calls[0][0].data;
 
   /**
    * O `MAX(...)` do gerador: o mock devolve o número já extraído.
@@ -84,7 +84,7 @@ describe('ProdutosService — código do processo', () => {
     banco.prisma.$queryRaw.mockResolvedValue([{ maximo }] as never);
 
   it('deriva do MAIOR número do ano, não de uma contagem', async () => {
-    // `COUNT` reemitiria um número já usado assim que um produto fosse
+    // `COUNT` reemitiria um número já usado assim que um processo fosse
     // excluído — dois processos com o mesmo código é o que a operação não
     // pode ter. Mesma razão já registrada em `nao-conformidades`.
     maximoNaBase(11);
@@ -92,7 +92,7 @@ describe('ProdutosService — código do processo', () => {
     await servico.criar(dados);
 
     expect(dadosDoCreate().codigoProcesso).toBe('PROCERT-EPI-012-26');
-    expect(banco.prisma.produto.count).not.toHaveBeenCalled();
+    expect(banco.prisma.processo.count).not.toHaveBeenCalled();
   });
 
   it('começa em 001 no primeiro processo do ano', async () => {
@@ -115,15 +115,15 @@ describe('ProdutosService — código do processo', () => {
 
     jest.clearAllMocks();
     banco.prisma.cliente.findUnique.mockResolvedValue({ id: CLIENTE } as never);
-    banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+    banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
       categoria('EPI') as never,
     );
     modelosTrilha.resolverVigentePorCategoria.mockResolvedValue({
       id: 80,
       etapas: [{ id: 900, ordem: 1, microEtapas: [] }],
     } as never);
-    banco.tx.produto.create.mockResolvedValue({ id: 2 } as never);
-    banco.tx.produto.findUniqueOrThrow.mockResolvedValue({ id: 2 } as never);
+    banco.tx.processo.create.mockResolvedValue({ id: 2 } as never);
+    banco.tx.processo.findUniqueOrThrow.mockResolvedValue({ id: 2 } as never);
     maximoNaBase(1000);
 
     await servico.criar(dados);
@@ -141,7 +141,7 @@ describe('ProdutosService — código do processo', () => {
   it('o sequencial é por SIGLA: cada categoria numera a sua', async () => {
     // `PROCERT-EPI-012-26` e `PROCERT-VOL-012-26` convivem — é assim que a
     // operação já numera. O LIKE precisa casar prefixo E sufixo.
-    banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+    banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
       categoria('VOL') as never,
     );
     maximoNaBase(null);
@@ -156,10 +156,10 @@ describe('ProdutosService — código do processo', () => {
     expect(parametros.values).toContain('PROCERT-VOL-%-26');
   });
 
-  it('categoria SEM sigla gera produto sem código, e não um erro', async () => {
+  it('categoria SEM sigla gera processo sem código, e não um erro', async () => {
     // Nenhum identificador é melhor que um inventado: o código circula em
     // documento fora do sistema.
-    banco.prisma.categoriaProduto.findUnique.mockResolvedValue(
+    banco.prisma.categoriaProcesso.findUnique.mockResolvedValue(
       categoria(null) as never,
     );
 
@@ -182,7 +182,7 @@ describe('ProdutosService — código do processo', () => {
   it('corrida no código: repete em vez de devolver 409', async () => {
     // Duas aberturas simultâneas leem o mesmo máximo e tentam o mesmo número.
     // Quem decide é o índice único; a perdedora tenta de novo, porque quem
-    // está do outro lado só queria cadastrar um produto.
+    // está do outro lado só queria cadastrar um processo.
     const colisao = new Prisma.PrismaClientKnownRequestError(
       'Unique constraint failed',
       {
@@ -195,16 +195,16 @@ describe('ProdutosService — código do processo', () => {
     banco.prisma.$queryRaw
       .mockResolvedValueOnce([{ maximo: 11 }] as never)
       .mockResolvedValueOnce([{ maximo: 12 }] as never);
-    banco.tx.produto.create
+    banco.tx.processo.create
       .mockRejectedValueOnce(colisao)
       .mockResolvedValueOnce({ id: 1 } as never);
 
     await servico.criar(dados);
 
     // Releu o máximo e gravou o número seguinte.
-    expect(banco.tx.produto.create).toHaveBeenCalledTimes(2);
+    expect(banco.tx.processo.create).toHaveBeenCalledTimes(2);
     expect(
-      banco.tx.produto.create.mock.calls[1][0].data.codigoProcesso,
+      banco.tx.processo.create.mock.calls[1][0].data.codigoProcesso,
     ).toBe('PROCERT-EPI-013-26');
   });
 
@@ -215,23 +215,23 @@ describe('ProdutosService — código do processo', () => {
       clientVersion: '6.19.3',
     });
     maximoNaBase(null);
-    banco.tx.produto.create.mockRejectedValue(outroErro);
+    banco.tx.processo.create.mockRejectedValue(outroErro);
 
     await expect(servico.criar(dados)).rejects.toThrow(outroErro);
-    expect(banco.tx.produto.create).toHaveBeenCalledTimes(1);
+    expect(banco.tx.processo.create).toHaveBeenCalledTimes(1);
   });
 
-  it('a trilha nasce no MESMO commit do produto', async () => {
+  it('a trilha nasce no MESMO commit do processo', async () => {
     // Diferença em relação ao legado: lá, uma falha no INSERT das etapas
-    // deixava o produto órfão, sem certificação nenhuma.
+    // deixava o processo órfão, sem certificação nenhuma.
     maximoNaBase(null);
 
     await servico.criar(dados);
 
     // `create` por etapa, e não `createMany`: as microetapas são relação
     // aninhada, e o `createMany` abriria a trilha com os checklists vazios.
-    expect(banco.tx.certificacaoProduto.create).toHaveBeenCalledTimes(1);
-    expect(banco.tx.certificacaoProduto.createMany).not.toHaveBeenCalled();
-    expect(banco.prisma.produto.create).not.toHaveBeenCalled();
+    expect(banco.tx.certificacaoProcesso.create).toHaveBeenCalledTimes(1);
+    expect(banco.tx.certificacaoProcesso.createMany).not.toHaveBeenCalled();
+    expect(banco.prisma.processo.create).not.toHaveBeenCalled();
   });
 });

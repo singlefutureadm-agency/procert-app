@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { CertificadoPdfService } from './certificado-pdf.service';
 import {
   CertificadosController,
-  CertificadosProdutoController,
+  CertificadosProcessoController,
 } from './certificados.controller';
 import { CertificadosService } from './certificados.service';
 import { ExpiracaoCertificadosCron } from './expiracao.cron';
@@ -15,7 +15,7 @@ import { ExpiracaoCronController } from './expiracao.cron.controller';
   // depender de o Nest distinguir `certificados/cron/...` de `certificados/:id`
   // pelo número de segmentos.
   controllers: [
-    CertificadosProdutoController,
+    CertificadosProcessoController,
     ExpiracaoCronController,
     CertificadosController,
   ],

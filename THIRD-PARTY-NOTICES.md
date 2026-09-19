@@ -15,7 +15,7 @@ está na última seção.
 
 Contagem de pacotes por licença, separando o que é **distribuído** (produção) do
 que só participa da construção (`devDependencies`). A distinção importa: licença
-recíproca em ferramenta de build não alcança o produto entregue; em dependência
+recíproca em ferramenta de build não alcança o processo entregue; em dependência
 de produção, alcançaria.
 
 ### `backend/` — 343 pacotes de produção, 567 apenas de desenvolvimento
@@ -91,7 +91,7 @@ correspondente.
 
 ### `bootstrap-icons@1.13.1` — MIT
 
-Único ativo de terceiros **redistribuído** com o produto: a fonte de ícones vai
+Único ativo de terceiros **redistribuído** com o processo: a fonte de ícones vai
 no bundle do site institucional. MIT, © 2019–2024 The Bootstrap Authors. O aviso
 de copyright é preservado por esta seção, que é o que a licença exige.
 

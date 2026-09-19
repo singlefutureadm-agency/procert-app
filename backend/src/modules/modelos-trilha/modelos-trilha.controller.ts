@@ -69,7 +69,7 @@ export class ModelosTrilhaController {
   @Patch(':id/etapas')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Substitui as etapas da versão; 409 se ela já tiver produtos',
+    summary: 'Substitui as etapas da versão; 409 se ela já tiver processos',
   })
   substituirEtapas(
     @Param('id', ParseIntPipe) id: number,
@@ -100,7 +100,7 @@ export class ModelosTrilhaController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Exclui a versão; 409 se ela tiver produtos ou for a única da trilha',
+    summary: 'Exclui a versão; 409 se ela tiver processos ou for a única da trilha',
   })
   remover(@Param('id', ParseIntPipe) id: number) {
     return this.modelosService.removerVersao(id);

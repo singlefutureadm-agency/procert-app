@@ -37,7 +37,7 @@ export function PaginaLegal({
     <LayoutSite
       seo={{
         titulo: `${documento.titulo} · ProCert`,
-        descricao: `${documento.titulo} da ProCert Certificação de Produtos — ${documento.subtitulo}. Atualizado em ${documento.atualizadoEm}.`,
+        descricao: `${documento.titulo} da ProCert Certificação de Processos — ${documento.subtitulo}. Atualizado em ${documento.atualizadoEm}.`,
         caminho,
         dadosEstruturados: grafo(
           organizacao(),

@@ -21,7 +21,7 @@ export function CabecalhoPagina({ titulo, descricao, acoes }: Props) {
            * O botão de ajuda mora aqui, e não em `acoes`, por dois motivos.
            *
            * Semântico: ele não é uma ação sobre os dados da tela ("Novo
-           * produto", "Exportar") — é uma explicação sobre a própria tela, e
+           * processo", "Exportar") — é uma explicação sobre a própria tela, e
            * pertence ao título. Misturado às ações, ele competiria com o botão
            * primário justamente na hora em que o usuário decide o que fazer.
            *

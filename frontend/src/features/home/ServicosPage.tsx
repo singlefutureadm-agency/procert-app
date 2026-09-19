@@ -23,8 +23,8 @@ export function ServicosPage() {
           perguntasEmJsonLd(faq),
           {
             '@type': 'Service',
-            name: 'Certificação de produtos e equipamentos de proteção individual',
-            serviceType: 'Avaliação da conformidade de produto',
+            name: 'Certificação de processos e equipamentos de proteção individual',
+            serviceType: 'Avaliação da conformidade de processo',
             provider: { '@id': `${URL_SITE}/#organizacao` },
             areaServed: { '@type': 'Country', name: 'Brasil' },
           },
@@ -115,7 +115,7 @@ export function ServicosPage() {
 
       <section className="home__secao home__cta-faixa">
         <Revelar className="home__container">
-          <h2>Precisa certificar um produto?</h2>
+          <h2>Precisa certificar um processo?</h2>
           <p>
             Conte o que você precisa avaliar e retornamos com o escopo provável e os
             próximos passos.

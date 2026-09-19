@@ -13,7 +13,7 @@ export interface FiltrosNaoConformidades {
   busca?: string;
   status?: StatusNaoConformidade;
   criticidade?: CriticidadeNaoConformidade;
-  produtoId?: number;
+  processoId?: number;
   /** Só as que ainda aguardam ação (ABERTA ou EM_TRATATIVA). */
   pendentes?: boolean;
 }

@@ -10,7 +10,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 
 import { AparenciaModule } from './modules/aparencia/aparencia.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { CategoriasProdutoModule } from './modules/categorias-produto/categorias-produto.module';
+import { CategoriasProcessoModule } from './modules/categorias-processo/categorias-processo.module';
 import { CertificacoesModule } from './modules/certificacoes/certificacoes.module';
 import { CertificadosModule } from './modules/certificados/certificados.module';
 import { ClientesModule } from './modules/clientes/clientes.module';
@@ -23,7 +23,7 @@ import { HealthModule } from './modules/health/health.module';
 import { ModelosTrilhaModule } from './modules/modelos-trilha/modelos-trilha.module';
 import { NaoConformidadesModule } from './modules/nao-conformidades/nao-conformidades.module';
 import { MailModule } from './modules/mail/mail.module';
-import { ProdutosModule } from './modules/produtos/produtos.module';
+import { ProcessosModule } from './modules/processos/processos.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
@@ -40,9 +40,9 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     AuthModule,
     ClientesModule,
     FuncionariosModule,
-    CategoriasProdutoModule,
+    CategoriasProcessoModule,
     ModelosTrilhaModule,
-    ProdutosModule,
+    ProcessosModule,
     NaoConformidadesModule,
     CertificacoesModule,
     CertificadosModule,

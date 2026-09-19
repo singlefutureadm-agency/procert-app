@@ -5,8 +5,8 @@ import { matchPath } from 'react-router-dom';
  *
  * Por que um registro central em vez de um texto solto dentro de cada página:
  *
- * 1. **A ajuda é sobre a tela, não sobre o componente.** `ProdutoFormPage`
- *    atende duas rotas (`/produtos/novo` e `/produtos/:id/editar`) e o que o
+ * 1. **A ajuda é sobre a tela, não sobre o componente.** `ProcessoFormPage`
+ *    atende duas rotas (`/processos/novo` e `/processos/:id/editar`) e o que o
  *    iniciante precisa saber é diferente nas duas — criar abre a trilha,
  *    editar não a altera. Chaveando por ROTA, cada uma ganha o seu texto sem
  *    condicional espalhada pelo JSX da página.
@@ -15,7 +15,7 @@ import { matchPath } from 'react-router-dom';
  *    pelo teste `conteudo-ajuda.test.ts`, que percorre as rotas reais do
  *    `router.tsx` e cobra uma entrada para cada uma — sem isso a lacuna seria
  *    silenciosa: a tela simplesmente não mostraria o botão, e ninguém notaria.
- * 3. **O texto fica revisável num lugar só.** É conteúdo de produto, escrito
+ * 3. **O texto fica revisável num lugar só.** É conteúdo de processo, escrito
  *    para quem nunca viu um processo de certificação; misturado ao JSX ele
  *    nunca seria relido inteiro.
  *
@@ -73,8 +73,8 @@ export interface ConteudoAjuda {
 
 /**
  * Ordem de declaração = ordem de avaliação. Hoje nenhum par de padrões é
- * ambíguo (`matchPath` exige casamento completo, então `/produtos` não pega
- * `/produtos/novo`), mas a lista segue agrupada por assunto para ser lida como
+ * ambíguo (`matchPath` exige casamento completo, então `/processos` não pega
+ * `/processos/novo`), mas a lista segue agrupada por assunto para ser lida como
  * um roteiro, e não como um dicionário.
  */
 export const AJUDA_TELAS: ConteudoAjuda[] = [
@@ -83,7 +83,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/dashboard',
     titulo: 'Painel inicial',
     resumo:
-      'É o panorama de tudo que está em andamento agora: quantos produtos estão em processo, o que avançou nos últimos dias e onde há coisa parada.',
+      'É o panorama de tudo que está em andamento agora: quantos processos estão em processo, o que avançou nos últimos dias e onde há coisa parada.',
     topicos: [
       {
         titulo: 'Os cartões do topo são o resumo geral',
@@ -98,22 +98,22 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Últimas movimentações é a linha do tempo da operação',
         texto:
-          'Mostra quem mudou o quê e quando, em qualquer produto. É o caminho mais rápido para retomar um processo de onde alguém parou.',
+          'Mostra quem mudou o quê e quando, em qualquer processo. É o caminho mais rápido para retomar um processo de onde alguém parou.',
       },
     ],
     proximoPasso: {
-      texto: 'Ver os produtos em processo de certificação',
+      texto: 'Ver os processos em processo de certificação',
       para: '/certificacoes',
     },
     cliente: {
       titulo: 'Seu painel',
       resumo:
-        'O resumo da situação dos produtos da sua empresa: quantos estão em processo, o que avançou nos últimos dias e o que está esperando alguma ação sua.',
+        'O resumo da situação dos processos da sua empresa: quantos estão em processo, o que avançou nos últimos dias e o que está esperando alguma ação sua.',
       topicos: [
         {
           titulo: 'Tudo aqui é só da sua empresa',
           texto:
-            'Os números contam apenas os seus produtos. O filtro é aplicado no servidor a partir do seu login — nenhuma outra empresa aparece, e a sua não aparece para ninguém.',
+            'Os números contam apenas os seus processos. O filtro é aplicado no servidor a partir do seu login — nenhuma outra empresa aparece, e a sua não aparece para ninguém.',
         },
         {
           titulo: 'Comece pelo que está esperando você',
@@ -123,11 +123,11 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
         {
           titulo: 'Últimas movimentações mostra o que a equipe fez',
           texto:
-            'Cada linha é uma mudança no processo de um produto seu, com a data. É o jeito mais rápido de saber o que andou desde a última vez que você entrou.',
+            'Cada linha é uma mudança no processo de um processo seu, com a data. É o jeito mais rápido de saber o que andou desde a última vez que você entrou.',
         },
       ],
       proximoPasso: {
-        texto: 'Acompanhar o andamento dos seus produtos',
+        texto: 'Acompanhar o andamento dos seus processos',
         para: '/certificacoes',
       },
     },
@@ -138,12 +138,12 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/certificacoes',
     titulo: 'Certificações em andamento',
     resumo:
-      'A lista dos produtos que estão percorrendo uma trilha de certificação, com o quanto cada um já avançou.',
+      'A lista dos processos que estão percorrendo uma trilha de certificação, com o quanto cada um já avançou.',
     topicos: [
       {
-        titulo: 'Cada produto percorre uma trilha de etapas',
+        titulo: 'Cada processo percorre uma trilha de etapas',
         texto:
-          'A trilha é definida pela categoria do produto (análise documental, ensaios, auditoria de fábrica, decisão). O progresso na lista conta quantas dessas etapas já foram aprovadas.',
+          'A trilha é definida pela categoria do processo (análise documental, ensaios, auditoria de fábrica, decisão). O progresso na lista conta quantas dessas etapas já foram aprovadas.',
       },
       {
         titulo: 'A trilha não é uma fila',
@@ -151,7 +151,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
           'As etapas não precisam ser avaliadas em ordem. Ensaios podem terminar antes da análise documental — o número da etapa indica a posição dela na trilha, não a vez dela.',
       },
       {
-        titulo: 'Abrir um produto mostra o processo completo',
+        titulo: 'Abrir um processo mostra o processo completo',
         texto:
           'Lá dentro ficam o estado de cada etapa, o histórico com autoria e data, os documentos anexados e as não conformidades abertas.',
       },
@@ -161,14 +161,14 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       para: '/nao-conformidades',
     },
     cliente: {
-      titulo: 'Andamento dos seus produtos',
+      titulo: 'Andamento dos seus processos',
       resumo:
-        'Onde cada produto da sua empresa está no processo de certificação, e quanto já foi aprovado.',
+        'Onde cada processo da sua empresa está no processo de certificação, e quanto já foi aprovado.',
       topicos: [
         {
           titulo: 'A barra de progresso conta etapas aprovadas',
           texto:
-            'Cada produto percorre uma sequência de etapas definida pela categoria dele — análise de documentos, ensaios em laboratório, auditoria da fábrica e a decisão final. O progresso mostra quantas já foram aprovadas.',
+            'Cada processo percorre uma sequência de etapas definida pela categoria dele — análise de documentos, ensaios em laboratório, auditoria da fábrica e a decisão final. O progresso mostra quantas já foram aprovadas.',
         },
         {
           titulo: 'Progresso parado nem sempre é problema',
@@ -176,26 +176,26 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
             'As etapas não são avaliadas em ordem, e algumas demoram por natureza — um ensaio de laboratório leva semanas. Só há algo esperando por você se houver uma não conformidade aberta.',
         },
         {
-          titulo: 'Abra o produto para ver o detalhe',
+          titulo: 'Abra o processo para ver o detalhe',
           texto:
             'Lá dentro está o estado de cada etapa, o que a equipe registrou em cada uma, os documentos e o que eventualmente foi pedido a você.',
         },
         {
-          titulo: 'Você vê apenas os seus produtos',
+          titulo: 'Você vê apenas os seus processos',
           texto:
             'A lista é filtrada no servidor pelo seu login. Não há como abrir o processo de outra empresa, mesmo digitando o endereço direto.',
         },
       ],
       proximoPasso: {
         texto: 'Entender a tela de um processo, etapa a etapa',
-        para: '/produtos',
+        para: '/processos',
       },
     },
   },
   {
     // Rota só da equipe (o backend devolve 403 para CLIENTE), então não há
     // variante `cliente` aqui — e é por isso que ela não existe abaixo.
-    rota: '/produtos/quadro',
+    rota: '/processos/quadro',
     titulo: 'Quadro de processos',
     resumo:
       'Os mesmos processos da lista, organizados nas fases do fluxo: em que bloco cada um está, de quem é a etapa atual e o que está parado há tempo demais.',
@@ -208,7 +208,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Para mover um processo, avalie a etapa',
         texto:
-          'Clicar no cartão abre a linha do tempo do produto. É lá que se aprova ou reprova uma etapa, e é isso que faz o processo avançar de fase.',
+          'Clicar no cartão abre a linha do tempo do processo. É lá que se aprova ou reprova uma etapa, e é isso que faz o processo avançar de fase.',
       },
       {
         titulo: 'O número no topo da coluna é o total real',
@@ -237,10 +237,10 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     },
   },
   {
-    rota: '/certificacoes/produto/:produtoId',
-    titulo: 'O processo deste produto',
+    rota: '/certificacoes/processo/:processoId',
+    titulo: 'A trilha deste processo',
     resumo:
-      'A trilha completa deste produto: em que estado está cada etapa, quem mexeu, quando, com quais evidências e quais pendências.',
+      'A trilha completa deste processo: em que estado está cada etapa, quem mexeu, quando, com quais evidências e quais pendências.',
     topicos: [
       {
         titulo: 'Os quatro estados de uma etapa',
@@ -273,9 +273,9 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       para: '/nao-conformidades',
     },
     cliente: {
-      titulo: 'O processo deste produto',
+      titulo: 'A trilha deste processo',
       resumo:
-        'A trilha completa deste produto: em que pé está cada etapa, o que a equipe registrou e o que foi anexado ao longo do caminho.',
+        'A trilha completa deste processo: em que pé está cada etapa, o que a equipe registrou e o que foi anexado ao longo do caminho.',
       topicos: [
         {
           titulo: 'O que cada estado quer dizer',
@@ -328,7 +328,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Menor e Maior não são só um rótulo',
         texto:
-          'Maior compromete a conformidade do produto; Menor admite correção pontual. A gravidade orienta o prazo e o rigor da reavaliação.',
+          'Maior compromete a conformidade do processo; Menor admite correção pontual. A gravidade orienta o prazo e o rigor da reavaliação.',
       },
       {
         titulo: 'Não se reabre uma NC encerrada',
@@ -343,12 +343,12 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     cliente: {
       titulo: 'O que precisa da sua resposta',
       resumo:
-        'As pendências levantadas pela equipe técnica nos seus produtos. É a única tela do painel em que o processo depende de uma ação sua.',
+        'As pendências levantadas pela equipe técnica nos seus processos. É a única tela do painel em que o processo depende de uma ação sua.',
       topicos: [
         {
           titulo: 'Aberta quer dizer que a bola está com você',
           texto:
-            'A equipe encontrou algo em uma etapa e descreveu o que precisa ser corrigido ou comprovado. Enquanto você não responder, o processo daquele produto não avança.',
+            'A equipe encontrou algo em uma etapa e descreveu o que precisa ser corrigido ou comprovado. Enquanto você não responder, o processo daquele processo não avança.',
         },
         {
           titulo: 'O prazo de resposta está no próprio item',
@@ -358,7 +358,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
         {
           titulo: 'Maior e Menor indicam o tamanho do problema',
           texto:
-            'Maior compromete a conformidade do produto e costuma exigir um novo ensaio ou uma mudança de fornecedor. Menor admite correção pontual, como um documento faltando.',
+            'Maior compromete a conformidade do processo e costuma exigir um novo ensaio ou uma mudança de fornecedor. Menor admite correção pontual, como um documento faltando.',
         },
         {
           titulo: 'Responder não encerra sozinho',
@@ -391,9 +391,9 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
           'Etapas opcionais pendentes não bloqueiam a emissão; as obrigatórias, sim. A tela do processo mostra quantas obrigatórias já foram aprovadas, justamente para não ser preciso adivinhar.',
       },
       {
-        titulo: 'Um produto tem no máximo um certificado vigente',
+        titulo: 'Um processo tem no máximo um certificado vigente',
         texto:
-          'Enquanto houver um Emitido ou Suspenso, o sistema recusa emitir outro para o mesmo produto.',
+          'Enquanto houver um Emitido ou Suspenso, o sistema recusa emitir outro para o mesmo processo.',
       },
       {
         titulo: 'Vencido não é uma decisão, é uma data',
@@ -401,7 +401,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
           'A situação Vencido é aplicada sozinha quando a validade passa. Suspender e Cancelar, sim, são decisões — e exigem motivo registrado. Cancelado é definitivo.',
       },
       {
-        titulo: 'A validade vem da categoria do produto',
+        titulo: 'A validade vem da categoria do processo',
         texto:
           'Cada categoria define a validade em meses, salvo se uma data for informada na emissão. O número do certificado é sequencial por ano (PROCERT-2026-000045) e nunca muda.',
       },
@@ -413,7 +413,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     cliente: {
       titulo: 'Seus certificados',
       resumo:
-        'Os certificados de conformidade emitidos para os produtos da sua empresa, com número, validade e o PDF para baixar.',
+        'Os certificados de conformidade emitidos para os processos da sua empresa, com número, validade e o PDF para baixar.',
       topicos: [
         {
           titulo: 'O PDF é o documento oficial',
@@ -428,7 +428,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
         {
           titulo: 'O certificado só sai com o processo completo',
           texto:
-            'Todas as etapas obrigatórias da trilha precisam estar aprovadas. Se o seu produto ainda não tem certificado, a tela do processo mostra o que falta.',
+            'Todas as etapas obrigatórias da trilha precisam estar aprovadas. Se o seu processo ainda não tem certificado, a tela do processo mostra o que falta.',
         },
         {
           titulo: 'Acompanhe a validade',
@@ -446,7 +446,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/certificacoes/em-risco',
     titulo: 'Vencimentos próximos',
     resumo:
-      'Os certificados que vencem em breve — a lista para agir antes que o produto perca a conformidade no mercado.',
+      'Os certificados que vencem em breve — a lista para agir antes que o processo perca a conformidade no mercado.',
     topicos: [
       {
         titulo: 'É uma tela de antecedência, não de problema',
@@ -456,7 +456,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'A recertificação começa por um processo novo',
         texto:
-          'Renovar não é editar o certificado existente: o produto percorre a trilha de novo, e um certificado novo é emitido ao final, com número próprio.',
+          'Renovar não é editar o certificado existente: o processo percorre a trilha de novo, e um certificado novo é emitido ao final, com número próprio.',
       },
     ],
     cliente: {
@@ -472,33 +472,33 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
         {
           titulo: 'Renovar é refazer o processo',
           texto:
-            'A renovação não prorroga o certificado atual: o produto percorre a trilha de novo e recebe um certificado novo ao final. Por isso comece cedo — ensaios e auditorias têm prazo próprio.',
+            'A renovação não prorroga o certificado atual: o processo percorre a trilha de novo e recebe um certificado novo ao final. Por isso comece cedo — ensaios e auditorias têm prazo próprio.',
         },
         {
-          titulo: 'Certificado vencido tira o produto de conformidade',
+          titulo: 'Certificado vencido tira o processo de conformidade',
           texto:
-            'Passada a validade, a situação muda para Vencido sozinha. Procure a equipe assim que um produto seu aparecer nesta lista.',
+            'Passada a validade, a situação muda para Vencido sozinha. Procure a equipe assim que um processo seu aparecer nesta lista.',
         },
       ],
     },
   },
 
-  // --------------------------------------------------------------- Produtos
+  // --------------------------------------------------------------- Processos
   {
-    rota: '/produtos',
-    titulo: 'Produtos',
+    rota: '/processos',
+    titulo: 'Processos',
     resumo:
       'O cadastro dos itens submetidos à certificação. É por aqui que um processo começa.',
     topicos: [
       {
-        titulo: 'Cadastrar um produto já abre a certificação',
+        titulo: 'Cadastrar um processo já abre a certificação',
         texto:
-          'Ao salvar, o sistema cria a trilha do produto com todas as etapas da categoria escolhida, todas em Pendente. Não existe passo separado de "iniciar processo".',
+          'Ao salvar, o sistema cria a trilha do processo com todas as etapas da categoria escolhida, todas em Pendente. Não existe passo separado de "iniciar processo".',
       },
       {
         titulo: 'Inativar não é excluir',
         texto:
-          'Produtos inativos saem da lista principal mas mantêm processo, histórico e certificados. Use a visão de inativos para consultá-los.',
+          'Processos inativos saem da lista principal mas mantêm processo, histórico e certificados. Use a visão de inativos para consultá-los.',
       },
     ],
     proximoPasso: {
@@ -506,24 +506,24 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       para: '/categorias',
     },
     cliente: {
-      titulo: 'Seus produtos',
+      titulo: 'Seus processos',
       resumo:
-        'Os produtos da sua empresa cadastrados para certificação, com a categoria e a situação de cada um.',
+        'Os processos da sua empresa cadastrados para certificação, com a categoria e a situação de cada um.',
       topicos: [
         {
           titulo: 'Quem cadastra é a equipe do organismo certificador',
           texto:
-            'O cadastro do produto é feito pela equipe a partir da documentação que você envia. Se faltar um produto aqui, é com a equipe que se resolve.',
+            'O cadastro do processo é feito pela equipe a partir da documentação que você envia. Se faltar um processo aqui, é com a equipe que se resolve.',
         },
         {
           titulo: 'A categoria determina o processo',
           texto:
-            'É ela que define quais etapas o produto vai percorrer e por quanto tempo o certificado vale. Categorias diferentes têm exigências diferentes.',
+            'É ela que define quais etapas o processo vai percorrer e por quanto tempo o certificado vale. Categorias diferentes têm exigências diferentes.',
         },
         {
           titulo: 'Cadastrado é sinônimo de processo aberto',
           texto:
-            'Não existe um passo separado de "iniciar". Assim que o produto entra, a trilha de etapas dele já existe e pode ser acompanhada.',
+            'Não existe um passo separado de "iniciar". Assim que o processo entra, a trilha de etapas dele já existe e pode ser acompanhada.',
         },
       ],
       proximoPasso: {
@@ -533,38 +533,38 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     },
   },
   {
-    rota: '/produtos/novo',
-    titulo: 'Cadastrar um produto',
+    rota: '/processos/novo',
+    titulo: 'Cadastrar um processo',
     resumo:
-      'O formulário que cria o produto e, junto com ele, todo o processo de certificação.',
+      'O formulário que cria o processo e, junto com ele, todo o processo de certificação.',
     topicos: [
       {
         titulo: 'A categoria é a decisão mais importante',
         texto:
-          'Ela define a trilha de etapas que o produto vai percorrer e a validade do futuro certificado. Depois de salvo, a trilha aberta não é trocada mudando a categoria.',
+          'Ela define a trilha de etapas que o processo vai percorrer e a validade do futuro certificado. Depois de salvo, a trilha aberta não é trocada mudando a categoria.',
       },
       {
-        titulo: 'Categoria sem trilha não aceita produto',
+        titulo: 'Categoria sem trilha não aceita processo',
         texto:
           'Se a categoria que você precisa não aparece ou é recusada, é porque ela ainda não tem uma trilha publicada. Crie a trilha na tela de categorias primeiro.',
       },
       {
-        titulo: 'O produto guarda a versão da trilha usada hoje',
+        titulo: 'O processo guarda a versão da trilha usada hoje',
         texto:
-          'Se a categoria ganhar uma versão nova amanhã, este produto continua sendo avaliado pelas regras vigentes agora. É proposital: a régua não muda no meio do processo.',
+          'Se a categoria ganhar uma versão nova amanhã, este processo continua sendo avaliado pelas regras vigentes agora. É proposital: a régua não muda no meio do processo.',
       },
     ],
   },
   {
-    rota: '/produtos/:id/editar',
-    titulo: 'Editar produto',
+    rota: '/processos/:id/editar',
+    titulo: 'Editar processo',
     resumo:
-      'Ajuste dos dados cadastrais do produto — nome, descrição, preço, foto.',
+      'Ajuste dos dados cadastrais do processo — nome, descrição, preço, foto.',
     topicos: [
       {
         titulo: 'A trilha já aberta não é alterada aqui',
         texto:
-          'As etapas do processo, o que já foi aprovado e o histórico permanecem como estão. Esta tela mexe só na ficha do produto.',
+          'As etapas do processo, o que já foi aprovado e o histórico permanecem como estão. Esta tela mexe só na ficha do processo.',
       },
       {
         titulo: 'Para mudar a trilha, migre a versão',
@@ -584,7 +584,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Cada cliente é também um login',
         texto:
-          'O cadastro do cliente é a conta de acesso da empresa ao painel. Ele enxerga apenas os próprios produtos, processos, não conformidades e certificados.',
+          'O cadastro do cliente é a conta de acesso da empresa ao painel. Ele enxerga apenas os próprios processos, processos, não conformidades e certificados.',
       },
       {
         titulo: 'Último acesso responde "quem sumiu"',
@@ -646,14 +646,14 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
   // ------------------------------------------------------------- Categorias
   {
     rota: '/categorias',
-    titulo: 'Categorias de produto',
+    titulo: 'Categorias de processo',
     resumo:
-      'As famílias de produto (EPIs, brinquedos, artigos escolares…). Cada uma segue uma trilha do catálogo e define a validade do certificado.',
+      'As famílias de processo (EPIs, brinquedos, artigos escolares…). Cada uma segue uma trilha do catálogo e define a validade do certificado.',
     topicos: [
       {
         titulo: 'A categoria escolhe o processo, a trilha o descreve',
         texto:
-          'As etapas que um produto percorre vêm da trilha vinculada à categoria escolhida no cadastro dele. A mesma trilha pode servir a várias categorias.',
+          'As etapas que um processo percorre vêm da trilha vinculada à categoria escolhida no cadastro dele. A mesma trilha pode servir a várias categorias.',
       },
       {
         titulo: 'A validade em meses vale para o certificado',
@@ -661,9 +661,9 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
           'Ao emitir um certificado, a validade é calculada a partir dessa quantidade de meses, salvo se uma data for informada.',
       },
       {
-        titulo: 'Categoria nova precisa de trilha antes de receber produto',
+        titulo: 'Categoria nova precisa de trilha antes de receber processo',
         texto:
-          'Criar a categoria não basta: enquanto ela não tiver uma trilha vinculada, com versão vigente e etapas, nenhum produto pode ser cadastrado nela.',
+          'Criar a categoria não basta: enquanto ela não tiver uma trilha vinculada, com versão vigente e etapas, nenhum processo pode ser cadastrado nela.',
       },
     ],
     /*
@@ -678,7 +678,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/categorias/:id',
     titulo: 'Trilha da categoria',
     resumo:
-      'Qual trilha do catálogo esta categoria segue — e, portanto, que etapas os produtos dela vão percorrer.',
+      'Qual trilha do catálogo esta categoria segue — e, portanto, que etapas os processos dela vão percorrer.',
     topicos: [
       {
         titulo: 'Aqui se escolhe a trilha; as etapas se editam nela',
@@ -686,14 +686,14 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
           'A trilha é um cadastro à parte e pode ser usada por várias categorias. Por isso mudar uma etapa afeta todas as categorias que a seguem, e esse ajuste se faz em Trilhas, não aqui.',
       },
       {
-        titulo: 'Trocar a trilha vale para produtos novos',
+        titulo: 'Trocar a trilha vale para processos novos',
         texto:
-          'Cada produto guarda a versão pela qual entrou. Passar a seguir outra trilha muda o processo dos próximos cadastros e não mexe em nenhuma avaliação em andamento.',
+          'Cada processo guarda a versão pela qual entrou. Passar a seguir outra trilha muda o processo dos próximos cadastros e não mexe em nenhuma avaliação em andamento.',
       },
       {
-        titulo: 'Sem trilha vinculada, a categoria não aceita produto',
+        titulo: 'Sem trilha vinculada, a categoria não aceita processo',
         texto:
-          'O cadastro de produto é recusado com a orientação de vincular. Só aparecem como opção as trilhas que já têm uma versão vigente com etapas.',
+          'O cadastro de processo é recusado com a orientação de vincular. Só aparecem como opção as trilhas que já têm uma versão vigente com etapas.',
       },
     ],
     proximoPasso: {
@@ -722,7 +722,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Desativar é diferente de excluir',
         texto:
-          'Desativar tira a trilha do catálogo de opções e exige que nenhuma categoria a siga. Excluir é definitivo e só passa se, além disso, nenhum produto tiver sido avaliado por qualquer versão dela.',
+          'Desativar tira a trilha do catálogo de opções e exige que nenhuma categoria a siga. Excluir é definitivo e só passa se, além disso, nenhum processo tiver sido avaliado por qualquer versão dela.',
       },
     ],
   },
@@ -735,17 +735,17 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Versão em uso não se edita — versiona-se',
         texto:
-          'Assim que um produto é vinculado a uma versão, ela fica imutável. Isso protege quem já está no meio do processo de ter a régua trocada. Só versão sem nenhum produto ainda pode ser alterada.',
+          'Assim que um processo é vinculado a uma versão, ela fica imutável. Isso protege quem já está no meio do processo de ter a régua trocada. Só versão sem nenhum processo ainda pode ser alterada.',
       },
       {
-        titulo: 'Criar uma versão nova não mexe nos produtos existentes',
+        titulo: 'Criar uma versão nova não mexe nos processos existentes',
         texto:
           'Eles continuam na versão em que entraram. A nova passa a valer para os próximos cadastros de todas as categorias vinculadas, e a anterior é encerrada — a trilha nunca tem duas vigentes.',
       },
       {
         titulo: 'Dá para voltar atrás',
         texto:
-          'Uma versão encerrada pode voltar a ser a vigente pelo botão de reativar, sem precisar criar uma cópia dela. E versão sem produto nenhum pode ser excluída; se for a vigente, a anterior assume no lugar.',
+          'Uma versão encerrada pode voltar a ser a vigente pelo botão de reativar, sem precisar criar uma cópia dela. E versão sem processo nenhum pode ser excluída; se for a vigente, a anterior assume no lugar.',
       },
       {
         titulo: 'Obrigatória e Exige documento mudam o comportamento',
@@ -755,7 +755,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'A ordem pode ser arrastada',
         texto:
-          'Ela define a sequência mostrada na trilha do produto. Pela alça de cada linha a reordenação também funciona pelo teclado.',
+          'Ela define a sequência mostrada na trilha do processo. Pela alça de cada linha a reordenação também funciona pelo teclado.',
       },
     ],
   },
@@ -770,7 +770,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Dois papéis, alcances diferentes',
         texto:
-          'Funcionário opera os processos: produtos, certificações, não conformidades, certificados. Administrador faz isso e mais a gestão de equipe, a aparência do painel e o relatório de desempenho.',
+          'Funcionário opera os processos: processos, certificações, não conformidades, certificados. Administrador faz isso e mais a gestão de equipe, a aparência do painel e o relatório de desempenho.',
       },
       {
         titulo: 'Sempre precisa sobrar um administrador ativo',
@@ -819,15 +819,15 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
 
   // ------------------------------------------------------------- Relatórios
   {
-    rota: '/relatorios/produtos',
-    titulo: 'Comparativo de produtos',
+    rota: '/relatorios/processos',
+    titulo: 'Comparativo de processos',
     resumo:
-      'Como os produtos se comparam entre si: quanto avançaram, onde emperram e quantas não conformidades acumularam.',
+      'Como os processos se comparam entre si: quanto avançaram, onde emperram e quantas não conformidades acumularam.',
     topicos: [
       {
         titulo: 'Serve para achar o que está travado',
         texto:
-          'Produtos parados há muito tempo na mesma etapa aparecem lado a lado com os que fluíram, o que torna o gargalo visível sem abrir processo por processo.',
+          'Processos parados há muito tempo na mesma etapa aparecem lado a lado com os que fluíram, o que torna o gargalo visível sem abrir processo por processo.',
       },
       {
         titulo: 'Os números vêm da base inteira',
@@ -849,7 +849,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
       {
         titulo: 'Lead time da trilha',
         texto:
-          'Do cadastro do produto até a aprovação da última etapa obrigatória. É o tempo que o cliente sente.',
+          'Do cadastro do processo até a aprovação da última etapa obrigatória. É o tempo que o cliente sente.',
       },
       {
         titulo: 'Tempo de tratamento da etapa',
@@ -877,7 +877,7 @@ export const AJUDA_TELAS: ConteudoAjuda[] = [
     rota: '/relatorios/clientes',
     titulo: 'Comparativo de clientes',
     resumo:
-      'O volume e o desfecho dos processos por empresa: quantos produtos, quantos certificados, quantas não conformidades.',
+      'O volume e o desfecho dos processos por empresa: quantos processos, quantos certificados, quantas não conformidades.',
     topicos: [
       {
         titulo: 'Mostra concentração e recorrência',
@@ -982,8 +982,8 @@ export function resolverAjuda(
  * Ajuda correspondente a uma URL do painel, ou `undefined` se a tela não tiver
  * verbete.
  *
- * `matchPath` casa o caminho INTEIRO, então `/produtos` não captura
- * `/produtos/novo` e a ordem da lista não vira armadilha silenciosa.
+ * `matchPath` casa o caminho INTEIRO, então `/processos` não captura
+ * `/processos/novo` e a ordem da lista não vira armadilha silenciosa.
  */
 export function ajudaDaRota(caminho: string): ConteudoAjuda | undefined {
   return AJUDA_TELAS.find((ajuda) => matchPath(ajuda.rota, caminho) !== null);

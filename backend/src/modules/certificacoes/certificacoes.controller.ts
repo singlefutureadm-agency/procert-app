@@ -55,23 +55,23 @@ export class CertificacoesController {
   ) {}
 
   /**
-   * Exporta o acompanhamento de um produto para planilha.
+   * Exporta o acompanhamento de um processo para planilha.
    *
-   * Reaproveita `detalharPorProduto`, que é onde o escopo do CLIENTE já é verificado —
+   * Reaproveita `detalharPorProcesso`, que é onde o escopo do CLIENTE já é verificado —
    * uma segunda consulta aqui seria uma segunda chance de esquecer a checagem.
    */
-  @Get('produto/:produtoId/exportacao')
+  @Get('processo/:processoId/exportacao')
   @ApiOperation({
     summary: 'Exporta o acompanhamento em XLSX (abas) ou CSV (seções)',
   })
   async exportar(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @Query() filtros: ExportarCertificacaoDto,
     @CurrentUser() usuario: UsuarioAutenticado,
     @Res() resposta: Response,
   ): Promise<void> {
-    const detalhe = await this.certificacoesService.detalharPorProduto(
-      produtoId,
+    const detalhe = await this.certificacoesService.detalharPorProcesso(
+      processoId,
       usuario,
     );
 
@@ -98,7 +98,7 @@ export class CertificacoesController {
 
   @Get()
   @ApiOperation({
-    summary: 'Painel consolidado (clientes veem apenas os próprios produtos)',
+    summary: 'Painel consolidado (clientes veem apenas os próprios processos)',
   })
   listar(
     @Query() filtros: ListarCertificacoesDto,
@@ -113,7 +113,7 @@ export class CertificacoesController {
    * **Visão interna: o CLIENTE não alcança.** A divisão por fase e por
    * departamento é organização da operação, na mesma linha do catálogo de
    * trilhas — o cliente continua com `GET /certificacoes` e a timeline do
-   * próprio produto. O service repete a checagem.
+   * próprio processo. O service repete a checagem.
    */
   @Get('quadro')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
@@ -133,7 +133,7 @@ export class CertificacoesController {
   /**
    * Marca ou desmarca um item do checklist da etapa.
    *
-   * O `id` é da microetapa DO PRODUTO (`MicroEtapaCertificacao`), não do
+   * O `id` é da microetapa DO PROCESSO (`MicroEtapaCertificacao`), não do
    * catálogo: o que se marca é a cópia, nunca a definição da trilha.
    */
   @Patch('micro-etapas/:id')
@@ -153,47 +153,47 @@ export class CertificacoesController {
     return this.microEtapas.alternar(id, dto.concluida, usuario);
   }
 
-  @Get('produto/:produtoId')
-  @ApiOperation({ summary: 'Timeline completa do produto, com histórico' })
+  @Get('processo/:processoId')
+  @ApiOperation({ summary: 'Timeline completa do processo, com histórico' })
   detalhar(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificacoesService.detalharPorProduto(produtoId, usuario);
+    return this.certificacoesService.detalharPorProcesso(processoId, usuario);
   }
 
-  @Put('produto/:produtoId')
+  @Put('processo/:processoId')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({ summary: 'Salva as etapas em lote e registra o histórico' })
   salvar(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @Body() dto: SalvarCertificacaoDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificacoesService.salvar(produtoId, dto, usuario);
+    return this.certificacoesService.salvar(processoId, dto, usuario);
   }
 
-  @Get('produto/:produtoId/versao-trilha')
+  @Get('processo/:processoId/versao-trilha')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({
     summary:
-      'Informa se o produto está preso a uma versão antiga da trilha e o que a migração faria',
+      'Informa se o processo está preso a uma versão antiga da trilha e o que a migração faria',
   })
-  verificarVersao(@Param('produtoId', ParseIntPipe) produtoId: number) {
-    return this.certificacoesService.verificarVersaoTrilha(produtoId);
+  verificarVersao(@Param('processoId', ParseIntPipe) processoId: number) {
+    return this.certificacoesService.verificarVersaoTrilha(processoId);
   }
 
-  @Post('produto/:produtoId/migrar-versao-trilha')
+  @Post('processo/:processoId/migrar-versao-trilha')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({
     summary:
-      'Migra o produto para a versão vigente da trilha, adicionando só as etapas ausentes',
+      'Migra o processo para a versão vigente da trilha, adicionando só as etapas ausentes',
   })
   migrarVersao(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificacoesService.migrarParaVersaoVigente(produtoId, usuario);
+    return this.certificacoesService.migrarParaVersaoVigente(processoId, usuario);
   }
 
   /**
@@ -202,7 +202,7 @@ export class CertificacoesController {
    * A coluna continua derivada: o que muda é o estado da etapa, e o cartão vai
    * para a fase de destino porque o processo foi mesmo para lá.
    */
-  @Post('produto/:produtoId/mover-fase')
+  @Post('processo/:processoId/mover-fase')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({
     summary: 'Move o processo para uma fase do pipeline',
@@ -211,31 +211,31 @@ export class CertificacoesController {
       'à fila as que estavam em andamento antes dela. Não aprova nada.',
   })
   moverParaFase(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @Body() dto: MoverParaFaseDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificacoesService.moverParaFase(produtoId, dto.fase, usuario);
+    return this.certificacoesService.moverParaFase(processoId, dto.fase, usuario);
   }
 
   /**
    * Interrompe o processo. As etapas ficam como estão.
    *
-   * Não é excluir nem desativar o produto: o cartão sai do fluxo e vai para a
+   * Não é excluir nem desativar o processo: o cartão sai do fluxo e vai para a
    * coluna CANCELADO do quadro, com motivo e autoria.
    */
-  @Post('produto/:produtoId/cancelar')
+  @Post('processo/:processoId/cancelar')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({ summary: 'Cancela o processo, com motivo e autoria' })
   cancelar(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @Body() dto: CancelarProcessoDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificacoesService.cancelar(produtoId, dto.motivo, usuario);
+    return this.certificacoesService.cancelar(processoId, dto.motivo, usuario);
   }
 
-  @Post('produto/:produtoId/reabrir')
+  @Post('processo/:processoId/reabrir')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @ApiOperation({
     summary: 'Devolve ao fluxo um processo cancelado',
@@ -243,19 +243,19 @@ export class CertificacoesController {
       'A coluna volta a ser derivada da etapa atual — não há "voltar para ' +
       'onde estava", porque nunca se gravou onde estava.',
   })
-  reabrir(@Param('produtoId', ParseIntPipe) produtoId: number) {
-    return this.certificacoesService.reabrir(produtoId);
+  reabrir(@Param('processoId', ParseIntPipe) processoId: number) {
+    return this.certificacoesService.reabrir(processoId);
   }
 
-  @Post('produto/:produtoId/reiniciar')
+  @Post('processo/:processoId/reiniciar')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Reinicia a certificação do zero (apaga o histórico)' })
-  reiniciar(@Param('produtoId', ParseIntPipe) produtoId: number) {
-    return this.certificacoesService.reiniciar(produtoId);
+  reiniciar(@Param('processoId', ParseIntPipe) processoId: number) {
+    return this.certificacoesService.reiniciar(processoId);
   }
 
-  /** `etapaId` é o id da linha de certificação (produto × etapa) da timeline. */
-  @Post('produto/:produtoId/etapas/:etapaId/documento')
+  /** `etapaId` é o id da linha de certificação (processo × etapa) da timeline. */
+  @Post('processo/:processoId/etapas/:etapaId/documento')
   @Roles(Role.ADMIN, Role.FUNCIONARIO)
   @UseInterceptors(FileInterceptor('documento'))
   @ApiConsumes('multipart/form-data')
@@ -263,12 +263,12 @@ export class CertificacoesController {
     summary: 'Anexa uma evidência à etapa (PDF, planilha ou imagem)',
   })
   anexarDocumento(
-    @Param('produtoId', ParseIntPipe) produtoId: number,
+    @Param('processoId', ParseIntPipe) processoId: number,
     @Param('etapaId', ParseIntPipe) etapaId: number,
     @UploadedFile() arquivo: Express.Multer.File,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.documentos.anexar(produtoId, etapaId, arquivo, usuario);
+    return this.documentos.anexar(processoId, etapaId, arquivo, usuario);
   }
 
   @Get('documentos/:id/arquivo')

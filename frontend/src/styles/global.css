@@ -1184,7 +1184,7 @@ table.tabela {
   min-width: 0;
 }
 
-/* Prévia da trilha no cadastro de produto: etapas numeradas na ordem do modelo. */
+/* Prévia da trilha no cadastro de processo: etapas numeradas na ordem do modelo. */
 .lista-etapas {
   margin: 8px 0 0;
   padding-left: 22px;
@@ -1773,7 +1773,7 @@ fieldset.secao-form legend {
  * sem se perder. Em 760px a mesma explicação passaria de 95 caracteres.
  *
  * A altura máxima com rolagem interna é obrigatória, não enfeite: os verbetes
- * mais longos (tempo de ciclo, trilha do produto) têm cinco tópicos e passariam
+ * mais longos (tempo de ciclo, trilha do processo) têm cinco tópicos e passariam
  * da altura da janela, deixando o botão de fechar fora de alcance.
  */
 .modal--leitura {
@@ -2865,7 +2865,7 @@ fieldset.secao-form legend {
   color: var(--texto-suave);
 }
 
-.quadro__produto {
+.quadro__processo {
   margin: 0;
   font-size: var(--fs-sm);
   font-weight: 600;

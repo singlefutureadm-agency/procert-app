@@ -44,7 +44,7 @@ export function AvisoPrazo({ nc }: { nc: NaoConformidade }) {
 
 interface Props {
   nc: NaoConformidade;
-  /** Contexto extra (produto/etapa) na listagem geral. */
+  /** Contexto extra (processo/etapa) na listagem geral. */
   contexto?: ReactNode;
   acoes?: ReactNode;
 }

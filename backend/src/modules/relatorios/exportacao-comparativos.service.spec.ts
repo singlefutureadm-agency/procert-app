@@ -1,14 +1,14 @@
 import { Workbook } from 'exceljs';
 
 import { ExportacaoComparativosService } from './exportacao-comparativos.service';
-import type { LinhaCliente, LinhaProduto } from './comparativos.service';
+import type { LinhaCliente, LinhaProcesso } from './comparativos.service';
 
 /**
  * Gera e **relê** o buffer, como as demais suítes de exportação: é a releitura
  * que prova que o Excel aceitaria o arquivo. O e2e baixa e não abre.
  */
 
-function produto(sobrescreve: Partial<LinhaProduto> = {}): LinhaProduto {
+function processo(sobrescreve: Partial<LinhaProcesso> = {}): LinhaProcesso {
   return {
     id: 1,
     nome: 'Disjuntor DIN 25A',
@@ -37,8 +37,8 @@ function cliente(sobrescreve: Partial<LinhaCliente> = {}): LinhaCliente {
     email: 'contato@cliente.com.br',
     responsavel: 'Bruno Analista',
     ultimoAcessoEm: new Date('2026-08-01T10:00:00Z'),
-    produtos: 4,
-    produtosConcluidos: 2,
+    processos: 4,
+    processosConcluidos: 2,
     certificadosVigentes: 2,
     ncsAbertas: 1,
     ultimaMovimentacao: new Date('2026-08-20T16:00:00Z'),
@@ -69,18 +69,18 @@ describe('ExportacaoComparativosService', () => {
     servico = new ExportacaoComparativosService();
   });
 
-  describe('produtos — XLSX', () => {
+  describe('processos — XLSX', () => {
     it('gera um arquivo que o exceljs relê', async () => {
       const livro = await reabrir(
-        await servico.produtosXlsx([produto()], 'Ana Administradora'),
+        await servico.processosXlsx([processo()], 'Ana Administradora'),
       );
       expect(livro.worksheets).toHaveLength(1);
-      expect(livro.worksheets[0].name).toBe('Comparativo de produtos');
+      expect(livro.worksheets[0].name).toBe('Comparativo de processos');
     });
 
     it('grava as datas como Date com numFmt', async () => {
       const livro = await reabrir(
-        await servico.produtosXlsx([produto()], 'Ana Administradora'),
+        await servico.processosXlsx([processo()], 'Ana Administradora'),
       );
 
       let datas = 0;
@@ -99,32 +99,32 @@ describe('ExportacaoComparativosService', () => {
 
     it('distingue "obrigatórias pendentes" de "pendentes" nas colunas', async () => {
       const livro = await reabrir(
-        await servico.produtosXlsx([produto()], 'Ana Administradora'),
+        await servico.processosXlsx([processo()], 'Ana Administradora'),
       );
 
       const cabecalhos: string[] = [];
       livro.worksheets[0].eachRow((l) => {
-        if (l.getCell(1).value === 'Produto') {
+        if (l.getCell(1).value === 'Processo') {
           l.eachCell((c) => cabecalhos.push(String(c.value)));
         }
       });
 
       // São coisas diferentes: só a obrigatória trava o certificado. Fundi-las
-      // faria a planilha afirmar que um produto pode emitir quando não pode.
+      // faria a planilha afirmar que um processo pode emitir quando não pode.
       expect(cabecalhos).toContain('Pendentes');
       expect(cabecalhos).toContain('Obrigatórias pendentes');
     });
 
     it('avisa, dentro do arquivo, o que trava o certificado', async () => {
       const livro = await reabrir(
-        await servico.produtosXlsx([produto()], 'Ana Administradora'),
+        await servico.processosXlsx([processo()], 'Ana Administradora'),
       );
       expect(textosDe(livro)).toMatch(/opcional pendente não bloqueia/i);
     });
 
     it('não quebra com recorte vazio', async () => {
       const livro = await reabrir(
-        await servico.produtosXlsx([], 'Ana Administradora'),
+        await servico.processosXlsx([], 'Ana Administradora'),
       );
       expect(livro.worksheets).toHaveLength(1);
     });
@@ -161,10 +161,10 @@ describe('ExportacaoComparativosService', () => {
   });
 
   describe('CSV', () => {
-    it('produtos: BOM de UTF-8 e separador ponto e vírgula', () => {
-      const texto = servico.produtosCsv([produto()], 'Ana Administradora');
+    it('processos: BOM de UTF-8 e separador ponto e vírgula', () => {
+      const texto = servico.processosCsv([processo()], 'Ana Administradora');
       expect(texto.charCodeAt(0)).toBe(0xfeff);
-      expect(texto).toContain('Produto;Cliente;');
+      expect(texto).toContain('Processo;Cliente;');
     });
 
     it('clientes: BOM de UTF-8 e separador ponto e vírgula', () => {
@@ -174,16 +174,16 @@ describe('ExportacaoComparativosService', () => {
     });
 
     it('envelopa o valor que contém o separador', () => {
-      const texto = servico.produtosCsv(
-        [produto({ cliente: 'Silva; Souza e Cia' })],
+      const texto = servico.processosCsv(
+        [processo({ cliente: 'Silva; Souza e Cia' })],
         'Ana Administradora',
       );
       expect(texto).toContain('"Silva; Souza e Cia"');
     });
 
-    it('produto sem movimentação sai como travessão, não como vazio', () => {
-      const texto = servico.produtosCsv(
-        [produto({ diasParado: null, ultimaMovimentacao: null })],
+    it('processo sem movimentação sai como travessão, não como vazio', () => {
+      const texto = servico.processosCsv(
+        [processo({ diasParado: null, ultimaMovimentacao: null })],
         'Ana Administradora',
       );
       // Célula vazia no meio da linha vira coluna deslocada na leitura manual.
@@ -193,8 +193,8 @@ describe('ExportacaoComparativosService', () => {
 
   describe('nomeArquivo', () => {
     it('nomeia por tipo e data, em ASCII', () => {
-      const nome = servico.nomeArquivo('produtos', 'xlsx');
-      expect(nome).toMatch(/^comparativo-produtos-\d{4}-\d{2}-\d{2}\.xlsx$/);
+      const nome = servico.nomeArquivo('processos', 'xlsx');
+      expect(nome).toMatch(/^comparativo-processos-\d{4}-\d{2}-\d{2}\.xlsx$/);
       expect(nome).toMatch(/^[\x20-\x7e]+$/);
 
       expect(servico.nomeArquivo('clientes', 'csv')).toMatch(

@@ -23,7 +23,7 @@ const SELECT_DOCUMENTO = {
  * Evidências anexadas às etapas da certificação.
  *
  * Vive no módulo de certificações porque um documento nunca existe sozinho:
- * ele é sempre a prova de algo que aconteceu na trilha de um produto.
+ * ele é sempre a prova de algo que aconteceu na trilha de um processo.
  */
 @Injectable()
 export class DocumentosCertificacaoService {
@@ -41,24 +41,24 @@ export class DocumentosCertificacaoService {
    * — é uma marcação de trilha, não uma transição.
    */
   async anexar(
-    produtoId: number,
+    processoId: number,
     certificacaoId: number,
     arquivo: Express.Multer.File,
     usuario: UsuarioAutenticado,
   ) {
-    const certificacao = await this.prisma.certificacaoProduto.findUnique({
+    const certificacao = await this.prisma.certificacaoProcesso.findUnique({
       where: { id: certificacaoId },
       select: {
         id: true,
-        produtoId: true,
+        processoId: true,
         status: true,
         etapa: { select: { nome: true } },
       },
     });
 
-    if (!certificacao || certificacao.produtoId !== produtoId) {
+    if (!certificacao || certificacao.processoId !== processoId) {
       throw new NotFoundException(
-        `Etapa ${certificacaoId} não encontrada no produto ${produtoId}.`,
+        `Etapa ${certificacaoId} não encontrada no processo ${processoId}.`,
       );
     }
 
@@ -110,7 +110,7 @@ export class DocumentosCertificacaoService {
         tipoMime: true,
         historico: {
           select: {
-            certificacao: { select: { produto: { select: { clienteId: true } } } },
+            certificacao: { select: { processo: { select: { clienteId: true } } } },
           },
         },
       },
@@ -120,10 +120,10 @@ export class DocumentosCertificacaoService {
       throw new NotFoundException(`Documento ${id} não encontrado.`);
     }
 
-    const clienteId = documento.historico.certificacao.produto.clienteId;
+    const clienteId = documento.historico.certificacao.processo.clienteId;
     if (usuario.role === Role.CLIENTE && usuario.id !== clienteId) {
       throw new ForbiddenException(
-        'Você só pode acessar documentos dos seus produtos.',
+        'Você só pode acessar documentos dos seus processos.',
       );
     }
 
@@ -148,7 +148,7 @@ export class DocumentosCertificacaoService {
   async etapasSemDocumento(certificacaoIds: number[]): Promise<string[]> {
     if (certificacaoIds.length === 0) return [];
 
-    const etapas = await this.prisma.certificacaoProduto.findMany({
+    const etapas = await this.prisma.certificacaoProcesso.findMany({
       where: { id: { in: certificacaoIds }, etapa: { exigeDocumento: true } },
       select: {
         etapa: { select: { nome: true } },

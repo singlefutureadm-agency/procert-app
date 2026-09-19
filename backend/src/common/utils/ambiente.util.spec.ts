@@ -23,7 +23,7 @@ describe('urlDoPainel', () => {
 
   /**
    * O link é sempre concatenado com um caminho que já começa em `/`
-   * (`/redefinir-senha`, `/certificacoes/produto/1`). Sem aparar a barra, o
+   * (`/redefinir-senha`, `/certificacoes/processo/1`). Sem aparar a barra, o
    * resultado tem `//` no meio — que funciona no navegador e fica torto dentro
    * do PDF do certificado, onde o endereço é lido por uma pessoa.
    */

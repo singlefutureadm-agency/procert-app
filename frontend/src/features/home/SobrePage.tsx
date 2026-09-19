@@ -90,7 +90,7 @@ export function SobrePage() {
 
       <section className="home__secao home__cta-faixa">
         <Revelar className="home__container">
-          <h2>Vamos avaliar seu produto?</h2>
+          <h2>Vamos avaliar seu processo?</h2>
           <p>
             Conheça as etapas do processo ou fale direto com a equipe técnica sobre o
             que você precisa certificar.

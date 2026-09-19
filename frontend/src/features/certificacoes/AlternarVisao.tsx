@@ -36,7 +36,7 @@ export function AlternarVisaoCertificacoes({
       </NavLink>
 
       <NavLink
-        to="/produtos/quadro"
+        to="/processos/quadro"
         className="alternar-visao__opcao"
         aria-current={atual === 'quadro' ? 'page' : undefined}
       >
