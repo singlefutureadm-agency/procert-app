@@ -33,14 +33,12 @@ const MENU: GrupoMenu[] = [
       {
         // Acompanhamento é a raiz da trilha: não conformidade e certificado são
         // consequências de uma etapa avaliada, não assuntos irmãos dela.
+        // Submenu removido a pedido do cliente (07/10/2026) — rotas e páginas
+        // continuam de pé, só saíram do menu. Ver histórico do commit para
+        // restaurar os filhos caso a decisão volte atrás.
         para: '/certificacoes',
         rotulo: 'Acompanhamento',
         icone: 'prancheta',
-        filhos: [
-          { para: '/nao-conformidades', rotulo: 'Não conformidades', icone: 'alerta' },
-          { para: '/certificados', rotulo: 'Certificados', icone: 'certificado' },
-          { para: '/certificacoes/em-risco', rotulo: 'Em risco', icone: 'ampulheta' },
-        ],
       },
       {
         para: '/processos',
