@@ -72,8 +72,14 @@ export const DOCUMENTOS: Array<{ rotulo: string; arquivo: string }> = [
   { rotulo: 'Política e Objetivos', arquivo: '/documentos/politica-e-objetivos.pdf' },
 ];
 
+/**
+ * Menu do cabeçalho e "Veja mais" do rodapé: seções da home. O site é uma
+ * landing page única desde 12/11/2026, e as páginas /sobre, /servicos e
+ * /contato estão em espera (ver `ROTAS_EM_ESPERA` em src/rotas-publicas.tsx).
+ * Quando voltarem, o menu passa a usar `PAGINAS` (conteudo-paginas.ts).
+ */
 export const NAVEGACAO = [
-  { rotulo: 'Home', ancora: '#hero' },
+  { rotulo: 'Início', ancora: '#hero' },
   { rotulo: 'Sobre', ancora: '#sobre' },
   { rotulo: 'Serviços', ancora: '#servicos' },
   { rotulo: 'Contato', ancora: '#contato' },

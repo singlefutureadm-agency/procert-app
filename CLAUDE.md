@@ -94,7 +94,7 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 132 testes, 13 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 133 testes, 13 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
@@ -103,7 +103,7 @@ npm run dev                   # http://localhost:5173
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
 >
-> No frontend são 132 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
+> No frontend são 133 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
 > fora do `MAPA_CSS` some da saída sem erro), `mensagemDeErro`, as chaves de cache (uma
 > chave torta não atualiza a lista e não avisa) e as invariantes de acessibilidade de
 > `Campo`, `CampoSenha` e `Modal` — associação rótulo↔controle, `type="button"` no
@@ -709,9 +709,9 @@ revalida em `GET /auth/me`; falha limpa tudo. `sair()` também chama `queryClien
 
 ### Roteamento (`router.tsx`)
 
-`/` é o **site institucional público**, com quatro páginas próprias além dele:
-`/sobre`, `/servicos`, `/contato` e as duas legais (`/termos-de-uso`,
-`/politica-de-privacidade`). O painel fica sob uma rota de layout **sem `path`** envolvida
+`/` é o **site institucional público** — uma landing page única, com as duas páginas legais
+(`/termos-de-uso`, `/politica-de-privacidade`); `/sobre`, `/servicos` e `/contato` estão
+**em espera** (ver "Páginas em espera", abaixo). O painel fica sob uma rota de layout **sem `path`** envolvida
 em `<RotaProtegida>`, com os filhos declarando caminhos absolutos (`dashboard`,
 `certificacoes`, `processos`, …). Rotas restritas usam `<RotaProtegida papeis={['ADMIN']}>`
 — **isso é UX, não controle**: o backend repete a checagem em todo endpoint. Ao adicionar
@@ -761,7 +761,7 @@ critério que manteve gráficos e ícones sem biblioteca.
   perguntas não é acordeão.
 
 `public/robots.txt` fecha o painel e `/uploads` ao rastreio; `public/sitemap.xml` lista as
-seis rotas públicas e os PDFs de Links Úteis; `public/llms.txt` resume o site para robôs de
+rotas públicas no ar (home e legais) e os PDFs de Links Úteis; `public/llms.txt` resume o site para robôs de
 IA. Os três são mantidos à mão. O domínio canônico é **`https://www.procertocp.com.br`**
 (`URL_SITE`, definido pelo cliente em 12/11/2026) — vale em QA e na Vercel também, para que
 URL de homologação não dispute a busca. A imagem de compartilhamento é
@@ -788,6 +788,35 @@ do painel. Pontos que não são óbvios:
   em todo o painel (achado na QA, 12/11/2026; `/app.html` responde 308);
   nginx com `try_files $uri $uri.html $uri/ =404` e `location ~` equivalente
   (`frontend/nginx.conf`; no VPS, ver `DEPLOY.md` Parte III §1.1).
+
+### Páginas em espera — o site é uma landing page (desde 12/11/2026)
+
+Decisão do time: por ora o site público é **só a home**, em formato landing page.
+`/sobre`, `/servicos` e `/contato` estão **prontas e em espera** — texto, SEO por rota,
+JSON-LD e FAQ continuam no código, compilados e verificados pelo `tsc`, mas **não montados
+no router nem pré-renderizados**. O que está no ar:
+
+| Peça | Hoje |
+|---|---|
+| Menu e rodapé ("Veja mais") | `NAVEGACAO` (`conteudo.ts`): `/#hero`, `/#sobre`, `/#servicos`, `/#contato` |
+| As três páginas | `ROTAS_EM_ESPERA` em `src/rotas-publicas.tsx` — exportada e não importada; o bundler a descarta |
+| Link antigo para `/sobre` etc. | 302/307 para a seção (`redirects` do `vercel.json`, `location =` do `nginx.conf`), e `REDIRECIONAMENTOS_EM_ESPERA` (`<Navigate>`) para servidor sem a regra |
+| Sitemap e `llms.txt` | só a home (com as âncoras) e as páginas legais |
+
+Os links do menu são `<a href="/#secao">`, **não `<Link>`**: na home é rolagem no mesmo
+documento, que o navegador faz sozinho; vindo de uma página legal, carrega a home e
+`useAncoraInicial` posiciona na seção. Os redirects são **temporários de propósito** — um 301
+ficaria em cache no navegador e no buscador depois que as páginas voltarem.
+
+**Para reativar**, nesta ordem:
+
+1. mover as três entradas de `ROTAS_EM_ESPERA` para `ROTAS_PUBLICAS` e apagar
+   `REDIRECIONAMENTOS_EM_ESPERA` (e o caso "páginas em espera" de `src/rotas.test.ts`);
+2. tirar os `redirects` do `vercel.json` e os três `location =` do `nginx.conf`;
+3. trocar `NAVEGACAO` por `PAGINAS` (`conteudo-paginas.ts`) em `CabecalhoSite` e `RodapeSite`;
+4. devolver as três URLs a `public/sitemap.xml` e `public/llms.txt`.
+
+O pré-render passa a gerar `sobre.html` etc. sozinho no passo 1.
 
 ### Upload de imagem — o erro que chega como "CORS"
 
@@ -1283,7 +1312,7 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
     `procert-deploy.sh`, reinstale à mão (`DEPLOY.md`, Parte III §3). **Vercel e VPS têm
     bancos separados** desde a cópia de 12/11/2026. Faltam HTTPS, SMTP e backup.
 
-A lacuna do frontend foi fechada — são 132 testes hoje, mirando o que quebra em silêncio
+A lacuna do frontend foi fechada — são 133 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
 item.
 

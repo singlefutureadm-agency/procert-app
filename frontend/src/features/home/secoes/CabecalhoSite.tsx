@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
 import { useTema } from '@/features/aparencia/useTema';
 import { urlArquivo } from '@/lib/arquivos';
 import { logoDoTema } from '@/lib/tema';
-import { DOCUMENTOS, EMPRESA } from '../conteudo';
-import { PAGINAS } from '../conteudo-paginas';
+import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
 import { useRolagem } from '../hooks';
 
 /**
@@ -59,11 +58,14 @@ export function CabecalhoSite() {
           aria-label="Navegação principal"
         >
           <ul>
-            {PAGINAS.map((pagina) => (
-              <li key={pagina.caminho}>
-                <NavLink to={pagina.caminho} onClick={fechar} end>
-                  {pagina.rotulo}
-                </NavLink>
+            {/* <a> e não <Link>: na home, `/#secao` é rolagem no mesmo
+                documento, que o navegador faz sozinho; vindo de uma página
+                legal, carrega a home e `useAncoraInicial` posiciona. */}
+            {NAVEGACAO.map((item) => (
+              <li key={item.ancora}>
+                <a href={`/${item.ancora}`} onClick={fechar}>
+                  {item.rotulo}
+                </a>
               </li>
             ))}
 

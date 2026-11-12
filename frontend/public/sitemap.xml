@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
+  Páginas /sobre, /servicos e /contato em espera desde 12/11/2026 (ver
+  src/rotas-publicas.tsx): voltam aqui quando forem reativadas.
+
   Lista só as rotas públicas e os documentos de "Links Úteis". As do painel
   exigem sessão e estão em robots.txt.
 
@@ -13,24 +16,6 @@
     <lastmod>2026-11-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://www.procertocp.com.br/servicos</loc>
-    <lastmod>2026-11-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://www.procertocp.com.br/sobre</loc>
-    <lastmod>2026-11-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.procertocp.com.br/contato</loc>
-    <lastmod>2026-11-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.procertocp.com.br/politica-de-privacidade</loc>

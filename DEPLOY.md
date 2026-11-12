@@ -546,10 +546,17 @@ desconhecida devolve 200 em vez de 404. O bloco certo, igual ao de `frontend/ngi
 (a lista de prefixos é conferida por `src/rotas.test.ts`):
 
 ```nginx
+absolute_redirect off;   # Location relativo: atrás de TLS/proxy o absoluto sairia errado
+
 location / {
     try_files $uri $uri.html $uri/ =404;
 }
 error_page 404 /404.html;
+
+# Páginas em espera (CLAUDE.md, "Páginas em espera"): link antigo cai na seção da home.
+location = /sobre { return 302 /#sobre; }
+location = /servicos { return 302 /#servicos; }
+location = /contato { return 302 /#contato; }
 
 location ~ ^/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)(/|$) {
     try_files /app.html =404;

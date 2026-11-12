@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "cleanUrls": true,
+  "redirects": [
+    { "source": "/sobre", "destination": "/#sobre", "permanent": false },
+    { "source": "/servicos", "destination": "/#servicos", "permanent": false },
+    { "source": "/contato", "destination": "/#contato", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)", "destination": "/app" },
     { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)/(.*)", "destination": "/app" }
