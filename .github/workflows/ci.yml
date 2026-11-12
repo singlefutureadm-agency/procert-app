@@ -1,7 +1,10 @@
 # Integração contínua — build, lint e testes dos dois pacotes.
 #
-# O repositório trabalha direto em `main`, sem branches de feature, então até
-# aqui nada obrigava a suíte a rodar antes do push. Este workflow é essa trava.
+# Roda nas três branches de longa duração — `main` (integração), `qa`
+# (homologação) e `prod` (a versão publicada no VPS) — e em todo PR para elas.
+# Os rulesets do repositório exigem os dois jobs verdes antes do merge em
+# qualquer uma das três: sem o gatilho aqui, o check nunca chegaria e o PR
+# ficaria preso esperando.
 #
 # Dois jobs independentes de propósito: o frontend não tem teste algum e leva
 # segundos; prendê-lo ao PostgreSQL do backend só o deixaria mais lento sem
@@ -10,9 +13,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, qa, prod]
   pull_request:
-    branches: [main]
+    branches: [main, qa, prod]
   workflow_dispatch:
 
 # Push seguido de push na mesma ref cancela a execução anterior: o resultado

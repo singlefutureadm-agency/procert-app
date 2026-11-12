@@ -1217,6 +1217,10 @@ status checks are expected`). Foi configurada por *repository rules*, que funcio
 repositório de conta pessoal — a anotação anterior, de que estaria bloqueada por
 permissão, não vale mais.
 
+Desde 12/11/2026 há três branches protegidas pelo mesmo ruleset: `main` (integração,
+publica na Vercel), `qa` (homologação) e `prod` (a versão no ar no VPS da Locaweb). O
+código anda `main` → `qa` → `prod`, sempre por PR — ver "Fluxo de contribuição" no `README.md`.
+
 Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs do CI, e
 `gh pr merge --auto` não está disponível neste plano (o repositório recusa
 `enablePullRequestAutoMerge`) — aguarde os checks e faça o merge.
