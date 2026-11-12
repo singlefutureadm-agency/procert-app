@@ -14,55 +14,53 @@
 # Parte III).
 #
 # Ações (vêm em SSH_ORIGINAL_COMMAND):
-#   limpa                   esvazia a área de recebimento
-#   recebe release.tgz.NNN  grava o stdin como uma parte do pacote
-#   instala <sha256> <sha>  junta as partes, confere o checksum e publica
+#   rsync --server ...   o workflow sincroniza a versão nova em $STAGING, via
+#                        rrsync: só escreve dentro dessa pasta
+#   instala <sha>        copia $STAGING para uma versão nova e publica
 #
-# O pacote vai em partes porque transferência longa para este VPS leva
-# `Connection reset by peer` no meio — medido na subida de 12/11/2026.
+# Por que rsync e não o pacote inteiro: a rede até este VPS corta transferência
+# longa e, logo depois do corte, bloqueia o IP de origem por alguns minutos
+# (medido em 12/11/2026 — a 5ª parte de 5 MB parou em 1,7 MB e as 8 tentativas
+# seguintes nem chegaram ao sshd). $STAGING persiste entre deploys, então cada
+# deploy manda só o que mudou, numa conexão só, retomável com --partial.
+#
+# Modelo de ameaça: quem tem a chave publica código que a API executa — ela vale
+# o mesmo que o próprio código da aplicação. O que a chave NÃO consegue é shell,
+# escrever fora de $STAGING ou trocar este script.
 # =============================================================================
 set -euo pipefail
 
 BASE=/opt/procert
-IN=$BASE/incoming
+STAGING=$BASE/staging
 APP=$BASE/app
 SAUDE=http://127.0.0.1:3000/api/health
 
-read -r -a ARGS <<< "${SSH_ORIGINAL_COMMAND:-}"
+ORIGINAL=${SSH_ORIGINAL_COMMAND:-}
+
+if [[ "$ORIGINAL" == "rsync --server "* ]]; then
+  mkdir -p "$STAGING"
+  exec /usr/bin/rrsync -wo "$STAGING"
+fi
+
+read -r -a ARGS <<< "$ORIGINAL"
 ACAO=${ARGS[0]:-}
 
 case "$ACAO" in
-  limpa)
-    rm -rf "$IN"
-    mkdir -p "$IN"
-    ;;
-
-  recebe)
-    NOME=${ARGS[1]:-}
-    [[ "$NOME" =~ ^release\.tgz\.[0-9]{3}$ ]] || { echo "nome de parte inválido" >&2; exit 2; }
-    mkdir -p "$IN"
-    cat > "$IN/$NOME.tmp"
-    mv "$IN/$NOME.tmp" "$IN/$NOME"
-    stat -c %s "$IN/$NOME"
-    ;;
-
   instala)
-    SHA=${ARGS[1]:-}
-    COMMIT=${ARGS[2]:-}
-    [[ "$SHA" =~ ^[0-9a-f]{64}$ && "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "argumentos inválidos" >&2; exit 2; }
+    COMMIT=${ARGS[1]:-}
+    [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "commit inválido" >&2; exit 2; }
     exec > >(tee -a "$BASE/deploy.log") 2>&1
     echo "=== $(date -Is) instalando $COMMIT"
 
-    cat "$IN"/release.tgz.* > "$IN/release.tgz"
-    echo "$SHA  $IN/release.tgz" | sha256sum -c -
+    # O workflow grava o commit por último; se não bate, o rsync não terminou.
+    [ "$(cat "$STAGING/COMMIT" 2>/dev/null)" = "$COMMIT" ] || { echo "staging não corresponde a $COMMIT" >&2; exit 1; }
+    [ -f "$STAGING/backend/dist/main.js" ] && [ -f "$STAGING/dist/index.html" ] || { echo "staging incompleto" >&2; exit 1; }
 
     NOVO=$BASE/novo
     rm -rf "$NOVO"
-    mkdir -p "$NOVO"
-    tar xzf "$IN/release.tgz" -C "$NOVO"
-    [ -f "$NOVO/backend/dist/main.js" ] && [ -f "$NOVO/dist/index.html" ] || { echo "pacote incompleto" >&2; exit 1; }
+    cp -a "$STAGING" "$NOVO"
 
-    # O .env de produção vive só no servidor; o pacote nunca o traz.
+    # O .env de produção vive só no servidor; o rsync nunca o traz.
     cp "$APP/backend/.env" "$NOVO/backend/.env"
     chown -R procert:procert "$NOVO"
     chmod 600 "$NOVO/backend/.env"
@@ -79,13 +77,12 @@ case "$ACAO" in
     mv "$APP/frontend/dist" "$BASE/anterior/dist"
     mv "$NOVO/backend" "$APP/backend"
     mv "$NOVO/dist" "$APP/frontend/dist"
-    rmdir "$NOVO"
+    rm -rf "$NOVO"
     systemctl start procert-api
 
     for _ in $(seq 1 30); do
       if curl -fsS -m 5 "$SAUDE" | grep -q '"banco":"ok"'; then
         echo "$COMMIT" > "$APP/REVISION"
-        rm -rf "$IN"
         echo "=== $(date -Is) publicado $COMMIT"
         exit 0
       fi
