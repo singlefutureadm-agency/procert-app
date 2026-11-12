@@ -9,6 +9,8 @@ documento tem duas partes, e a ordem importa:
   levantamento do servidor da Locaweb. Continua válido para quem for subir numa
   máquina com runtime Node, e é onde vive o histórico do domínio
   `procertocp.com.br`, que **ainda serve o sistema legado**.
+- **Parte III — VPS Locaweb, publicado pela branch `prod`.** Desde 12/11/2026,
+  com entrega contínua pelo GitHub Actions.
 
 ---
 
@@ -513,3 +515,76 @@ Nenhum destes impede subir — mas é melhor saber antes:
   banco cobre conta desativada, não token roubado.
 - **Sem testes no frontend.** O backend tem 275 unitários e 75 e2e; o frontend,
   zero. Mudança de UI só é validada olhando.
+
+---
+
+# Parte III — VPS Locaweb (branch `prod`)
+
+Desde 12/11/2026 o ProCert roda também num VPS da Locaweb (Ubuntu 24.04, 2 GB),
+com banco e arquivos próprios — copiados do Supabase nessa data e conferidos
+tabela a tabela. O IP não está aqui de propósito: o repositório é público (ver o
+risco da Parte II, §7). Ele está no secret `VPS_HOST`.
+
+## 1. Como está montado
+
+| Peça | Onde |
+|---|---|
+| Código publicado | `/opt/procert/app/backend` e `/opt/procert/app/frontend/dist`; o commit em `/opt/procert/app/REVISION` |
+| API | systemd `procert-api` (`node dist/main.js`, porta 3000 só local) |
+| Painel e proxy | nginx: serve o `dist` e repassa `/api` e `/uploads` para a 3000 |
+| Banco | PostgreSQL 16 local, banco e usuário `procert` |
+| Arquivos | `UPLOAD_DRIVER=disco`, em `/opt/procert/uploads` |
+| `.env` de produção | só no servidor, em `/opt/procert/app/backend/.env`; o deploy copia de uma versão para a outra |
+| Firewall | ufw: 22, 80 e 443 |
+
+## 2. Como uma mudança vai ao ar
+
+`main` → PR → `qa` → PR → `prod`. O push em `prod` dispara o **CI**; terminado
+verde, o workflow **CD VPS** (`.github/workflows/cd-vps.yml`):
+
+1. faz o build de backend e frontend **no runner** — o VPS não consegue baixar
+   do npm (≈46 KB/s com timeout);
+2. empacota, divide em partes de 5 MB e envia cada uma com nova tentativa — a
+   rede até o VPS corta conexões longas;
+3. pede ao servidor para instalar: confere o sha256, aplica as migrations, troca
+   as versões, reinicia e espera o `/api/health` responder `"banco":"ok"`.
+   **Sem resposta em 60 s, volta sozinho para a versão anterior.**
+
+Republicar sem commit novo: Actions → CD VPS → *Run workflow* na branch `prod`.
+
+O rollback automático volta o **código**, não o schema: migration é
+forward-only. Migration destrutiva (DROP, RENAME sem expand-contract) precisa de
+janela combinada, não deste fluxo.
+
+## 3. A chave de deploy
+
+O lado do servidor é `deploy/vps/procert-deploy.sh`, instalado em
+`/usr/local/bin/procert-deploy` como **comando forçado** da chave:
+
+```
+restrict,command="/usr/local/bin/procert-deploy" ssh-ed25519 AAAA... procert-cd
+```
+
+Quem tiver a chave privada não abre shell: só consegue `limpa`, `recebe` uma
+parte com nome validado e `instala`. O workflow **não** atualiza esse script —
+uma chave capaz de reescrever o próprio comando forçado valeria tanto quanto
+uma de root. Mudou o script? Reinstale à mão:
+
+```bash
+tr -d '
+' < deploy/vps/procert-deploy.sh | ssh root@<ip> "cat > /tmp/p && install -m 0755 /tmp/p /usr/local/bin/procert-deploy && rm /tmp/p"
+```
+
+Secrets do repositório (Settings → Secrets and variables → Actions):
+`VPS_HOST`, `VPS_HOST_KEY` (saída de `ssh-keyscan -t ed25519 <ip>`) e
+`VPS_SSH_KEY` (a chave privada). Para trocar a chave sem janela sem deploy:
+acrescente a linha da chave nova no `authorized_keys`, troque o secret e só
+então apague a linha antiga.
+
+## 4. O que esta hospedagem ainda não tem
+
+- **HTTPS.** Precisa de um domínio apontado para o IP; aí é `certbot --nginx`.
+- **E-mail.** `MAIL_USER`/`MAIL_PASS` vazios: só registra no log.
+- **Backup do banco.** Nada agendado ainda.
+- **Sincronia com a Vercel.** São bancos separados desde 12/11/2026: o que entra
+  num não aparece no outro.

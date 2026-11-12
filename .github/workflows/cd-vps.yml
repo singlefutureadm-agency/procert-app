@@ -1,0 +1,127 @@
+# Entrega contínua — publica `prod` no VPS da Locaweb.
+#
+# Dispara quando o CI termina VERDE num push em `prod`: o mesmo commit que
+# passou nos testes é o que vai ao ar. `prod` só recebe código por PR (ruleset),
+# então o caminho é sempre main → qa → prod → este workflow.
+#
+# O build acontece AQUI, não no servidor: o VPS não consegue baixar do npm
+# (≈46 KB/s com ETIMEDOUT, medido em 12/11/2026). O runner é Ubuntu 24.04 como
+# o VPS — mesma glibc e mesmo OpenSSL 3, então os binários nativos do
+# node_modules (engines do Prisma, bcrypt) servem lá sem recompilar.
+#
+# Do lado do servidor quem age é `deploy/vps/procert-deploy.sh`, comando forçado
+# da chave: ela não abre shell. Segredos (Settings → Secrets → Actions):
+#   VPS_HOST      IP do servidor — fora do repositório, que é público
+#   VPS_HOST_KEY  linha do known_hosts (`ssh-keyscan -t ed25519 <ip>`), fixa a
+#                 identidade do servidor e impede ataque de intermediário
+#   VPS_SSH_KEY   chave privada de deploy (a pública está no authorized_keys)
+name: CD VPS
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [prod]
+  # Republicar a ponta de `prod` sem novo commit (ex.: VPS recriado).
+  workflow_dispatch:
+
+# Dois deploys simultâneos trocariam diretórios um debaixo do outro. Enfileira,
+# nunca cancela: cancelar no meio da troca deixaria o servidor pela metade.
+concurrency:
+  group: cd-vps
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publicar:
+    name: Publicar no VPS
+    # workflow_run também dispara para CI vermelho e para PR — só segue com
+    # push verde. O dispatch manual só vale a partir de `prod`.
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/prod')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # node_modules inteiro, com as dependências de desenvolvimento: o
+      # `prisma migrate deploy` roda no servidor e o CLI do Prisma é devDependency.
+      - name: Build do backend
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx nest build -p tsconfig.build.json
+
+      # `/api` relativo: no VPS o nginx serve o painel e a API na mesma origem.
+      - name: Build do frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: /api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Empacotar
+        run: |
+          tar czf release.tgz \
+            --exclude=backend/src --exclude=backend/test --exclude=backend/.env \
+            backend -C frontend dist
+          split -b 5M -d -a 3 release.tgz release.tgz.
+          echo "SHA_PACOTE=$(sha256sum release.tgz | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          ls -la release.tgz release.tgz.*
+
+      - name: Configurar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+
+      - name: Enviar e instalar
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          remoto() {
+            ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=20 \
+                -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes \
+                "root@$VPS_HOST" "$@"
+          }
+          # Cada parte com até 8 tentativas: a rede até o VPS corta conexões
+          # longas, e o servidor confirma o tamanho gravado.
+          remoto limpa
+          for parte in release.tgz.[0-9][0-9][0-9]; do
+            esperado=$(stat -c %s "$parte")
+            for tentativa in 1 2 3 4 5 6 7 8; do
+              gravado=$(remoto recebe "$parte" < "$parte" || true)
+              [ "$gravado" = "$esperado" ] && break
+              echo "parte $parte: tentativa $tentativa falhou, nova tentativa em 15 s"
+              sleep 15
+            done
+            [ "$gravado" = "$esperado" ] || { echo "falha ao enviar $parte"; exit 1; }
+          done
+          remoto instala "$SHA_PACOTE" "$COMMIT"
+
+      - name: Remover a chave do runner
+        if: always()
+        run: rm -f ~/.ssh/deploy
