@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
@@ -6,6 +6,7 @@ import { useTema } from '@/features/aparencia/useTema';
 import { urlArquivo } from '@/lib/arquivos';
 import { logoDoTema } from '@/lib/tema';
 import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
+import { LinkDocumento } from '../LinkDocumento';
 import { useRolagem } from '../hooks';
 
 /**
@@ -19,6 +20,7 @@ export function CabecalhoSite() {
   const { aparencia } = useTema();
   const [menuAberto, setMenuAberto] = useState(false);
   const [linksAbertos, setLinksAbertos] = useState(false);
+  const botaoLinks = useRef<HTMLButtonElement>(null);
 
   // Trava a rolagem do fundo enquanto o menu móvel está aberto.
   useEffect(() => {
@@ -71,6 +73,7 @@ export function CabecalhoSite() {
 
             <li>
               <button
+                ref={botaoLinks}
                 type="button"
                 aria-expanded={linksAbertos}
                 onClick={() => setLinksAbertos((aberto) => !aberto)}
@@ -85,14 +88,20 @@ export function CabecalhoSite() {
               >
                 {DOCUMENTOS.map((documento) => (
                   <li key={documento.arquivo}>
-                    <a
-                      href={documento.arquivo}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={fechar}
+                    <LinkDocumento
+                      arquivo={documento.arquivo}
+                      titulo={documento.rotulo}
+                      onClick={() => {
+                        fechar();
+                        /* O suspenso fecha e o link some com ele. O foco vai
+                           para o botão "Links Úteis" ANTES de o visualizador
+                           abrir, e é para ele que o modal o devolve ao
+                           fechar — sem isto o foco cairia no <body>. */
+                        botaoLinks.current?.focus();
+                      }}
                     >
                       {documento.rotulo}
-                    </a>
+                    </LinkDocumento>
                   </li>
                 ))}
               </ul>
