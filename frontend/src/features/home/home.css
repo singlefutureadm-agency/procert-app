@@ -28,6 +28,9 @@ body.tema-institucional {
 
 .home {
   --home-acento: #0076a8;
+  /* O acento sobre fundo escuro (rodapé, heros internos): #0076a8 ali dá 3,8:1,
+     abaixo do mínimo de 4,5. Esta variante clara dá 6,6:1 sobre #060606. */
+  --home-acento-claro: #3a9bc8;
   --home-texto: #444444;
   --home-titulo: #151515;
   --home-fundo: #ffffff;
@@ -57,14 +60,18 @@ body.tema-institucional {
   margin: 0;
 }
 
-.home a {
+/* :where() zera a especificidade. Com `.home a` (0,1,1) o link genérico vencia
+   `.home__botao-primario` (0,1,0) e todo botão-link — "Login", "Fale com um
+   Especialista", "Solicitar certificação" — saía com texto azul sobre fundo
+   azul. Qualquer classe de componente agora sobrescreve esta regra. */
+:where(.home) a {
   color: var(--home-acento);
   text-decoration: none;
   transition: 0.3s;
 }
 
-.home a:hover {
-  color: #3a9bc8;
+:where(.home) a:hover {
+  color: #005a80;
 }
 
 .home img {
@@ -171,7 +178,8 @@ body.tema-institucional {
   font-weight: 500;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: rgba(68, 68, 68, 0.5);
+  /* rgba(68,68,68,.5) dava 2,6:1. */
+  color: #666666;
   font-family: var(--home-fonte-corpo);
   display: flex;
   align-items: center;
@@ -574,6 +582,35 @@ body.tema-institucional {
   border-color: var(--home-acento);
 }
 
+/* No celular as cinco caixas empilhadas ocupavam ~650px antes da primeira
+   seção. São rótulos, não links: duas colunas compactas bastam. */
+@media (max-width: 640px) {
+  .home__hero-destaques.home__grade--5 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .home__hero-caixa {
+    padding: 16px 10px;
+    gap: 6px;
+  }
+
+  /* Cinco itens em duas colunas: o último, sozinho, ocupa a linha. */
+  .home__hero-caixa:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .home__hero-caixa i {
+    font-size: 24px;
+  }
+
+  .home__hero-caixa span {
+    font-size: 15px;
+    line-height: 20px;
+  }
+}
+
 .home__hero-caixa:hover span {
   color: var(--home-acento);
 }
@@ -763,7 +800,7 @@ body.tema-institucional {
   text-align: center;
 }
 
-.home__cta h3 {
+.home__cta h2 {
   font-size: 28px;
   font-weight: 700;
   color: #ffffff;
@@ -837,7 +874,7 @@ body.tema-institucional {
   padding: 0;
   font-family: var(--home-fonte-titulo);
   font-size: 14px;
-  color: rgba(68, 68, 68, 0.6);
+  color: #666666;
 }
 
 .home__numero p strong {
@@ -1210,7 +1247,8 @@ body.tema-institucional {
 
 .home__formulario input::placeholder,
 .home__formulario textarea::placeholder {
-  color: rgba(68, 68, 68, 0.4);
+  /* .4 dava 2,1:1; placeholder também precisa de 4,5. */
+  color: #757575;
 }
 
 .home__formulario-erro {
@@ -1326,7 +1364,7 @@ body.tema-institucional {
 .home__rodape ul i {
   font-size: 12px;
   line-height: 1;
-  color: var(--home-acento);
+  color: var(--home-acento-claro);
 }
 
 .home__rodape ul a {
@@ -1334,12 +1372,17 @@ body.tema-institucional {
   /* O respiro entre itens era `padding` do <li>, então a área clicável do link
      media a altura da linha — 16px. Movido para o <a>, o mesmo espaço passa a
      ser alvo de toque, sem mudar o desenho. */
+  /* 9px + 26px de linha = 44px de alvo, o mínimo de toque. */
   padding: 9px 0;
-  line-height: 1.2;
+  line-height: 26px;
 }
 
 .home__rodape ul a:hover {
-  color: var(--home-acento);
+  color: #ffffff;
+}
+
+.home__rodape a {
+  color: var(--home-acento-claro);
 }
 
 .home__redes {
@@ -1380,6 +1423,13 @@ body.tema-institucional {
   margin-top: 5px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
+}
+
+/* Sublinhado: no meio da frase, só a cor não distingue o link (WCAG 1.4.1). */
+.home__creditos a {
+  color: var(--home-acento-claro);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* -------------------------- Botões flutuantes --------------------------- */
@@ -1541,7 +1591,7 @@ body.tema-institucional {
 
 .home__legal-subtitulo {
   margin: 10px 0 0;
-  color: var(--home-acento);
+  color: var(--home-acento-claro);
   font-family: var(--home-fonte-nav);
   font-size: 15px;
   letter-spacing: 1.5px;
@@ -1639,7 +1689,7 @@ body.tema-institucional {
 
 .home__hero-pagina-rotulo {
   margin: 0 0 10px;
-  color: var(--home-acento);
+  color: var(--home-acento-claro);
   font-family: var(--home-fonte-nav);
   font-size: 14px;
   font-weight: 500;
@@ -1960,7 +2010,7 @@ body.tema-institucional {
   font-size: 13px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
-  color: rgba(68, 68, 68, 0.6);
+  color: #666666;
 }
 
 .home__canal-valor {

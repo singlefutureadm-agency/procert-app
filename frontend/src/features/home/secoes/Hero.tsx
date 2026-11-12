@@ -5,7 +5,11 @@ export function Hero() {
   return (
     <section id="hero" className="home__hero">
       <img
-        src="/img/hero-bg.jpg"
+        src="/img/hero-bg.webp"
+        /* Mesmo par do preload do index.html — divergindo, o navegador baixa
+           duas imagens. */
+        srcSet="/img/hero-bg-960.webp 960w, /img/hero-bg.webp 1920w"
+        sizes="100vw"
         alt=""
         aria-hidden
         className="home__hero-fundo"

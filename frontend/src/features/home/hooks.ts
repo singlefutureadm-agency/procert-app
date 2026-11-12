@@ -42,7 +42,8 @@ export function useRevelar<T extends HTMLElement>(margem = '0px 0px -80px 0px') 
 /** Conta de 0 até `destino` quando o elemento aparece (equivalente ao PureCounter). */
 export function useContador(destino: number, duracaoMs = 1400) {
   const { referencia, visivel } = useRevelar<HTMLDivElement>();
-  const [valor, setValor] = useState(0);
+  // No pré-render o número final: crawler sem JS leria "0 Clientes Satisfeitos".
+  const [valor, setValor] = useState(import.meta.env.SSR ? destino : 0);
 
   useEffect(() => {
     if (!visivel) return;
