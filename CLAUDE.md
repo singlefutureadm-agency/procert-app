@@ -82,7 +82,7 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 351 unitários, 19 suítes, Prisma mockado |
+| `npm test` | ✅ 434 unitários, 23 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 144 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -94,16 +94,16 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 117 testes, 11 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 129 testes, 12 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 326 unitários + 144 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 434 unitários + 144 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
 >
-> No frontend são 117 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
+> No frontend são 129 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
 > fora do `MAPA_CSS` some da saída sem erro), `mensagemDeErro`, as chaves de cache (uma
 > chave torta não atualiza a lista e não avisa) e as invariantes de acessibilidade de
 > `Campo`, `CampoSenha` e `Modal` — associação rótulo↔controle, `type="button"` no
@@ -178,6 +178,11 @@ pooler, o único que concede o advisory lock do Prisma Migrate).
 **não é obrigatória** — era, e a exigência reprovou quatro deploys seguidos,
 porque a `DATABASE_URL` na Vercel é do tipo Secret e ninguém consegue lê-la para
 montar a segunda URL. Ver `DEPLOY.md` §3 e §5.
+
+**No VPS (branch `prod`) quem aplica é o CD**: `procert-deploy instala` roda
+`prisma migrate deploy` contra o banco local **antes** de trocar a versão, com o código
+anterior ainda de pé. O rollback automático volta o código, não o schema — migration
+destrutiva precisa de janela combinada, não deste fluxo (`DEPLOY.md`, Parte III).
 
 ---
 
@@ -611,9 +616,10 @@ desse nome, e a pergunta "por que essa etapa demorou 14 dias?" fica sem resposta
 Dois fatos do schema determinam os marcos:
 
 - **`CertificacaoProcesso.criadoEm` é a entrada na FILA.** A coluna é `DEFAULT
-  CURRENT_TIMESTAMP` e a trilha nasce num `createMany` dentro da transação do processo — em
-  Postgres isso é o início da transação, então **todas as etapas nascem com o mesmo
-  timestamp**, igual ao do processo. Usá-lo como início do tratamento mediria o processo.
+  CURRENT_TIMESTAMP` e a trilha nasce dentro da transação do processo (um `create` por
+  etapa, por causa das microetapas aninhadas) — em Postgres o `CURRENT_TIMESTAMP` é o
+  início da transação, então **todas as etapas nascem com o mesmo timestamp**, igual ao do
+  processo. Usá-lo como início do tratamento mediria o processo.
 - **A trilha não é sequencial.** `salvar()` recebe lote e não impõe ordem, então "início =
   aprovação da anterior" é inválido, e `PENDENTE → APROVADO` direto acontece.
 
@@ -656,7 +662,11 @@ src/
 ├── features/       Um diretório por domínio: api.ts + páginas + componentes locais
 │                   Inclui `home` (site institucional público), `aparencia`,
 │                   `relatorios` (equipe, comparativos e tempo de ciclo) e
-│                   `trilhas` (catálogo de processos: versões, etapas, dnd-kit).
+│                   `trilhas` (catálogo de processos: versões, etapas, dnd-kit) e
+│                   `ajuda` (botão "o que é esta tela?" no `CabecalhoPagina`, um
+│                   verbete por rota e por papel em `conteudo-ajuda.ts` — rota
+│                   nova do painel sem verbete reprova o teste).
+│                   O quadro de processos é `certificacoes/QuadroProcessosPage`.
 │                   As etapas se editam em `trilhas`, NÃO em `categorias-processo`
 │                   — lá se escolhe qual trilha a categoria segue, e a mesma
 │                   trilha serve a várias categorias.
@@ -1225,7 +1235,27 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
 `gh pr merge --auto` não está disponível neste plano (o repositório recusa
 `enablePullRequestAutoMerge`) — aguarde os checks e faça o merge.
 
-A lacuna do frontend foi fechada — são 117 testes hoje, mirando o que quebra em silêncio
+**Leva de setembro a novembro de 2026:**
+
+29. `#31` ajuda por tela; `#38`/`#39` e-mail só nos marcos decisivos, com o texto em
+    `NotificacoesService`; `#40` `conferir:trilhas`; `#43` licença proprietária.
+30. `#44` quadro de processos — fase derivada, checklist, `PapelFuncional`, aprovação
+    automática, cancelamento (ver §4, "Quadro de processos").
+31. `#46` "produto" passa a se chamar "processo" em toda a aplicação — tabelas, rotas,
+    pasta de upload (`npm run mover:uploads-processos` copia os arquivos antigos).
+32. `#48` branches `qa` e `prod`, protegidas pelo mesmo ruleset de `main`.
+33. `#49`, `#52`, `#55` **publicação no VPS da Locaweb** e CD a partir de `prod`
+    (`.github/workflows/cd-vps.yml` + `deploy/vps/procert-deploy.sh`). O build roda no
+    runner — o VPS não baixa do npm (≈46 KB/s) — e o envio é **rsync incremental** para
+    `/opt/procert/staging`: pacote inteiro não passa, a rede corta transferência longa e
+    depois bloqueia o IP de origem. O servidor aplica as migrations, troca a versão e
+    **volta sozinho** se `/api/health` não responder `"banco":"ok"` em 60 s. A chave de
+    deploy é comando forçado (`restrict,command=...`) e só escreve no staging via
+    `rrsync -wo`; o workflow **não** atualiza o próprio script — mudou
+    `procert-deploy.sh`, reinstale à mão (`DEPLOY.md`, Parte III §3). **Vercel e VPS têm
+    bancos separados** desde a cópia de 12/11/2026. Faltam HTTPS, SMTP e backup.
+
+A lacuna do frontend foi fechada — são 129 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
 item.
 
@@ -1247,7 +1277,9 @@ tratado, lembre que remover num commit novo não limpa o histórico.
 
 ## 8. Documentação de referência
 
-- **`DOCUMENTACAO.md`** (~85 KB, 17 seções) — a referência completa: arquitetura, modelo de
+- **`DEPLOY.md`** — publicação: Parte I (Vercel + Supabase, push em `main`), Parte II
+  (hospedagem própria com FTP, do legado) e Parte III (VPS Locaweb, CD a partir de `prod`).
+- **`DOCUMENTACAO.md`** (~150 KB, 17 seções) — a referência completa: arquitetura, modelo de
   dados campo a campo, referência da API endpoint a endpoint com contratos de payload,
   decisões de projeto, §9 (estáticos, downloads autenticados e a rotina agendada), §14
   (estado medido de lint/testes e cobertura por service), §15 (problemas conhecidos e

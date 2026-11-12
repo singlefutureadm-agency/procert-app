@@ -30,14 +30,41 @@ export const EMPRESA = {
     'https://www.google.com/maps?q=Rua+John+Harrison,+299+-+Lapa,+S%C3%A3o+Paulo+-+SP,+05074-080&output=embed',
 } as const;
 
-/** Documentos públicos do organismo certificador (menu "Links Úteis"). */
+/**
+ * Documentos públicos do organismo certificador (menu "Links Úteis").
+ *
+ * Rótulo = nome oficial do documento, com código e revisão, como o cliente o
+ * envia. Revisão nova substitui o arquivo mantendo o nome: link já compartilhado
+ * continua apontando para a versão vigente.
+ */
 export const DOCUMENTOS: Array<{ rotulo: string; arquivo: string }> = [
-  { rotulo: 'Manual da qualidade', arquivo: '/documentos/manual-da-qualidade.pdf' },
-  { rotulo: 'Concessão e Manutenção', arquivo: '/documentos/concessao-e-manutencao.pdf' },
-  { rotulo: 'Certificação EPIs', arquivo: '/documentos/certificacao-epis.pdf' },
-  { rotulo: 'Requisitos EPI Altura', arquivo: '/documentos/requisitos-epi-altura.pdf' },
   {
-    rotulo: 'Tratamento de Reclamações e Apelações',
+    rotulo: 'MAN.PROCERT Manual da Qualidade REV.03',
+    arquivo: '/documentos/manual-da-qualidade.pdf',
+  },
+  { rotulo: 'Concessão e Manutenção', arquivo: '/documentos/concessao-e-manutencao.pdf' },
+  {
+    rotulo: 'P.PROCERT 002 Certificação de Artigos Escolares REV.00',
+    arquivo: '/documentos/certificacao-artigos-escolares.pdf',
+  },
+  {
+    rotulo: "P.PROCERT 004 Requisitos Gerais de Certificação de EPI's REV.04",
+    arquivo: '/documentos/certificacao-epis.pdf',
+  },
+  {
+    rotulo: 'P.PROCERT 008 Requisitos Gerais de Certificação de Produtos REV.00',
+    arquivo: '/documentos/requisitos-gerais-certificacao-produtos.pdf',
+  },
+  {
+    rotulo: 'P.PROCERT 015 Certificação de Fios e Cabos REV.00',
+    arquivo: '/documentos/certificacao-fios-e-cabos.pdf',
+  },
+  {
+    rotulo: 'P.PROCERT 019 Certificação de Brinquedos REV.01',
+    arquivo: '/documentos/certificacao-brinquedos.pdf',
+  },
+  {
+    rotulo: 'P.PROCERT 7.13 Tratamento de Reclamações e Apelações REV.01',
     arquivo: '/documentos/tratamento-reclamacoes-apelacoes.pdf',
   },
   {
