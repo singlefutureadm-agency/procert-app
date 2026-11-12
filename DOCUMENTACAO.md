@@ -1687,7 +1687,7 @@ código. Contagens de teste **remedidas em 12/11/2026** no log do CI verde de `m
 | **`npm test` (backend)** | ✅ **434 testes, 23 suítes** |
 | **`npm run test:e2e` (backend)** | ✅ **144 testes, 6 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
-| Testes no frontend | ✅ **133 testes, 13 arquivos** (ver abaixo) |
+| Testes no frontend | ✅ **137 testes, 14 arquivos** (ver abaixo) |
 | Validação funcional manual | ✅ mantida a cada incremento |
 
 ### Cobertura dos services alvo
@@ -1802,7 +1802,7 @@ pior que nenhum gate: dá confiança sem dar proteção.
 
 ### Testes do frontend
 
-**133 testes, 13 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
+**137 testes, 14 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
 `npm test` no job do frontend, antes do build.
 
 O critério de escolha foi **"quebra em silêncio?"**. Nada do que está coberto lança
@@ -2545,7 +2545,7 @@ depois é `certbot --nginx`), SMTP (`MAIL_USER`/`MAIL_PASS` vazios: e-mail só v
 e **backup agendado do banco** — hoje uma falha de disco perde os dados do VPS. *Gatilho:
 antes de o VPS virar o endereço que os clientes usam.* Ver `DEPLOY.md`, Parte III §4.
 
-**2. ~~Teste no frontend~~ — FEITO.** Hoje são 133 testes cobrindo o que quebra em silêncio, e
+**2. ~~Teste no frontend~~ — FEITO.** Hoje são 137 testes cobrindo o que quebra em silêncio, e
 `npm test` no job do frontend do CI. Ver §14 para o critério de escolha e a lista.
 
 O que sobrou de propósito: **teste de página inteira**. Exigiria router, provider de query,
