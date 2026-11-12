@@ -2,7 +2,7 @@ import type { RouteObject } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 
 import { router } from '@/router';
-import { ROTAS_PUBLICAS } from '@/rotas-publicas';
+import { REDIRECIONAMENTOS_EM_ESPERA, ROTAS_PUBLICAS } from '@/rotas-publicas';
 import nginx from '../nginx.conf?raw';
 import vercel from '../vercel.json';
 
@@ -22,7 +22,9 @@ function primeirosSegmentos(rotas: RouteObject[]): string[] {
   ]);
 }
 
-const publicas = new Set(ROTAS_PUBLICAS.map((rota) => rota.path.replace(/^\//, '')));
+const publicas = new Set(
+  [...ROTAS_PUBLICAS, ...REDIRECIONAMENTOS_EM_ESPERA].map((rota) => rota.path.replace(/^\//, '')),
+);
 const doPainel = [
   ...new Set(primeirosSegmentos(router.routes).filter((s) => s !== '*' && !publicas.has(s))),
 ];
@@ -32,6 +34,20 @@ function prefixosDe(padrao: string): string[] {
   if (!grupo) throw new Error(`padrão sem grupo de prefixos: ${padrao}`);
   return grupo[1].split('|');
 }
+
+describe('páginas em espera', () => {
+  it('cada desvio do cliente tem o redirect equivalente no vercel.json e no nginx.conf', () => {
+    for (const rota of REDIRECIONAMENTOS_EM_ESPERA) {
+      const ancora = `/#${rota.path.slice(1)}`;
+      expect(vercel.redirects).toContainEqual({
+        source: rota.path,
+        destination: ancora,
+        permanent: false,
+      });
+      expect(nginx).toContain(`location = ${rota.path} { return 302 ${ancora}; }`);
+    }
+  });
+});
 
 describe('rotas do painel no servidor', () => {
   it('encontra rotas do painel no router (sanidade do próprio teste)', () => {

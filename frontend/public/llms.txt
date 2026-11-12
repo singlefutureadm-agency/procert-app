@@ -8,10 +8,10 @@ Contato comercial: comercial@procertocp.com.br · +55 11 94230-7431.
 
 ## Páginas
 
-- [Início](https://www.procertocp.com.br/): visão geral da ProCert e dos serviços
-- [Serviços](https://www.procertocp.com.br/servicos): certificação de EPI para trabalho em altura, certificação de processos industriais, auditoria de fábrica, ensaios e relatórios técnicos, emissão e manutenção do certificado — com as etapas do processo e perguntas frequentes
-- [Sobre](https://www.procertocp.com.br/sobre): quem é a ProCert e como trabalha
-- [Contato](https://www.procertocp.com.br/contato): telefone, WhatsApp, e-mail, endereço e formulário
+- [Início](https://www.procertocp.com.br/): o site é uma página única — quem é a ProCert, serviços (certificação de EPIs, de processos, auditorias e inspeções, relatórios técnicos, selo de conformidade), números, depoimentos e contato
+- [Sobre](https://www.procertocp.com.br/#sobre): seção sobre a ProCert
+- [Serviços](https://www.procertocp.com.br/#servicos): seção de serviços
+- [Contato](https://www.procertocp.com.br/#contato): telefone, e-mail, endereço e formulário
 
 ## Documentos
 

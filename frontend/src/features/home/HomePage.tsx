@@ -32,8 +32,8 @@ import { Sobre } from './secoes/Sobre';
  */
 export function HomePage() {
   useTemaInstitucional();
-  // Chegadas de fora com `/#sobre` — links antigos e compartilhados continuam
-  // válidos mesmo depois que o menu passou a apontar para páginas próprias.
+  // Chegadas com `/#sobre`: o menu e o rodapé apontam para as seções da home,
+  // e quem clica a partir de uma página legal chega aqui com o hash.
   useAncoraInicial();
 
   useSeo({
