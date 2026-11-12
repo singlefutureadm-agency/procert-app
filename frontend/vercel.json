@@ -3,8 +3,8 @@
   "framework": "vite",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)", "destination": "/app.html" },
-    { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)/(.*)", "destination": "/app.html" }
+    { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)", "destination": "/app" },
+    { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)/(.*)", "destination": "/app" }
   ],
   "headers": [
     {

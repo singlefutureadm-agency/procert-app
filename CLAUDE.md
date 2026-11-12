@@ -783,7 +783,9 @@ do painel. Pontos que não são óbvios:
   `TemaProvider` chama a API. Injeta os contexts com valores de visitante anônimo.
 - Estado inicial que só existe no navegador precisa de um ramo `import.meta.env.SSR`: o
   contador de `Numeros` sairia "0 Clientes Satisfeitos" para o crawler.
-- **Servidor**: Vercel com `cleanUrls` e rewrite para `app.html` só nos prefixos do painel;
+- **Servidor**: Vercel com `cleanUrls` e rewrite para **`/app`** só nos prefixos do painel —
+  com `cleanUrls` o arquivo existe só sem extensão, e um rewrite para `/app.html` dava 404
+  em todo o painel (achado na QA, 12/11/2026; `/app.html` responde 308);
   nginx com `try_files $uri $uri.html $uri/ =404` e `location ~` equivalente
   (`frontend/nginx.conf`; no VPS, ver `DEPLOY.md` Parte III §1.1).
 
