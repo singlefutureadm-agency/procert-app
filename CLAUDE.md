@@ -82,7 +82,7 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 434 unitários, 23 suítes, Prisma mockado |
+| `npm test` | ✅ 439 unitários, 24 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 144 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -98,7 +98,7 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 434 unitários + 144 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 439 unitários + 144 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -213,8 +213,16 @@ acrescentar configuração global, coloque em `configurarApp`, não no `main.ts`
    `@Public()`. É o inverso do legado, onde nada era protegido.
 4. **`RolesGuard`** (global) — se o handler/classe tem `@Roles(...)`, o papel do token
    precisa estar na lista; senão 403.
-5. **`ThrottlerGuard`** (global) — 120 req/min por padrão; endpoints sensíveis
-   sobrescrevem com `@Throttle` (login e contato usam limites menores).
+5. **`ThrottlerGuard`** (global) — três janelas em `common/limites.ts`: `default` (por
+   IP, 120/min), `hora` (por IP, 1 h) e `email` (pela **conta-alvo**, chave = e-mail do
+   corpo normalizado). Login, esqueci/redefinir/alterar senha e contato usam `LIMITES.*`.
+   A janela por conta segura o ataque distribuído e o bombardeio de e-mails de
+   redefinição, que o limite por IP não vê. **Tudo depende do IP real**: `TRUST_PROXY`
+   (padrão `loopback, uniquelocal`) em `configurarApp`. Sem ele todos os visitantes
+   chegavam com o IP do nginx e dividiam um balde — 10 tentativas de um robô travavam o
+   login do site inteiro (achado em 12/11/2026). Nunca `true`: o X-Forwarded-For é
+   escrito pelo cliente. Do nginx para trás, o IP real vem do `real_ip_header
+   CF-Connecting-IP` restrito às faixas do Cloudflare (`DEPLOY.md`, Parte III §1.2).
 6. **`ValidationPipe`** (global) — `whitelist: true`, `forbidNonWhitelisted: true`,
    `transform: true`. **Isso mata mass-assignment**: campo não declarado no DTO gera 400.
 7. Controller → Service → Prisma

@@ -1684,7 +1684,7 @@ código. Contagens de teste **remedidas em 12/11/2026** no log do CI verde de `m
 | **`npm run lint:ci` (ambos)** | ✅ 0 — é o que o CI roda: `--max-warnings=0` e **sem `--fix`**. O `lint` de desenvolvimento reescreve os arquivos, então usá-lo no pipeline faria o job passar justamente quando houvesse o que corrigir. |
 | `npm run lint` (frontend) | ✅ |
 | **CI (GitHub Actions)** | ✅ dois jobs obrigatórios em PR e push para `main`, `qa` e `prod` (`8fd0363`, `d9ea0aa`, #48) |
-| **`npm test` (backend)** | ✅ **434 testes, 23 suítes** |
+| **`npm test` (backend)** | ✅ **439 testes, 24 suítes** |
 | **`npm run test:e2e` (backend)** | ✅ **144 testes, 6 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
 | Testes no frontend | ✅ **137 testes, 14 arquivos** (ver abaixo) |

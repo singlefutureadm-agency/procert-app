@@ -332,6 +332,28 @@ export class NotificacoesService {
       .join('');
   }
 
+  /**
+   * Mensagem do formulário do site para a caixa da própria ProCert.
+   *
+   * Tudo aqui foi digitado por um visitante anônimo — inclusive o nome, que
+   * antes entrava cru no HTML: `<a href=...>Clique para confirmar</a>` no campo
+   * nome virava um link de phishing dentro de um e-mail que a equipe confia
+   * por vir do próprio site. E o assunto passa por `assuntoLimpo`, como todos.
+   */
+  async contatoRecebido(
+    para: string,
+    contato: { nome: string; email: string; telefone?: string; assunto: string; mensagem: string },
+  ): Promise<void> {
+    const telefone = contato.telefone ? ` · ${contato.telefone}` : '';
+    const mensagem = html(escapar(contato.mensagem).replace(/\n/g, '<br>'));
+    await this.mail.enviar(
+      para,
+      assuntoLimpo(`[Site] ${contato.assunto}`),
+      seguro`<p><strong>${contato.nome}</strong> (${contato.email}${telefone}) escreveu:</p>
+       <p>${mensagem}</p>`,
+    );
+  }
+
   private async enviar(
     para: string,
     assunto: string,
