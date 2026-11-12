@@ -207,7 +207,7 @@ ambiente de desenvolvimento.
 
 ## Integração contínua
 
-`.github/workflows/ci.yml` roda em **push para `main`** e em **todo pull request**.
+`.github/workflows/ci.yml` roda em **push** e em **pull request** para `main`, `qa` e `prod`.
 Dois jobs independentes:
 
 | Job | O que roda |
@@ -250,6 +250,19 @@ git checkout -b tipo/descricao-curta   # feat/, fix/, ci/, docs/, test/
 git push -u origin tipo/descricao-curta
 gh pr create --base main
 ```
+
+As três branches de longa duração, e a ordem em que o código anda entre elas:
+
+| Branch | Papel | Como recebe código |
+|---|---|---|
+| `main` | integração; publica na Vercel | PR de `tipo/descricao-curta` |
+| `qa` | homologação | PR de `main` → `qa` |
+| `prod` | a versão no ar no VPS (Locaweb) | PR de `qa` → `prod` |
+
+As três têm a mesma proteção (ruleset do repositório): sem push direto, sem
+force-push, sem exclusão, merge só por PR com os dois jobs do CI verdes e a branch
+atualizada com a base. Promover é abrir o PR — `gh pr create --base qa --head main`
+e depois `--base prod --head qa`.
 
 O histórico até aqui foi feito direto em `main`. Com mais de uma pessoa no repositório
 isso deixa de servir: dois pushes concorrentes em `main` se atropelam, e nada garante que
