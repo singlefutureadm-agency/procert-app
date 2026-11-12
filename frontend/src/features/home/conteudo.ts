@@ -102,11 +102,11 @@ export const SOBRE = {
   ],
   fechamento:
     'Na ProCert, acreditamos que a certificação vai além de um selo: é a garantia de confiança entre fabricantes, consumidores e o mercado. Nossos serviços promovem segurança, inovação e responsabilidade.',
-  imagem: { src: '/img/about.jpg', alt: 'Equipe ProCert realizando auditoria' },
+  imagem: { src: '/img/about.webp', alt: 'Equipe ProCert realizando auditoria' },
 };
 
 export const DIFERENCIAIS = {
-  imagem: { src: '/img/services.jpg', alt: 'Laboratório técnico ProCert' },
+  imagem: { src: '/img/services.webp', alt: 'Laboratório técnico ProCert' },
   itens: [
     {
       icone: 'bi-archive',
@@ -178,7 +178,7 @@ export const CHAMADA_ACAO = {
     'Entre em contato com a ProCert e conte com uma equipe especializada para garantir a conformidade, segurança e qualidade do seu processo com reconhecimento no mercado.',
   botao: 'Fale com um Especialista',
   imagem: {
-    src: '/img/cta-bg.jpg',
+    src: '/img/cta-bg.webp',
     alt: 'Profissional da ProCert realizando certificação de processo',
   },
 };
@@ -187,7 +187,7 @@ export const NUMEROS = {
   titulo: 'Resultados que Comprovam a Confiança na ProCert',
   texto:
     'Com anos de experiência no setor, a ProCert tem sido referência na certificação de processos, garantindo qualidade, segurança e conformidade técnica em todo o Brasil.',
-  imagem: { src: '/img/stats-img.jpg', alt: 'Equipe técnica da ProCert' },
+  imagem: { src: '/img/stats-img.webp', alt: 'Equipe técnica da ProCert' },
   itens: [
     {
       icone: 'bi-emoji-smile',
@@ -220,35 +220,35 @@ export const DEPOIMENTOS = [
   {
     nome: 'Fernando Souza',
     cargo: 'Gerente de Qualidade - Indústria Têxtil',
-    foto: '/img/depoimentos/depoimento-1.jpg',
+    foto: '/img/depoimentos/depoimento-1.webp',
     texto:
       'A ProCert foi essencial no processo de certificação dos nossos processos. Atendimento ágil, equipe técnica preparada e muita transparência em todas as etapas.',
   },
   {
     nome: 'Bruna Lopes',
     cargo: 'Engenheira Eletricista - Setor Eletrodoméstico',
-    foto: '/img/depoimentos/depoimento-2.jpg',
+    foto: '/img/depoimentos/depoimento-2.webp',
     texto:
       'Graças à certificação com a ProCert, conseguimos acessar novos mercados. O selo ProCert agregou muito valor ao nosso processo.',
   },
   {
     nome: 'Juliana Martins',
     cargo: 'Diretora Comercial - Processos Hospitalares',
-    foto: '/img/depoimentos/depoimento-3.jpg',
+    foto: '/img/depoimentos/depoimento-3.webp',
     texto:
       'A ProCert tem um diferencial enorme no suporte técnico. Eles realmente entendem do processo e acompanham de perto até a aprovação final.',
   },
   {
     nome: 'Bruno Carvalho',
     cargo: 'Empresário - Processos Sustentáveis',
-    foto: '/img/depoimentos/depoimento-4.jpg',
+    foto: '/img/depoimentos/depoimento-4.webp',
     texto:
       'A certificação com a ProCert trouxe mais credibilidade e confiança para nossos clientes. Recomendo fortemente.',
   },
   {
     nome: 'Pedro Silva',
     cargo: 'Supervisor Técnico - Cosméticos Naturais',
-    foto: '/img/depoimentos/depoimento-5.jpg',
+    foto: '/img/depoimentos/depoimento-5.webp',
     texto:
       'Além da certificação, a ProCert nos orientou sobre adequações técnicas e melhorias no processo. Um verdadeiro parceiro estratégico.',
   },

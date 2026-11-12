@@ -1,47 +1,107 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Lista só as rotas públicas. As do painel exigem sessão e estão em robots.txt.
+  Lista só as rotas públicas e os documentos de "Links Úteis". As do painel
+  exigem sessão e estão em robots.txt.
 
-  Mantido à mão de propósito: são seis URLs que mudam quando alguém cria uma
-  página, e um gerador no build acrescentaria uma etapa para resolver um
-  problema que ainda não existe. Ao criar rota pública nova, acrescente aqui —
-  e no `PAGINAS` de features/home/conteudo-paginas.ts, que é o menu.
+  Mantido à mão de propósito. Ao criar rota pública nova, acrescente aqui — e em
+  `ROTAS_PUBLICAS` (src/rotas-publicas.tsx), em `PAGINAS` (conteudo-paginas.ts)
+  e em public/llms.txt. Documento novo em DOCUMENTOS (conteudo.ts) também entra.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://procert-app.vercel.app/</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://www.procertocp.com.br/</loc>
+    <lastmod>2026-11-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://procert-app.vercel.app/servicos</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://www.procertocp.com.br/servicos</loc>
+    <lastmod>2026-11-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://procert-app.vercel.app/sobre</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://www.procertocp.com.br/sobre</loc>
+    <lastmod>2026-11-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://procert-app.vercel.app/contato</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://www.procertocp.com.br/contato</loc>
+    <lastmod>2026-11-12</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://procert-app.vercel.app/politica-de-privacidade</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://www.procertocp.com.br/politica-de-privacidade</loc>
+    <lastmod>2026-11-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://procert-app.vercel.app/termos-de-uso</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://www.procertocp.com.br/termos-de-uso</loc>
+    <lastmod>2026-11-12</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/manual-da-qualidade.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/concessao-e-manutencao.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/certificacao-artigos-escolares.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/certificacao-epis.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/requisitos-gerais-certificacao-produtos.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/certificacao-fios-e-cabos.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/certificacao-brinquedos.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/tratamento-reclamacoes-apelacoes.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/politica-de-imparcialidade.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.procertocp.com.br/documentos/politica-e-objetivos.pdf</loc>
+    <lastmod>2026-11-12</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
   </url>
 </urlset>

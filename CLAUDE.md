@@ -94,7 +94,7 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 129 testes, 12 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 132 testes, 13 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
@@ -103,7 +103,7 @@ npm run dev                   # http://localhost:5173
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
 >
-> No frontend são 129 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
+> No frontend são 132 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
 > fora do `MAPA_CSS` some da saída sem erro), `mensagemDeErro`, as chaves de cache (uma
 > chave torta não atualiza a lista e não avisa) e as invariantes de acessibilidade de
 > `Campo`, `CampoSenha` e `Modal` — associação rótulo↔controle, `type="button"` no
@@ -717,23 +717,29 @@ em `<RotaProtegida>`, com os filhos declarando caminhos absolutos (`dashboard`,
 — **isso é UX, não controle**: o backend repete a checagem em todo endpoint. Ao adicionar
 uma rota, ajuste também `components/layout/Sidebar.tsx` (que filtra itens por `papeis`).
 
-**Só a home e o login entram no pacote inicial.** Todo o resto é `lazy`, e o `<Suspense>`
+**Só o site institucional (`rotas-publicas.tsx`) e o login entram no pacote inicial** — o
+site chega pré-renderizado, e uma página `lazy` trocaria o HTML já visível pelo spinner no
+primeiro render. Todo o resto é `lazy`, e o `<Suspense>`
 que os segura fica no `main.tsx`, com `CarregandoRota` de fallback. O pacote saiu de 512 KB
-para ~332 KB: antes, quem chegava pela busca para ler a página de serviços baixava o painel
+para ~332 KB (353 KB com as páginas do site, desde o pré-render): antes, quem chegava pela busca para ler a página de serviços baixava o painel
 inteiro — dashboard, certificações, processos, clientes, categorias, equipe, aparência —
 antes da primeira linha de texto.
 
-Ao acrescentar rota pública, atualize **três** lugares além do router: `PAGINAS` em
-`features/home/conteudo-paginas.ts` (menu e rodapé), `public/sitemap.xml` e, se ela não
-deve ser rastreada, `public/robots.txt`.
+Ao acrescentar rota pública, declare-a em **`ROTAS_PUBLICAS`** (`src/rotas-publicas.tsx`,
+que o router e o pré-render leem) e atualize `PAGINAS` em
+`features/home/conteudo-paginas.ts` (menu e rodapé), `public/sitemap.xml` e
+`public/llms.txt`. Ao acrescentar rota **do painel** com primeiro segmento novo, ele entra
+nos rewrites do `vercel.json` e no `location ~` do `nginx.conf` — sem isso a rota abre pelo
+menu e dá 404 no F5. `src/rotas.test.ts` reprova a divergência.
 
 > **Pedaço obsoleto após deploy.** Cada build gera hash novo, e uma aba aberta antes de um
 > deploy pede um nome que não existe mais — "Failed to fetch dynamically imported module".
 > `pagina()` no topo de `router.tsx` recarrega a página uma vez nesse caso, com trava em
-> `sessionStorage` contra laço. **Isso depende do `vercel.json`**, cujo fallback de SPA
-> exclui `/assets/`: com o catch-all cru, o pedaço ausente voltava como `index.html` com
-> status 200 e `content-type: text/html`, e o erro era falha ao executar HTML como módulo,
-> não um 404. Mexeu num, confira o outro.
+> `sessionStorage` contra laço. **Isso depende do `vercel.json`**: `/assets/` nunca pode
+> cair num fallback de SPA — com o catch-all antigo, o pedaço ausente voltava como
+> `index.html` com status 200 e `content-type: text/html`, e o erro era falha ao executar
+> HTML como módulo, não um 404. Desde o pré-render o fallback só cobre os prefixos do
+> painel, e o pedaço ausente recebe o `404.html` com status 404. Mexeu num, confira o outro.
 
 ### SEO do site institucional (`lib/seo.ts`)
 
@@ -755,12 +761,33 @@ critério que manteve gráficos e ícones sem biblioteca.
   perguntas não é acordeão.
 
 `public/robots.txt` fecha o painel e `/uploads` ao rastreio; `public/sitemap.xml` lista as
-seis rotas públicas. Ambos são mantidos à mão.
+seis rotas públicas e os PDFs de Links Úteis; `public/llms.txt` resume o site para robôs de
+IA. Os três são mantidos à mão. O domínio canônico é **`https://www.procertocp.com.br`**
+(`URL_SITE`, definido pelo cliente em 12/11/2026) — vale em QA e na Vercel também, para que
+URL de homologação não dispute a busca. A imagem de compartilhamento é
+`public/img/compartilhamento.png` (1200×630).
 
-> **Limite conhecido:** tudo isso roda no cliente. O Googlebot executa JS e lê o resultado,
-> mas crawlers sem JS — e as prévias de link do WhatsApp, LinkedIn e X — recebem o
-> `<div id="root">` vazio. Fechar isso é pré-renderizar as rotas públicas no build (SSG);
-> não toca em componente, é configuração. Anotado no fim de `lib/seo.ts`.
+**Pré-render (desde 12/11/2026).** `npm run build` termina com `vite build --ssr
+src/prerender.tsx` + `node scripts/prerender.mjs`, que escreve `index.html`, `sobre.html`,
+… com o conteúdo no `#root` e o `<head>` da página; `404.html` (servido com status 404 a URL
+desconhecida — antes era soft 404) e `app.html`, o shell vazio com `noindex` para as rotas
+do painel. Pontos que não são óbvios:
+
+- **`useSeo` coleta no servidor.** `useEffect` não roda no SSR; com `import.meta.env.SSR`
+  ele grava em `seoColetado`, e `htmlDoSeo` escreve as mesmas tags de `aplicarSeo` — as
+  duas saem de `tagsDoSeo`. O cliente reaproveita as tags pelo seletor, sem duplicar.
+- **O cliente usa `createRoot`, não `hydrateRoot`**: substitui o HTML pela árvore real.
+  Hidratação reprovaria para quem tem sessão ou tema em cache (o pré-render é de visitante
+  anônimo). Por isso as páginas públicas não podem ser `lazy` (ver "pacote inicial").
+- **`src/prerender.tsx` não usa os providers reais** — `AuthProvider` lê `localStorage`,
+  `TemaProvider` chama a API. Injeta os contexts com valores de visitante anônimo.
+- Estado inicial que só existe no navegador precisa de um ramo `import.meta.env.SSR`: o
+  contador de `Numeros` sairia "0 Clientes Satisfeitos" para o crawler.
+- **Servidor**: Vercel com `cleanUrls` e rewrite para **`/app`** só nos prefixos do painel —
+  com `cleanUrls` o arquivo existe só sem extensão, e um rewrite para `/app.html` dava 404
+  em todo o painel (achado na QA, 12/11/2026; `/app.html` responde 308);
+  nginx com `try_files $uri $uri.html $uri/ =404` e `location ~` equivalente
+  (`frontend/nginx.conf`; no VPS, ver `DEPLOY.md` Parte III §1.1).
 
 ### Upload de imagem — o erro que chega como "CORS"
 
@@ -1074,11 +1101,12 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
   pode ter `trilha` preenchida e `modeloVigente` nulo: vinculada a uma trilha que ainda não
   publicou versão. Tratar os dois como o mesmo caso faz a tela dizer "sem trilha" para quem
   acabou de vincular uma.
-- **Assets da home são pesados** e vieram do legado sem reprocessamento
-  — mas o pior deles saiu do caminho: `depoimentos-bg.png`, de 2,4 MB, era dois terços do
-  peso e virou gradiente CSS em `841a6b7`. **O arquivo continua em `public/img/`, agora sem
-  referência**: reprocessar para WebP e reativar, ou apagar, é decisão em aberto. `cta-bg.jpg`
-  (332 KB) e `hero-bg.jpg` (218 KB) seguem como estão. O `bootstrap-icons.css` completo (~106 KB) é carregado
+- **Imagens da home em WebP desde 12/11/2026** (redimensionadas com `sharp` fora do repo):
+  hero 218→131 KB, com variante de 960px no `srcset` (44 KB no celular — o preload do
+  `index.html` repete o mesmo `imagesrcset`; mudou num, mude no outro); CTA 332→98 KB;
+  fotos de depoimento 400→176px. `logo-branco.png` segue PNG (é fallback de uma logo que o
+  admin troca) e caiu de 942 para 488px. `depoimentos-bg.png` (2,4 MB) continua **sem
+  referência**, decisão em aberto. O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.
 - **Dados de contato divergentes** em `features/home/conteudo.ts`: o legado tinha três
   telefones diferentes (contato, rodapé, WhatsApp). Preservados como estavam — precisa de
@@ -1255,7 +1283,7 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
     `procert-deploy.sh`, reinstale à mão (`DEPLOY.md`, Parte III §3). **Vercel e VPS têm
     bancos separados** desde a cópia de 12/11/2026. Faltam HTTPS, SMTP e backup.
 
-A lacuna do frontend foi fechada — são 129 testes hoje, mirando o que quebra em silêncio
+A lacuna do frontend foi fechada — são 132 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
 item.
 

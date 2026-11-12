@@ -4,14 +4,16 @@ import { EMPRESA, REDES_SOCIAIS } from '../conteudo';
 import { PAGINAS_LEGAIS } from '../conteudo-legal';
 import { PAGINAS } from '../conteudo-paginas';
 
+const redes = REDES_SOCIAIS.filter((rede) => rede.url);
+
 export function RodapeSite() {
   return (
     <footer className="home__rodape">
       <div className="home__rodape-topo">
         <div className="home__container home__rodape-grade">
           <div>
-            <Link to="/" className="home__rodape-marca">
-              <img src="/img/logo-branco.png" alt="" aria-hidden />
+            <Link to="/" className="home__rodape-marca" aria-label="ProCert — página inicial">
+              <img src="/img/logo-branco.png" alt="" aria-hidden width={942} height={336} />
             </Link>
 
             <div style={{ paddingTop: 12 }}>
@@ -27,22 +29,24 @@ export function RodapeSite() {
               </p>
             </div>
 
-            <div className="home__redes">
-              {REDES_SOCIAIS.map((rede) => (
-                <a
-                  key={rede.icone}
-                  /* O legado deixava href vazio, que recarrega a página.
-                     Sem perfil definido, o link fica desabilitado. */
-                  href={rede.url || undefined}
-                  aria-label={rede.rotulo}
-                  aria-disabled={!rede.url}
-                  target={rede.url ? '_blank' : undefined}
-                  rel={rede.url ? 'noopener noreferrer' : undefined}
-                >
-                  <i className={`bi ${rede.icone}`} aria-hidden />
-                </a>
-              ))}
-            </div>
+            {/* Só rede com perfil definido aparece. Um ícone sem destino era um
+                <a> sem href — não focável, não clicável, e o leitor de tela o
+                anunciava como link mesmo assim. Preencha `url` em conteudo.ts. */}
+            {redes.length > 0 && (
+              <div className="home__redes">
+                {redes.map((rede) => (
+                  <a
+                    key={rede.icone}
+                    href={rede.url}
+                    aria-label={rede.rotulo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <i className={`bi ${rede.icone}`} aria-hidden />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
