@@ -26,7 +26,14 @@ Migração do sistema legado em PHP (MVC artesanal + MySQL) para uma stack moder
 | Banco e arquivos | Supabase (PostgreSQL 17 + Storage), região `sa-east-1` |
 
 Push em `main` publica sozinho. O passo a passo, as variáveis de ambiente e as armadilhas
-desta hospedagem estão em **[DEPLOY.md](./DEPLOY.md)**.
+desta hospedagem estão em **[DEPLOY.md](./DEPLOY.md)**, Parte I.
+
+Desde 12/11/2026 há uma segunda hospedagem: um **VPS da Locaweb** (Ubuntu 24.04, nginx,
+PostgreSQL 16 local, arquivos em disco), publicado a partir da branch **`prod`** pelo
+workflow `CD VPS`. O endereço fica no secret `VPS_HOST`, fora deste repositório público.
+Os dois ambientes têm **bancos separados** — o VPS recebeu uma cópia do Supabase nessa
+data. Montagem, fluxo e lacunas (HTTPS, SMTP, backup) em **[DEPLOY.md](./DEPLOY.md)**,
+Parte III.
 
 ### Rotas públicas
 
@@ -47,6 +54,9 @@ procert-app/
 ├── docker-compose.yml        PostgreSQL + Adminer
 ├── DOCUMENTACAO.md           Documentação técnica completa (arquitetura, API, decisões)
 ├── MIGRACAO.md               Guia de migração (de/para, correções, plano de cutover)
+├── DEPLOY.md                 Vercel + Supabase, FTP do legado e VPS Locaweb
+├── .github/workflows/        ci.yml (main, qa, prod) e cd-vps.yml (prod → VPS)
+├── deploy/vps/               procert-deploy.sh, o lado do servidor do CD
 ├── backend/                  API NestJS
 │   ├── test/                 Suíte e2e (Supertest) e o cenário de autorização
 │   ├── prisma/
@@ -63,14 +73,16 @@ procert-app/
 │       └── modules/          auth, clientes, funcionarios, categorias-processo,
 │                             modelos-trilha, processos, certificacoes,
 │                             nao-conformidades, certificados, estados,
-│                             dashboard, uploads, mail, contato, aparencia
+│                             dashboard, relatorios, uploads, mail, contato,
+│                             aparencia, health
 └── frontend/                 SPA React 19 + Vite
     ├── public/               Imagens e PDFs do site institucional
     └── src/
         ├── auth/             Contexto de sessão e rotas protegidas
         ├── components/       Layout, tabela, modais, campos
         ├── features/         Um diretório por domínio (api + páginas), incluindo
-        │                     home (site público) e certificados
+        │                     home (site público), trilhas, quadro de processos,
+        │                     relatórios, aparência e ajuda por tela
         └── styles/           Tema "liquid glass" preservado do legado
 ```
 
@@ -163,7 +175,9 @@ guarda é rodar o comando acima. Se as dependências também mudaram, `npm ci` a
 | `npm run setup` | Prepara o ambiente: copia os `.env` que faltarem, aplica migrations, regenera o Prisma Client e semeia. Idempotente — rode depois de todo `git pull` |
 | `npm run start:dev` | API em modo watch |
 | `npm run build` / `npm run start:prod` | Build e execução de produção |
-| `npm run seed` | Popula UFs, a categoria padrão com sua trilha v1 e o admin inicial |
+| `npm run seed` | Popula UFs, a trilha "Certificação padrão" v1, a categoria "Geral" vinculada a ela e o admin inicial |
+| `npm run conferir:trilhas` | Confere a migração para trilhas-catálogo. Somente leitura; código 1 se achar problema |
+| `npm run mover:uploads-processos` | Copia `/uploads/produtos/` para `/uploads/processos/`; só apaga a origem com `-- --remover-antigos` |
 | `npm run senha:admin` | Redefine a senha de um ADMIN. A senha vem de `SEED_ADMIN_PASSWORD` no ambiente — o `upsert` do seed nunca corrige a senha de um registro existente |
 | `npm run migrate:legacy` | ETL do MySQL legado para o PostgreSQL |
 | `npm run migrate:categorias` | Catálogo global de etapas → trilhas por categoria |
@@ -199,9 +213,13 @@ ambiente de desenvolvimento.
 | `npm run preview` | Serve o build localmente |
 | `npm run lint` | ESLint |
 | `npm run lint:ci` | ESLint sem `--fix` — o que o CI roda |
+| `npm test` | Vitest + Testing Library (129 testes) |
+| `npm run test:watch` / `npm run test:cov` | Idem, em watch / com cobertura |
 
-> Não há testes automatizados no frontend — é a próxima lacuna depois do CI
-> (`DOCUMENTACAO.md` §17).
+> Os testes do frontend miram o que **quebra em silêncio** — tokens de tema, chaves de
+> cache, `mensagemDeErro`, acessibilidade de `Campo`/`CampoSenha`/`Modal`, compressão de
+> imagem e a cobertura da ajuda por tela. Página inteira fica de fora por decisão
+> (`DOCUMENTACAO.md` §14).
 
 ---
 
@@ -212,8 +230,11 @@ Dois jobs independentes:
 
 | Job | O que roda |
 |---|---|
-| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 287 unitários → 128 e2e |
-| **Frontend** | `npm ci` → `lint:ci` → `npm test` (86) → `build` (o `tsc -b` é o type-check) |
+| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 434 unitários → 144 e2e |
+| **Frontend** | `npm ci` → `lint:ci` → `npm test` (129) → `build` (o `tsc -b` é o type-check) |
+
+Um terceiro workflow, `.github/workflows/cd-vps.yml`, **não** é check de PR: roda depois
+do CI verde num push em `prod` e publica no VPS (ver [Fluxo de contribuição](#fluxo-de-contribuição)).
 
 O e2e sobe um PostgreSQL 16 de serviço mapeado em **5433**, igual ao `docker-compose`.
 É de propósito: assim o job copia `.env.test.example` sem alterar nada, em vez de manter
@@ -239,8 +260,8 @@ cd frontend && npm run lint:ci && npm test && npm run build
 testes do #24, e ficar de fora daqui era deixar passar localmente o que o CI reprova.
 Descobrir a falha aqui custa segundos; descobrir no CI custa um ciclo de push.
 
-Medido em 28/08/2026, num clone limpo: backend **287 unitários em 16 suítes** (~112 s) e
-**128 e2e em 5 suítes** (~18 s); frontend **86 testes em 8 arquivos** (~37 s).
+Medido em 12/11/2026, no CI verde de `main`: backend **434 unitários em 23 suítes** e
+**144 e2e em 6 suítes**; frontend **129 testes em 12 arquivos**.
 
 ### Fluxo de contribuição
 
@@ -264,6 +285,12 @@ force-push, sem exclusão, merge só por PR com os dois jobs do CI verdes e a br
 atualizada com a base. Promover é abrir o PR — `gh pr create --base qa --head main`
 e depois `--base prod --head qa`.
 
+O merge em `prod` dispara o CI; verde, o `CD VPS` faz o build no runner, sincroniza por
+rsync, aplica as migrations, troca a versão e confere `/api/health` — sem resposta
+saudável em 60 s, volta sozinho para a anterior. Republicar sem commit novo: Actions →
+CD VPS → *Run workflow* em `prod`. `gh pr merge --auto` não está disponível neste plano:
+aguarde os checks e faça o merge.
+
 O histórico até aqui foi feito direto em `main`. Com mais de uma pessoa no repositório
 isso deixa de servir: dois pushes concorrentes em `main` se atropelam, e nada garante que
 a suíte rodou antes. **Trabalhe em branch e abra PR** — os dois checks precisam passar.
@@ -272,20 +299,28 @@ a suíte rodou antes. **Trabalhe em branch e abra PR** — os dois checks precis
 ## Modelo de domínio
 
 ```
-CategoriaProcesso ──1:N──► ModeloTrilha (versionado) ──1:N──► ModeloEtapa
-                                                                  │
-Cliente ──1:N──► Processo ──1:N──► CertificacaoProcesso ──N:1───────┘
+Trilha (catálogo) ──1:N──► ModeloTrilha (versão) ──1:N──► ModeloEtapa ──1:N──► ModeloMicroEtapa
+   ▲                              ▲                            │
+   └──1:N── CategoriaProcesso      └── retrato ── Processo        │
+                                                    │           │
+Cliente ──1:N──► Processo ──1:N──► CertificacaoProcesso ──N:1─────┘
+                    │                      ├──1:N──► MicroEtapaCertificacao (checklist)
                     │                      ├──1:N──► CertificacaoHistorico ──1:N──► DocumentoCertificacao
                     │                      └──1:N──► NaoConformidade
                     ├──1:N──► Certificado
                     └──1:N──► Pagamento
 ```
 
-Cada **categoria** define a própria trilha de certificação, **versionada**: um processo se
-vincula à versão vigente no momento da submissão e continua sendo avaliado por ela mesmo
-que a categoria publique uma versão nova depois. Ao cadastrar um **Processo**, a API abre
-uma linha de `CertificacaoProcesso` (status `PENDENTE`) para cada etapa dessa versão, dentro
-de uma transação.
+A **trilha** é um cadastro de catálogo, **versionado**, que várias categorias podem
+seguir: a categoria aponta para a trilha (família) e o processo, para a **versão vigente
+no momento da submissão** — e continua sendo avaliado por ela mesmo que a trilha publique
+uma versão nova depois. Ao cadastrar um **Processo**, a API abre uma linha de
+`CertificacaoProcesso` (status `PENDENTE`) para cada etapa dessa versão, com a cópia do
+checklist, dentro de uma transação.
+
+A equipe acompanha os processos também pelo **quadro** (`/processos/quadro`), em colunas
+por fase. A fase é derivada da etapa atual, nunca gravada; arrastar um cartão escreve
+etapa, não posição.
 
 A partir daí: etapas recebem evidências (obrigatórias quando o modelo exige), reprovações
 podem abrir **não conformidades** que o cliente responde e a equipe avalia, e a aprovação de
@@ -305,8 +340,8 @@ validade por categoria e PDF).
 ## Rotinas automáticas
 
 Todo dia às **03:00**, a API marca como `VENCIDO` os certificados fora da validade. Ligada
-por padrão; rodando a API em mais de uma instância, deixe `EXPIRACAO_CRON_ATIVA=true` em
-exatamente uma.
+por padrão — é o que roda no VPS, onde a API é um processo contínuo (`systemd`); rodando a
+API em mais de uma instância, deixe `EXPIRACAO_CRON_ATIVA=true` em exatamente uma.
 
 **Em serverless nada disso roda** — o timer nasce no boot e morre com a instância, sem
 chegar às 03:00. É por isso que na Vercel a variável fica `false` e quem acorda a rotina é
@@ -323,6 +358,8 @@ Detalhes e o porquê da escolha em `DOCUMENTACAO.md` §9 e `DEPLOY.md` §4.
   API, decisões de projeto, problemas conhecidos e postura de segurança.
 - **[MIGRACAO.md](./MIGRACAO.md)** — mapeamento arquivo PHP → módulo atual e bugs do legado
   corrigidos.
+- **[DEPLOY.md](./DEPLOY.md)** — publicação: Vercel + Supabase (I), FTP do legado (II) e
+  VPS Locaweb com CD a partir de `prod` (III).
 - **[LICENSE](./LICENSE)** — licença de uso.
 - **[THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)** — inventário das licenças de
   terceiros e dos materiais que não pertencem à Single Future.
