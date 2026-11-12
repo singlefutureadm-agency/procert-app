@@ -230,7 +230,7 @@ Dois jobs independentes:
 
 | Job | O que roda |
 |---|---|
-| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 434 unitários → 144 e2e |
+| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 439 unitários → 144 e2e |
 | **Frontend** | `npm ci` → `lint:ci` → `npm test` (129) → `build` (o `tsc -b` é o type-check) |
 
 Um terceiro workflow, `.github/workflows/cd-vps.yml`, **não** é check de PR: roda depois
@@ -260,7 +260,7 @@ cd frontend && npm run lint:ci && npm test && npm run build
 testes do #24, e ficar de fora daqui era deixar passar localmente o que o CI reprova.
 Descobrir a falha aqui custa segundos; descobrir no CI custa um ciclo de push.
 
-Medido em 12/11/2026, no CI verde de `main`: backend **434 unitários em 23 suítes** e
+Medido em 12/11/2026, no CI verde de `main`: backend **439 unitários em 24 suítes** e
 **144 e2e em 6 suítes**; frontend **137 testes em 14 arquivos**.
 
 ### Fluxo de contribuição

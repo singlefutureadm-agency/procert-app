@@ -7,6 +7,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { JANELAS } from './common/limites';
 
 import { AparenciaModule } from './modules/aparencia/aparencia.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -29,7 +30,8 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, cache: true }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    // Janelas por IP (minuto e hora) e por conta-alvo: ver common/limites.ts.
+    ThrottlerModule.forRoot(JANELAS),
     // Rotinas agendadas em processo. Hoje só a expiração de certificados
     // (modules/certificados/expiracao.cron.ts) — ver DOCUMENTACAO.md §9.
     ScheduleModule.forRoot(),

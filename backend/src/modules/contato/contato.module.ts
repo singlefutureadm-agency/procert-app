@@ -23,8 +23,9 @@ import {
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginacaoDto, paginar } from '../../common/dto/paginacao.dto';
+import { LIMITES } from '../../common/limites';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MailService } from '../mail/mail.service';
+import { NotificacoesService } from '../mail/notificacoes.service';
 
 class CriarMensagemContatoDto {
   @ApiProperty()
@@ -67,21 +68,19 @@ class CriarMensagemContatoDto {
 class ContatoController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mail: MailService,
+    private readonly notificacoes: NotificacoesService,
   ) {}
 
   @Public()
   @Post()
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle(LIMITES.contato)
   @ApiOperation({ summary: 'Recebe uma mensagem do site institucional' })
   async criar(@Body() dto: CriarMensagemContatoDto) {
     const registro = await this.prisma.mensagemContato.create({ data: dto });
 
-    await this.mail.enviar(
+    await this.notificacoes.contatoRecebido(
       process.env.MAIL_USER ?? 'procertocp@gmail.com',
-      `[Site] ${dto.assunto}`,
-      `<p><strong>${dto.nome}</strong> (${dto.email}${dto.telefone ? ` · ${dto.telefone}` : ''}) escreveu:</p>
-       <p>${dto.mensagem.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`,
+      dto,
     );
 
     return {
