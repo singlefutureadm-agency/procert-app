@@ -2,9 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '@/auth/useAuth';
-import { useTema } from '@/features/aparencia/useTema';
-import { urlArquivo } from '@/lib/arquivos';
-import { logoDoTema } from '@/lib/tema';
 import { DOCUMENTOS, EMPRESA, NAVEGACAO } from '../conteudo';
 import { LinkDocumento } from '../LinkDocumento';
 import { useRolagem } from '../hooks';
@@ -17,7 +14,6 @@ import { useRolagem } from '../hooks';
 export function CabecalhoSite() {
   const rolou = useRolagem(80);
   const { autenticado } = useAuth();
-  const { aparencia } = useTema();
   const [menuAberto, setMenuAberto] = useState(false);
   const [linksAbertos, setLinksAbertos] = useState(false);
   const botaoLinks = useRef<HTMLButtonElement>(null);
@@ -43,15 +39,11 @@ export function CabecalhoSite() {
               Sem o texto ao lado, a imagem passa a ser o nome acessível
               da marca — por isso `alt` preenchido em vez de decorativa.
 
-              A logo enviada em /dashboard/aparencia substitui esta. Pede-se
-              sempre a variante do tema ESCURO, e não a do modo em que o
-              usuário está: aqui o cabeçalho é transparente sobre um hero que
-              é escuro nos dois modos, então quem manda no contraste é o fundo
-              da seção, não o tema do painel. */}
-          <img
-            src={urlArquivo(logoDoTema(aparencia, 'ESCURO'), '/img/logo-branco.png')}
-            alt={EMPRESA.nome}
-          />
+              Fixa, de propósito: a logo enviada em /dashboard/aparencia é a
+              do painel e não substitui mais esta (decisão de 12/11/2026). O
+              cabeçalho é transparente sobre um hero escuro, e uma logo do
+              painel sem versão branca sumia ali. */}
+          <img src="/img/logo-branco.webp" alt={EMPRESA.nome} width={488} height={174} />
         </Link>
 
         <nav
