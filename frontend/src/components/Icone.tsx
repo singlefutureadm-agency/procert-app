@@ -62,7 +62,8 @@ export type NomeIcone =
   | 'copiar'
   | 'interrogacao'
   | 'lista'
-  | 'quadro';
+  | 'quadro'
+  | 'link-externo';
 
 /*
  * Todos os desenhos vivem na mesma grade 24×24 e são só traço: nenhum usa
@@ -306,6 +307,14 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
     <>
       <rect x="9" y="9" width="12" height="12" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
+  /* Abrir em nova aba: seta saindo da moldura. */
+  'link-externo': (
+    <>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
     </>
   ),
   download: (

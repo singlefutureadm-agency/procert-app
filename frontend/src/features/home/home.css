@@ -2120,3 +2120,19 @@ body.tema-institucional {
     transform: none;
   }
 }
+
+/* ---------------------- Visualizador de PDF (Links Úteis) ---------------------
+ * O modal é o `Modal` do painel, montado por portal no <body> — fora de `.home`.
+ * Aqui ele só ajusta o que o site muda no <body>: acima do cabeçalho (997–999)
+ * e do botão de WhatsApp, e com a fonte e a cor do painel, porque o
+ * `body.tema-institucional` traz texto #444 sobre o vidro escuro e uma fonte
+ * que só existe dentro de `.home`.
+ */
+body.tema-institucional .modal-fundo {
+  z-index: 1000;
+}
+
+body.tema-institucional .modal {
+  font-family: var(--fonte);
+  color: var(--texto);
+}

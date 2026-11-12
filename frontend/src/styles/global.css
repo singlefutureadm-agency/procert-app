@@ -1782,6 +1782,54 @@ fieldset.secao-form legend {
   overflow-y: auto;
 }
 
+/*
+ * Visualizador de PDF (Links Úteis do site). Quase a janela inteira: uma página
+ * A4 em 520px fica ilegível sem zoom. Sem rolagem própria — quem rola é o
+ * leitor de PDF do navegador, dentro do iframe; duas barras empilhadas
+ * disputariam a roda do mouse.
+ */
+.modal--documento {
+  width: min(1080px, 100%);
+  height: calc(100vh - 40px);
+  max-height: none;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: var(--espaco-5);
+}
+
+.visualizador-pdf {
+  position: relative;
+  border-radius: var(--raio-xs);
+  overflow: hidden;
+  /* Superfície do próprio tema enquanto o leitor do navegador não pinta. */
+  background: var(--vidro-fundo-forte);
+  border: 1px solid var(--vidro-borda);
+}
+
+.visualizador-pdf iframe {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.visualizador-pdf__carregando {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.visualizador-pdf__acoes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--espaco-3);
+}
+
 .modal__cabecalho {
   display: flex;
   align-items: flex-start;
