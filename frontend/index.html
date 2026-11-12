@@ -28,7 +28,11 @@
         var preloadHero = document.createElement('link');
         preloadHero.rel = 'preload';
         preloadHero.as = 'image';
-        preloadHero.href = '/img/hero-bg.jpg';
+        preloadHero.href = '/img/hero-bg.webp';
+        // Mesmo srcset/sizes do <img> em secoes/Hero.tsx: no celular vem a de
+        // 960px (44 KB) em vez da de 1920px.
+        preloadHero.setAttribute('imagesrcset', '/img/hero-bg-960.webp 960w, /img/hero-bg.webp 1920w');
+        preloadHero.setAttribute('imagesizes', '100vw');
         preloadHero.setAttribute('fetchpriority', 'high');
         document.head.appendChild(preloadHero);
       }

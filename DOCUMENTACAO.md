@@ -1680,7 +1680,7 @@ código. Contagens de teste **remedidas em 12/11/2026** no log do CI verde de `m
 | **`npm test` (backend)** | ✅ **434 testes, 23 suítes** |
 | **`npm run test:e2e` (backend)** | ✅ **144 testes, 6 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
-| Testes no frontend | ✅ **129 testes, 12 arquivos** (ver abaixo) |
+| Testes no frontend | ✅ **132 testes, 13 arquivos** (ver abaixo) |
 | Validação funcional manual | ✅ mantida a cada incremento |
 
 ### Cobertura dos services alvo
@@ -1795,7 +1795,7 @@ pior que nenhum gate: dá confiança sem dar proteção.
 
 ### Testes do frontend
 
-**129 testes, 12 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
+**132 testes, 13 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
 `npm test` no job do frontend, antes do build.
 
 O critério de escolha foi **"quebra em silêncio?"**. Nada do que está coberto lança
@@ -2131,7 +2131,8 @@ exceção. Efeito prático: a operação de domínio concluía e **o cliente sim
 recebia o aviso**, sem nada na tela indicando isso.
 
 A correção veio junto da extração do `NotificacoesService`, e é onde ela tinha de estar:
-todo assunto passa por `assuntoLimpo()`, que colapsa `` e `
+todo assunto passa por `assuntoLimpo()`, que colapsa `
+` e `
 ` em espaço. Como agora há
 um único ponto que monta assunto, o saneamento vale para os eventos futuros sem que
 ninguém precise lembrar dele.
@@ -2165,8 +2166,8 @@ As imagens vieram do legado sem reprocessamento e algumas são grandes para uso 
 `depoimentos-bg.png` tinha **2,4 MB** — dois terços do peso de imagens do site — e deixou
 de ser carregado em `841a6b7`: ficava sob um overlay de 70%, então foi trocado por dois
 gradientes radiais. O arquivo permanece em `public/img/` sem referência, à espera de
-reprocessamento para WebP ou remoção. `cta-bg.jpg` (332 KB) e `hero-bg.jpg` (218 KB)
-seguem como estão. Todas carregam com
+reprocessamento para WebP ou remoção. As demais foram convertidas para WebP e
+redimensionadas em 12/11/2026 (hero 218→131 KB, com variante de 960px; CTA 332→98 KB). Todas carregam com
 `loading="lazy"` (exceto o hero, que usa `fetchPriority="high"`), mas o certo é converter
 para WebP/AVIF e redimensionar — provavelmente 90% de redução sem perda perceptível.
 
@@ -2537,7 +2538,7 @@ depois é `certbot --nginx`), SMTP (`MAIL_USER`/`MAIL_PASS` vazios: e-mail só v
 e **backup agendado do banco** — hoje uma falha de disco perde os dados do VPS. *Gatilho:
 antes de o VPS virar o endereço que os clientes usam.* Ver `DEPLOY.md`, Parte III §4.
 
-**2. ~~Teste no frontend~~ — FEITO.** Hoje são 129 testes cobrindo o que quebra em silêncio, e
+**2. ~~Teste no frontend~~ — FEITO.** Hoje são 132 testes cobrindo o que quebra em silêncio, e
 `npm test` no job do frontend do CI. Ver §14 para o critério de escolha e a lista.
 
 O que sobrou de propósito: **teste de página inteira**. Exigiria router, provider de query,
@@ -2568,8 +2569,8 @@ não veja a carteira de outro.*
 
 **5. Otimizar as imagens da home.** O pior caso saiu do caminho em `841a6b7`:
 `depoimentos-bg.png` (2,4 MB) virou gradiente CSS e segue em `public/img/` **sem
-referência** — reprocessar ou apagar é decisão em aberto. `cta-bg.jpg` (332 KB) e
-`hero-bg.jpg` (218 KB) seguem como estão; WebP/AVIF redimensionado deve cortar a maior parte. O `bootstrap-icons.css`
+referência** — reprocessar ou apagar é decisão em aberto. As outras foram para WebP em
+12/11/2026. O `bootstrap-icons.css`
 completo (~106 KB de fonte) é carregado por ~28 ícones — cabe um subset. *Gatilho: medição
 de Core Web Vitals do site público, ou reclamação de carregamento em conexão móvel.*
 

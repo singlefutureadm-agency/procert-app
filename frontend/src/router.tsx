@@ -2,16 +2,16 @@ import { lazy } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 
 import { RotaProtegida } from '@/auth/RotaProtegida';
-import { HomePage } from '@/features/home/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ROTA_NAO_ENCONTRADA, ROTAS_PUBLICAS } from '@/rotas-publicas';
 
 /**
  * Rotas da aplicação.
  *
- * **Carregamento sob demanda.** Só a home e o login entram no pacote inicial:
- * são as duas portas de entrada, e fazê-las esperar um segundo pedaço de código
- * atrasaria justamente a primeira tela que o visitante vê. Todo o resto é
- * `lazy`, baixado quando a rota é aberta.
+ * **Carregamento sob demanda.** Só o site institucional (`rotas-publicas.tsx`)
+ * e o login entram no pacote inicial: são as portas de entrada, e as páginas do
+ * site chegam pré-renderizadas — com `lazy`, o primeiro render as trocaria pelo
+ * spinner. Todo o resto é `lazy`, baixado quando a rota é aberta.
  *
  * O motivo é medido, não estético: o pacote inicial tinha 512 KB porque levava
  * junto o painel inteiro — dashboard, certificações, processos, clientes,
@@ -80,33 +80,6 @@ function pagina<T>(carregando: Promise<T>): Promise<T> {
   );
 }
 
-// --- Site institucional ---------------------------------------------------
-const SobrePage = lazy(() =>
-  pagina(
-    import('@/features/home/SobrePage').then((m) => ({ default: m.SobrePage })),
-  ),
-);
-const ServicosPage = lazy(() =>
-  pagina(
-    import('@/features/home/ServicosPage').then((m) => ({ default: m.ServicosPage })),
-  ),
-);
-const ContatoPage = lazy(() =>
-  pagina(
-    import('@/features/home/ContatoPage').then((m) => ({ default: m.ContatoPage })),
-  ),
-);
-const TermosDeUsoPage = lazy(() =>
-  pagina(
-    import('@/features/home/TermosDeUsoPage').then((m) => ({ default: m.TermosDeUsoPage })),
-  ),
-);
-const PoliticaPrivacidadePage = lazy(() =>
-  pagina(
-    import('@/features/home/PoliticaPrivacidadePage').then((m) => ({ default: m.PoliticaPrivacidadePage })),
-  ),
-);
-
 // --- Autenticação e erro --------------------------------------------------
 const EsqueciSenhaPage = lazy(() =>
   pagina(
@@ -123,12 +96,6 @@ const SemPermissaoPage = lazy(() =>
     import('@/pages/SemPermissaoPage').then((m) => ({ default: m.SemPermissaoPage })),
   ),
 );
-const NaoEncontradaPage = lazy(() =>
-  pagina(
-    import('@/pages/NaoEncontradaPage').then((m) => ({ default: m.NaoEncontradaPage })),
-  ),
-);
-
 // --- Painel ---------------------------------------------------------------
 // O layout entra aqui junto das páginas: ele carrega a Sidebar e o conjunto de
 // ícones do painel, que não têm uso nenhum para quem só abriu o site.
@@ -251,22 +218,9 @@ const AparenciaPage = lazy(() =>
 const EQUIPE = ['ADMIN', 'FUNCIONARIO'] as const;
 
 export const router = createBrowserRouter([
-  // Site institucional público — porta de entrada da plataforma.
-  { path: '/', element: <HomePage /> },
-
-  // Páginas institucionais. Cada uma existe como URL própria — e não como
-  // âncora da home — para disputar o próprio conjunto de termos de busca, com
-  // título, descrição e dados estruturados próprios. Os caminhos são a fonte
-  // única de PAGINAS (features/home/conteudo-paginas.ts), que alimenta o menu
-  // e o rodapé; ao acrescentar rota pública, atualize também public/sitemap.xml.
-  { path: '/sobre', element: <SobrePage /> },
-  { path: '/servicos', element: <ServicosPage /> },
-  { path: '/contato', element: <ContatoPage /> },
-
-  // Documentos legais: públicos e linkados no rodapé do site. Os caminhos são
-  // a fonte única de PAGINAS_LEGAIS (features/home/conteudo-legal.ts).
-  { path: '/termos-de-uso', element: <TermosDeUsoPage /> },
-  { path: '/politica-de-privacidade', element: <PoliticaPrivacidadePage /> },
+  // Site institucional público: home, páginas e documentos legais. Os
+  // caminhos são a fonte única de PAGINAS/PAGINAS_LEGAIS; ver rotas-publicas.tsx.
+  ...ROTAS_PUBLICAS,
 
   { path: '/login', element: <LoginPage /> },
   { path: '/esqueci-senha', element: <EsqueciSenhaPage /> },
@@ -469,5 +423,5 @@ export const router = createBrowserRouter([
     ],
   },
 
-  { path: '*', element: <NaoEncontradaPage /> },
+  ROTA_NAO_ENCONTRADA,
 ]);

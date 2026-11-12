@@ -1,5 +1,25 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)", "destination": "/app.html" },
+    { "source": "/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)/(.*)", "destination": "/app.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/img/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/documentos/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+    }
+  ]
 }
