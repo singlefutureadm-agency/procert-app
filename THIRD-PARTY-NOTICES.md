@@ -127,7 +127,7 @@ Titularidade do cliente, não da Single Future:
 - `frontend/public/documentos/*.pdf` — dez documentos públicos do OCP (manual da
   qualidade, procedimentos P.PROCERT, política de imparcialidade, concessão e
   manutenção, entre outros);
-- `frontend/public/img/logo.png`, `logo-branco.png`, `favicon.png`,
+- `frontend/public/img/logo.png`, `logo-branco.webp`, `favicon.png`,
   `apple-touch-icon.png` — marca;
 - os textos institucionais de `features/home/conteudo.ts` e
   `conteudo-paginas.ts`, mantidos do legado palavra por palavra.

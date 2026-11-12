@@ -13,7 +13,7 @@ export function RodapeSite() {
         <div className="home__container home__rodape-grade">
           <div>
             <Link to="/" className="home__rodape-marca" aria-label="ProCert — página inicial">
-              <img src="/img/logo-branco.png" alt="" aria-hidden width={942} height={336} />
+              <img src="/img/logo-branco.webp" alt="" aria-hidden width={488} height={174} />
             </Link>
 
             <div style={{ paddingTop: 12 }}>
