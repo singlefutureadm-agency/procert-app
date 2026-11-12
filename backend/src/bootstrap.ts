@@ -39,6 +39,22 @@ export function configurarApp(app: NestExpressApplication): void {
   validarSegredosDeProducao(config);
   avisarAmbienteIncompleto(config);
 
+  /*
+   * IP real do cliente para o rate limit (common/limites.ts). Sem isto o
+   * Express devolve o IP do socket — atrás do nginx, o do próprio nginx — e
+   * todos os visitantes dividem um balde só: 10 tentativas de login de um robô
+   * travavam o login de todo mundo por um minuto.
+   *
+   * Confia só no salto local (o nginx da mesma máquina ou da rede do Docker),
+   * nunca em `true`: com `true` o primeiro valor do X-Forwarded-For vence, e
+   * ele é escrito pelo cliente — trocar de IP a cada tentativa bastaria para
+   * fugir de qualquer limite. Do nginx para trás, quem diz o IP real é o
+   * `real_ip_header CF-Connecting-IP` restrito às faixas do Cloudflare
+   * (DEPLOY.md, Parte III §1.2).
+   */
+  const confiarProxy = config.get<string>('TRUST_PROXY', 'loopback, uniquelocal');
+  app.set('trust proxy', confiarProxy === 'false' ? false : confiarProxy);
+
   app.setGlobalPrefix(prefix);
 
   // Cabeçalhos de segurança (o legado não tinha nenhum).
