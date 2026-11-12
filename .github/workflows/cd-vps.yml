@@ -9,6 +9,10 @@
 # o VPS — mesma glibc e mesmo OpenSSL 3, então os binários nativos do
 # node_modules (engines do Prisma, bcrypt) servem lá sem recompilar.
 #
+# O envio é rsync incremental para /opt/procert/staging: cada deploy manda só o
+# que mudou. Pacote inteiro não passa — a rede até o VPS corta transferência
+# longa e depois bloqueia o IP de origem (medido em 12/11/2026).
+#
 # Do lado do servidor quem age é `deploy/vps/procert-deploy.sh`, comando forçado
 # da chave: ela não abre shell. Segredos (Settings → Secrets → Actions):
 #   VPS_HOST      IP do servidor — fora do repositório, que é público
@@ -78,14 +82,14 @@ jobs:
           npm ci
           npm run build
 
-      - name: Empacotar
+      # Mesma forma do diretório de preparação no servidor: release/backend e
+      # release/dist.
+      - name: Montar a versão
         run: |
-          tar czf release.tgz \
-            --exclude=backend/src --exclude=backend/test --exclude=backend/.env \
-            backend -C frontend dist
-          split -b 5M -d -a 3 release.tgz release.tgz.
-          echo "SHA_PACOTE=$(sha256sum release.tgz | cut -d' ' -f1)" >> "$GITHUB_ENV"
-          ls -la release.tgz release.tgz.*
+          mkdir -p release
+          rsync -a --exclude=/src --exclude=/test --exclude=/.env backend/ release/backend/
+          rsync -a frontend/dist/ release/dist/
+          du -sh release
 
       # A linha do known_hosts é remontada aqui: do secret só se aproveitam o
       # tipo e a chave, e o host vem de VPS_HOST. Colado pela interface, o
@@ -115,25 +119,25 @@ jobs:
         env:
           COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          remoto() {
-            ssh -i ~/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=20 \
-                -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes \
-                "root@$VPS" "$@"
+          SSH="ssh -i $HOME/.ssh/deploy -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o StrictHostKeyChecking=yes"
+          # Só o que mudou desde o deploy anterior, numa conexão. Cortada no
+          # meio, a próxima tentativa retoma (--partial). O intervalo longo é de
+          # propósito: depois de um corte a rede da Locaweb recusa o IP de
+          # origem por alguns minutos, e tentar antes só prolonga o bloqueio.
+          # COMMIT vai por último, num segundo rsync: é o sinal, para o
+          # servidor, de que a sincronização terminou inteira.
+          sincronizar() {
+            rsync -az --delete --partial --stats -e "$SSH" release/ "root@$VPS:" &&
+            echo "$COMMIT" > COMMIT &&
+            rsync -a -e "$SSH" COMMIT "root@$VPS:COMMIT"
           }
-          # Cada parte com até 8 tentativas: a rede até o VPS corta conexões
-          # longas, e o servidor confirma o tamanho gravado.
-          remoto limpa
-          for parte in release.tgz.[0-9][0-9][0-9]; do
-            esperado=$(stat -c %s "$parte")
-            for tentativa in 1 2 3 4 5 6 7 8; do
-              gravado=$(remoto recebe "$parte" < "$parte" || true)
-              [ "$gravado" = "$esperado" ] && break
-              echo "parte $parte: tentativa $tentativa falhou, nova tentativa em 15 s"
-              sleep 15
-            done
-            [ "$gravado" = "$esperado" ] || { echo "falha ao enviar $parte"; exit 1; }
+          for tentativa in 1 2 3 4 5 6; do
+            sincronizar && break
+            [ "$tentativa" = 6 ] && { echo "rsync falhou 6 vezes"; exit 1; }
+            echo "rsync: tentativa $tentativa falhou, nova tentativa em 120 s"
+            sleep 120
           done
-          remoto instala "$SHA_PACOTE" "$COMMIT"
+          $SSH "root@$VPS" instala "$COMMIT"
 
       - name: Remover a chave do runner
         if: always()

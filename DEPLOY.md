@@ -544,10 +544,14 @@ verde, o workflow **CD VPS** (`.github/workflows/cd-vps.yml`):
 
 1. faz o build de backend e frontend **no runner** — o VPS não consegue baixar
    do npm (≈46 KB/s com timeout);
-2. empacota, divide em partes de 5 MB e envia cada uma com nova tentativa — a
-   rede até o VPS corta conexões longas;
-3. pede ao servidor para instalar: confere o sha256, aplica as migrations, troca
-   as versões, reinicia e espera o `/api/health` responder `"banco":"ok"`.
+2. sincroniza a versão por **rsync** com `/opt/procert/staging`, que persiste
+   entre deploys — vai só o que mudou, numa conexão retomável. Pacote inteiro
+   não passa: a rede até o VPS corta transferência longa e logo depois bloqueia
+   o IP de origem por alguns minutos (por isso as tentativas esperam 120 s). O
+   arquivo `COMMIT` vai por último e marca que a sincronização terminou;
+3. pede ao servidor para instalar: confere o `COMMIT`, copia o staging para uma
+   versão nova, aplica as migrations, troca as versões, reinicia e espera o
+   `/api/health` responder `"banco":"ok"`.
    **Sem resposta em 60 s, volta sozinho para a versão anterior.**
 
 Republicar sem commit novo: Actions → CD VPS → *Run workflow* na branch `prod`.
@@ -565,14 +569,13 @@ O lado do servidor é `deploy/vps/procert-deploy.sh`, instalado em
 restrict,command="/usr/local/bin/procert-deploy" ssh-ed25519 AAAA... procert-cd
 ```
 
-Quem tiver a chave privada não abre shell: só consegue `limpa`, `recebe` uma
-parte com nome validado e `instala`. O workflow **não** atualiza esse script —
+Quem tiver a chave privada não abre shell: só consegue escrever dentro de
+`/opt/procert/staging` (via `rrsync -wo`) e chamar `instala <commit>`. O workflow **não** atualiza esse script —
 uma chave capaz de reescrever o próprio comando forçado valeria tanto quanto
 uma de root. Mudou o script? Reinstale à mão:
 
 ```bash
-tr -d '
-' < deploy/vps/procert-deploy.sh | ssh root@<ip> "cat > /tmp/p && install -m 0755 /tmp/p /usr/local/bin/procert-deploy && rm /tmp/p"
+tr -d '\r' < deploy/vps/procert-deploy.sh | ssh root@<ip> "cat > /tmp/p && install -m 0755 /tmp/p /usr/local/bin/procert-deploy && rm /tmp/p"
 ```
 
 Secrets do repositório (Settings → Secrets and variables → Actions):
