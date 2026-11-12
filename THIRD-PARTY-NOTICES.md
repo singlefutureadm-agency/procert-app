@@ -137,10 +137,12 @@ sobre esse conteúdo, o que é coerente com esta seção.
 
 ### 3.3 Imagens de demonstração
 
-`frontend/public/img/` — `hero-bg.jpg`, `about.jpg`, `services.jpg`,
-`cta-bg.jpg`, `stats-img.jpg`, `depoimentos-bg.png` e `depoimentos/*.jpg`.
+`frontend/public/img/` — `hero-bg.webp` (e `hero-bg-960.webp`), `about.webp`,
+`services.webp`, `cta-bg.webp`, `stats-img.webp`, `depoimentos-bg.png`,
+`depoimentos/*.webp` e `compartilhamento.png` (composta sobre o fundo do hero). Os
+`.jpg` originais foram convertidos para WebP em 12/11/2026, sem mudar a procedência.
 
-Vieram do legado sem reprocessamento e **sem registro de procedência**. As cinco
+Vieram do legado **sem registro de procedência**. As cinco
 fotos de depoimento retratam pessoas e trazem metadados XMP da Adobe, padrão de
 banco de imagens. Não há nota fiscal, licença ou termo de cessão no repositório
 que ampare a redistribuição de nenhuma delas. Ver §4.

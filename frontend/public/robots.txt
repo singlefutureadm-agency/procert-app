@@ -21,6 +21,10 @@ Disallow: /processos
 Disallow: /clientes
 Disallow: /categorias
 Disallow: /equipe
+Disallow: /trilhas
+Disallow: /relatorios
+# Shell do painel servido às rotas acima (ver scripts/prerender.mjs).
+Disallow: /app.html
 
 # Os PDFs institucionais são conteúdo público de propósito (manual da qualidade,
 # política de imparcialidade) e rankeiam por conta própria.
@@ -31,4 +35,4 @@ Allow: /documentos/
 # entre no índice: são arquivos de cliente, não conteúdo de marketing.
 Disallow: /uploads/
 
-Sitemap: https://procert-app.vercel.app/sitemap.xml
+Sitemap: https://www.procertocp.com.br/sitemap.xml

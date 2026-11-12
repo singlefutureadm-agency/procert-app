@@ -14,20 +14,24 @@ import { useEffect } from 'react';
  * traria um provider a mais na árvore para resolver um problema que o DOM já
  * resolve.
  *
- * **Limite conhecido:** isto roda no cliente. O Googlebot renderiza JS e lê o
- * resultado, mas crawlers que não executam JS — e as prévias de link do
- * WhatsApp, LinkedIn e X — leem o HTML servido, onde só existe o
- * `<div id="root">` vazio. Fechar isso exige pré-renderizar as rotas no build
- * (SSG); ver o comentário ao final deste arquivo.
+ * **Pré-render.** Crawlers que não executam JS — as prévias de link do
+ * WhatsApp, LinkedIn e X, e a maior parte dos robôs de IA — leem só o HTML
+ * servido. Por isso as rotas públicas são renderizadas no build
+ * (`src/prerender.tsx` + `scripts/prerender.mjs`): `useSeo` entrega os dados a
+ * `seoColetado` durante a renderização no servidor, e `htmlDoSeo` escreve no
+ * `<head>` do arquivo as mesmas tags que `aplicarSeo` escreve no DOM — as duas
+ * saem de `tagsDoSeo`, para não divergirem.
  */
 
 /**
  * Origem pública do site, usada em canonical e Open Graph — que exigem URL
- * absoluta. Configurável porque o domínio definitivo (procertocp.com.br) ainda
- * não aponta para cá.
+ * absoluta. É o domínio definitivo, definido pelo cliente em 12/11/2026, e vale
+ * também em QA e na Vercel: o canonical apontando para ele é o que impede uma
+ * URL de homologação de disputar a busca com o site. `VITE_SITE_URL`
+ * sobrescreve, para um ambiente que precise se declarar canônico.
  */
 export const URL_SITE = (
-  import.meta.env.VITE_SITE_URL ?? 'https://procert-app.vercel.app'
+  import.meta.env.VITE_SITE_URL || 'https://www.procertocp.com.br'
 ).replace(/\/$/, '');
 
 export interface DadosSeo {
@@ -41,34 +45,64 @@ export interface DadosSeo {
   dadosEstruturados?: Record<string, unknown> | Array<Record<string, unknown>>;
 }
 
-const IMAGEM_PADRAO = '/img/logo.png';
+/** 1200×630, a proporção que WhatsApp, LinkedIn e X esperam. A logo pura saía
+ *  recortada num quadrado, ou miúda no meio de um card largo. */
+const IMAGEM_PADRAO = '/img/compartilhamento.png';
 const NOME_SITE = 'ProCert';
 
 /** Marca as tags que este módulo gerencia, para poder substituí-las sem tocar
  *  nas que vieram do index.html. */
 const MARCA = 'data-seo';
+const ID_JSONLD = 'seo-jsonld';
 
-function definirMeta(seletor: string, atributos: Record<string, string>): void {
-  let tag = document.head.querySelector<HTMLMetaElement>(seletor);
-  if (!tag) {
-    tag = document.createElement('meta');
-    tag.setAttribute(MARCA, '');
-    document.head.appendChild(tag);
-  }
-  for (const [chave, valor] of Object.entries(atributos)) {
-    tag.setAttribute(chave, valor);
-  }
+interface TagsSeo {
+  titulo: string;
+  canonical: string;
+  /** Atributos de cada `<meta>`; `name` ou `property` identifica a tag. */
+  metas: Array<Record<string, string>>;
+  jsonld?: string;
 }
 
-function definirLink(rel: string, href: string): void {
-  let tag = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
-  if (!tag) {
-    tag = document.createElement('link');
-    tag.rel = rel;
-    tag.setAttribute(MARCA, '');
-    document.head.appendChild(tag);
-  }
-  tag.href = href;
+/** Fonte única do que vai no `<head>` — usada pelo DOM e pelo pré-render. */
+export function tagsDoSeo({
+  titulo,
+  descricao,
+  caminho,
+  imagem = IMAGEM_PADRAO,
+  dadosEstruturados,
+}: DadosSeo): TagsSeo {
+  const url = `${URL_SITE}${caminho}`;
+  const urlImagem = `${URL_SITE}${imagem}`;
+
+  return {
+    titulo,
+    canonical: url,
+    metas: [
+      { name: 'description', content: descricao },
+      { property: 'og:title', content: titulo },
+      { property: 'og:description', content: descricao },
+      { property: 'og:url', content: url },
+      { property: 'og:type', content: 'website' },
+      { property: 'og:image', content: urlImagem },
+      { property: 'og:image:width', content: '1200' },
+      { property: 'og:image:height', content: '630' },
+      { property: 'og:site_name', content: NOME_SITE },
+      { property: 'og:locale', content: 'pt_BR' },
+      // summary_large_image e não summary: a imagem é larga, e no card pequeno
+      // ela sairia recortada num quadrado.
+      { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'twitter:title', content: titulo },
+      { name: 'twitter:description', content: descricao },
+      { name: 'twitter:image', content: urlImagem },
+    ],
+    jsonld: dadosEstruturados ? JSON.stringify(dadosEstruturados) : undefined,
+  };
+}
+
+function seletorDaMeta(atributos: Record<string, string>): string {
+  return atributos.name
+    ? `meta[name="${atributos.name}"]`
+    : `meta[property="${atributos.property}"]`;
 }
 
 /**
@@ -79,71 +113,79 @@ function definirLink(rel: string, href: string): void {
  * de uma rota e a entrada da outra, e é exatamente esse intervalo que um
  * crawler pode amostrar.
  */
-export function aplicarSeo({
-  titulo,
-  descricao,
-  caminho,
-  imagem = IMAGEM_PADRAO,
-  dadosEstruturados,
-}: DadosSeo): void {
-  const url = `${URL_SITE}${caminho}`;
-  const urlImagem = `${URL_SITE}${imagem}`;
+export function aplicarSeo(dados: DadosSeo): void {
+  const tags = tagsDoSeo(dados);
+  document.title = tags.titulo;
 
-  document.title = titulo;
+  for (const atributos of tags.metas) {
+    let tag = document.head.querySelector<HTMLMetaElement>(seletorDaMeta(atributos));
+    if (!tag) {
+      tag = document.createElement('meta');
+      tag.setAttribute(MARCA, '');
+      document.head.appendChild(tag);
+    }
+    for (const [chave, valor] of Object.entries(atributos)) tag.setAttribute(chave, valor);
+  }
 
-  definirMeta('meta[name="description"]', { name: 'description', content: descricao });
-  definirLink('canonical', url);
+  let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!canonical) {
+    canonical = document.createElement('link');
+    canonical.rel = 'canonical';
+    canonical.setAttribute(MARCA, '');
+    document.head.appendChild(canonical);
+  }
+  canonical.href = tags.canonical;
 
-  definirMeta('meta[property="og:title"]', { property: 'og:title', content: titulo });
-  definirMeta('meta[property="og:description"]', {
-    property: 'og:description',
-    content: descricao,
-  });
-  definirMeta('meta[property="og:url"]', { property: 'og:url', content: url });
-  definirMeta('meta[property="og:type"]', { property: 'og:type', content: 'website' });
-  definirMeta('meta[property="og:image"]', { property: 'og:image', content: urlImagem });
-  definirMeta('meta[property="og:site_name"]', {
-    property: 'og:site_name',
-    content: NOME_SITE,
-  });
-  definirMeta('meta[property="og:locale"]', {
-    property: 'og:locale',
-    content: 'pt_BR',
-  });
-
-  // summary_large_image e não summary: a imagem é a marca sobre fundo largo, e
-  // no card pequeno ela sairia recortada num quadrado.
-  definirMeta('meta[name="twitter:card"]', {
-    name: 'twitter:card',
-    content: 'summary_large_image',
-  });
-  definirMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: titulo });
-  definirMeta('meta[name="twitter:description"]', {
-    name: 'twitter:description',
-    content: descricao,
-  });
-  definirMeta('meta[name="twitter:image"]', {
-    name: 'twitter:image',
-    content: urlImagem,
-  });
-
-  aplicarDadosEstruturados(dadosEstruturados);
+  // Substitui o bloco JSON-LD — inclusive o que veio pré-renderizado no HTML.
+  document.getElementById(ID_JSONLD)?.remove();
+  if (tags.jsonld) {
+    const script = document.createElement('script');
+    script.id = ID_JSONLD;
+    script.type = 'application/ld+json';
+    script.textContent = tags.jsonld;
+    document.head.appendChild(script);
+  }
 }
 
-/** Substitui o bloco JSON-LD da página. */
-function aplicarDadosEstruturados(
-  dados: DadosSeo['dadosEstruturados'],
-): void {
-  const id = 'seo-jsonld';
-  document.getElementById(id)?.remove();
-  if (!dados) return;
-
-  const script = document.createElement('script');
-  script.id = id;
-  script.type = 'application/ld+json';
-  script.textContent = JSON.stringify(dados);
-  document.head.appendChild(script);
+function escaparHtml(valor: string): string {
+  return valor
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
+
+/**
+ * As mesmas tags de `aplicarSeo`, como HTML — para o pré-render escrever no
+ * arquivo. `aplicarSeo` as encontra pelos mesmos seletores e as reaproveita no
+ * cliente em vez de duplicá-las.
+ */
+export function htmlDoSeo(dados: DadosSeo): string {
+  const tags = tagsDoSeo(dados);
+  const linhas = [
+    `<title>${escaparHtml(tags.titulo)}</title>`,
+    `<link rel="canonical" href="${escaparHtml(tags.canonical)}" ${MARCA} />`,
+    ...tags.metas.map(
+      (atributos) =>
+        `<meta ${Object.entries(atributos)
+          .map(([chave, valor]) => `${chave}="${escaparHtml(valor)}"`)
+          .join(' ')} ${MARCA} />`,
+    ),
+  ];
+  if (tags.jsonld) {
+    // `<` escapado: um "</script>" dentro de um texto do JSON fecharia o bloco.
+    const json = tags.jsonld.replace(/</g, '\\u003c');
+    linhas.push(`<script id="${ID_JSONLD}" type="application/ld+json">${json}</script>`);
+  }
+  return linhas.join('\n    ');
+}
+
+/**
+ * Onde `useSeo` deixa os dados da página durante o pré-render — no servidor o
+ * `useEffect` não roda. Só é escrito quando `import.meta.env.SSR`, constante
+ * que o Vite troca por `false` no pacote do navegador e elimina o ramo.
+ */
+export const seoColetado: { atual?: DadosSeo } = {};
 
 /**
  * Dados da organização, reaproveitados em todas as páginas.
@@ -220,6 +262,8 @@ export function useSeo(dados: DadosSeo): void {
   // a depender de um valor que o lint não consegue verificar.
   const estruturaSerializada = JSON.stringify(dadosEstruturados ?? null);
 
+  if (import.meta.env.SSR) seoColetado.atual = dados;
+
   useEffect(() => {
     aplicarSeo({
       titulo,
@@ -230,9 +274,3 @@ export function useSeo(dados: DadosSeo): void {
     });
   }, [titulo, descricao, caminho, imagem, estruturaSerializada]);
 }
-
-// Próximo passo para indexação, deliberadamente fora deste arquivo: pré-render
-// das rotas públicas no build (vite-react-ssg ou equivalente), gerando HTML
-// real para /, /sobre, /servicos, /contato e as duas páginas legais. É o que
-// entrega conteúdo a crawler sem JS e às prévias de link. Não altera nenhum
-// componente — é configuração de build.

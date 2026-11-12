@@ -531,11 +531,33 @@ risco da Parte II, §7). Ele está no secret `VPS_HOST`.
 |---|---|
 | Código publicado | `/opt/procert/app/backend` e `/opt/procert/app/frontend/dist`; o commit em `/opt/procert/app/REVISION` |
 | API | systemd `procert-api` (`node dist/main.js`, porta 3000 só local) |
-| Painel e proxy | nginx: serve o `dist` e repassa `/api` e `/uploads` para a 3000 |
+| Painel e proxy | nginx: serve o `dist` e repassa `/api` e `/uploads` para a 3000. Roteamento do site pré-renderizado: ver §1.1 |
 | Banco | PostgreSQL 16 local, banco e usuário `procert` |
 | Arquivos | `UPLOAD_DRIVER=disco`, em `/opt/procert/uploads` |
 | `.env` de produção | só no servidor, em `/opt/procert/app/backend/.env`; o deploy copia de uma versão para a outra |
 | Firewall | ufw: 22, 80 e 443 |
+
+### 1.1 nginx e o site pré-renderizado
+
+Desde 12/11/2026 o `dist` traz um HTML por página pública (`sobre.html`, …), um
+`404.html` e o `app.html` (shell do painel). Com o `try_files ... /index.html` antigo
+**nada quebra** — mas recarregar uma rota do painel mostra a home por um instante, e URL
+desconhecida devolve 200 em vez de 404. O bloco certo, igual ao de `frontend/nginx.conf`
+(a lista de prefixos é conferida por `src/rotas.test.ts`):
+
+```nginx
+location / {
+    try_files $uri $uri.html $uri/ =404;
+}
+error_page 404 /404.html;
+
+location ~ ^/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certificacoes|certificados|nao-conformidades|processos|clientes|trilhas|categorias|equipe|relatorios)(/|$) {
+    try_files /app.html =404;
+}
+```
+
+É edição manual no servidor (`/etc/nginx/sites-available/`), seguida de `nginx -t` e
+`systemctl reload nginx` — o CD não toca na configuração do nginx.
 
 ## 2. Como uma mudança vai ao ar
 

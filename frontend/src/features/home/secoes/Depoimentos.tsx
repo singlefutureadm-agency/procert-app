@@ -99,7 +99,7 @@ export function Depoimentos() {
                   />
                   <span className="home__depoimento-nome">{depoimento.nome}</span>
                   <span className="home__depoimento-cargo">{depoimento.cargo}</span>
-                  <span className="home__depoimento-estrelas" aria-label="5 de 5 estrelas">
+                  <span className="home__depoimento-estrelas" role="img" aria-label="5 de 5 estrelas">
                     {Array.from({ length: 5 }, (_, i) => (
                       <i key={i} className="bi bi-star-fill" aria-hidden />
                     ))}

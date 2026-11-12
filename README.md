@@ -213,7 +213,7 @@ ambiente de desenvolvimento.
 | `npm run preview` | Serve o build localmente |
 | `npm run lint` | ESLint |
 | `npm run lint:ci` | ESLint sem `--fix` — o que o CI roda |
-| `npm test` | Vitest + Testing Library (129 testes) |
+| `npm test` | Vitest + Testing Library (132 testes) |
 | `npm run test:watch` / `npm run test:cov` | Idem, em watch / com cobertura |
 
 > Os testes do frontend miram o que **quebra em silêncio** — tokens de tema, chaves de
@@ -261,7 +261,7 @@ testes do #24, e ficar de fora daqui era deixar passar localmente o que o CI rep
 Descobrir a falha aqui custa segundos; descobrir no CI custa um ciclo de push.
 
 Medido em 12/11/2026, no CI verde de `main`: backend **434 unitários em 23 suítes** e
-**144 e2e em 6 suítes**; frontend **129 testes em 12 arquivos**.
+**144 e2e em 6 suítes**; frontend **132 testes em 13 arquivos**.
 
 ### Fluxo de contribuição
 

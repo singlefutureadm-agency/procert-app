@@ -1,0 +1,32 @@
+# ProCert Certificação de Processos
+
+> Organismo de Certificação de Processo (OCP) em São Paulo, dedicado à avaliação da conformidade de equipamentos de proteção individual (EPIs) — com foco em proteção contra quedas: cinturões tipo paraquedista, talabartes e trava-quedas — e de processos industriais. O processo combina análise documental, ensaios, auditoria de fábrica e decisão de certificação; o certificado sai com número sequencial e validade, e é mantido por avaliações periódicas.
+
+Razão social: ProCert Certificação de Processos LTDA — CNPJ 61.926.893/0001-95.
+Endereço: Rua John Harrison, 299, Conj. 902 — Lapa, São Paulo - SP, 05074-080.
+Contato comercial: comercial@procertocp.com.br · +55 11 94230-7431.
+
+## Páginas
+
+- [Início](https://www.procertocp.com.br/): visão geral da ProCert e dos serviços
+- [Serviços](https://www.procertocp.com.br/servicos): certificação de EPI para trabalho em altura, certificação de processos industriais, auditoria de fábrica, ensaios e relatórios técnicos, emissão e manutenção do certificado — com as etapas do processo e perguntas frequentes
+- [Sobre](https://www.procertocp.com.br/sobre): quem é a ProCert e como trabalha
+- [Contato](https://www.procertocp.com.br/contato): telefone, WhatsApp, e-mail, endereço e formulário
+
+## Documentos
+
+- [Manual da Qualidade](https://www.procertocp.com.br/documentos/manual-da-qualidade.pdf)
+- [Concessão e Manutenção](https://www.procertocp.com.br/documentos/concessao-e-manutencao.pdf)
+- [Requisitos Gerais de Certificação de Produtos](https://www.procertocp.com.br/documentos/requisitos-gerais-certificacao-produtos.pdf)
+- [Requisitos Gerais de Certificação de EPIs](https://www.procertocp.com.br/documentos/certificacao-epis.pdf)
+- [Certificação de Artigos Escolares](https://www.procertocp.com.br/documentos/certificacao-artigos-escolares.pdf)
+- [Certificação de Fios e Cabos](https://www.procertocp.com.br/documentos/certificacao-fios-e-cabos.pdf)
+- [Certificação de Brinquedos](https://www.procertocp.com.br/documentos/certificacao-brinquedos.pdf)
+- [Tratamento de Reclamações e Apelações](https://www.procertocp.com.br/documentos/tratamento-reclamacoes-apelacoes.pdf)
+- [Política de Imparcialidade](https://www.procertocp.com.br/documentos/politica-de-imparcialidade.pdf)
+- [Política e Objetivos](https://www.procertocp.com.br/documentos/politica-e-objetivos.pdf)
+
+## Optional
+
+- [Política de Privacidade](https://www.procertocp.com.br/politica-de-privacidade)
+- [Termos de Uso](https://www.procertocp.com.br/termos-de-uso)
