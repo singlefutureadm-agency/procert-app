@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 import { EMPRESA, NAVEGACAO, REDES_SOCIAIS } from '../conteudo';
 import { PAGINAS_LEGAIS } from '../conteudo-legal';
+import { LinkDocumento } from '../LinkDocumento';
 
 const redes = REDES_SOCIAIS.filter((rede) => rede.url);
 
@@ -70,19 +71,18 @@ export function RodapeSite() {
               </li>
               <li>
                 <i className="bi bi-chevron-right" aria-hidden />
-                <a href="/documentos/manual-da-qualidade.pdf" target="_blank" rel="noopener noreferrer">
+                <LinkDocumento arquivo="/documentos/manual-da-qualidade.pdf" titulo="Manual da Qualidade">
                   Manual da qualidade
-                </a>
+                </LinkDocumento>
               </li>
               <li>
                 <i className="bi bi-chevron-right" aria-hidden />
-                <a
-                  href="/documentos/politica-e-objetivos.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <LinkDocumento
+                  arquivo="/documentos/politica-e-objetivos.pdf"
+                  titulo="Política e Objetivos"
                 >
                   Política e objetivos
-                </a>
+                </LinkDocumento>
               </li>
 
               {/* Rotas internas: <Link> em vez de <a href>, senão cada clique

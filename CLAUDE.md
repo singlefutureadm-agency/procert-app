@@ -94,7 +94,7 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 133 testes, 13 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 137 testes, 14 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
@@ -103,7 +103,7 @@ npm run dev                   # http://localhost:5173
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
 >
-> No frontend são 133 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
+> No frontend são 137 testes, mirando **o que quebra em silêncio**: `lib/tema.ts` (um token
 > fora do `MAPA_CSS` some da saída sem erro), `mensagemDeErro`, as chaves de cache (uma
 > chave torta não atualiza a lista e não avisa) e as invariantes de acessibilidade de
 > `Campo`, `CampoSenha` e `Modal` — associação rótulo↔controle, `type="button"` no
@@ -818,6 +818,26 @@ ficaria em cache no navegador e no buscador depois que as páginas voltarem.
 
 O pré-render passa a gerar `sobre.html` etc. sozinho no passo 1.
 
+### Links Úteis — PDF num modal (desde 12/11/2026)
+
+Os PDFs de `DOCUMENTOS` (menu "Links Úteis") e os dois do rodapé abrem num visualizador
+modal, com "Baixar PDF" e "Abrir em nova aba": `features/home/LinkDocumento.tsx`, sobre o
+`Modal` do painel (`largura="documento"`). Pontos que não são óbvios:
+
+- **Continua sendo `<a href target="_blank">`.** O modal só intercepta o clique simples;
+  Ctrl/⌘+clique, botão do meio, crawler e quem está sem JS seguem o link.
+- **Celular e tela < 720px não abrem modal** — Chrome no Android não desenha PDF em iframe
+  e o Safari do iPhone mostra só a 1ª página. Ali o leitor do aparelho abre o arquivo.
+  A decisão é `navigator.pdfViewerEnabled` + `matchMedia`, em `cabeVisualizador()`.
+- **Portal no `<body>`**: o menu tem `backdrop-filter`, que prenderia o `position: fixed`.
+  Fora de `.home`, o modal precisa de `z-index` acima do cabeçalho (997–999) e da fonte e
+  cor do painel — o `body.tema-institucional` traz `#444` sobre o vidro escuro. Ver o fim
+  do `home.css`.
+- **Foco**: o link do suspenso some quando o menu fecha, então o cabeçalho passa o foco ao
+  botão "Links Úteis" antes de o modal abrir, e é para lá que ele volta.
+- Depende de os PDFs poderem ir num iframe da **mesma origem**: `X-Frame-Options:
+  SAMEORIGIN` no `nginx.conf` serve; `DENY` quebraria o visualizador.
+
 ### Upload de imagem — o erro que chega como "CORS"
 
 **O corpo de uma requisição na Vercel para em 4,5 MB**, e o corte é feito pela plataforma
@@ -1312,7 +1332,7 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
     `procert-deploy.sh`, reinstale à mão (`DEPLOY.md`, Parte III §3). **Vercel e VPS têm
     bancos separados** desde a cópia de 12/11/2026. Faltam HTTPS, SMTP e backup.
 
-A lacuna do frontend foi fechada — são 133 testes hoje, mirando o que quebra em silêncio
+A lacuna do frontend foi fechada — são 137 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
 item.
 

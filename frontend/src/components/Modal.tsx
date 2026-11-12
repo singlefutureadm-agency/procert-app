@@ -29,8 +29,9 @@ interface Props {
    * parecer). `leitura` é para texto corrido: mais estreita de propósito,
    * porque a largura que ajuda uma lista atrapalha um parágrafo — acima de
    * ~75 caracteres por linha o olho erra a volta. Ambas rolam por dentro.
+   * `documento` ocupa quase a janela inteira, para um PDF embutido.
    */
-  largura?: 'padrao' | 'ampla' | 'leitura';
+  largura?: 'padrao' | 'ampla' | 'leitura' | 'documento';
   /** X no canto. Confirmações não têm — ali as saídas são os próprios botões. */
   comBotaoFechar?: boolean;
   aoFechar: () => void;
