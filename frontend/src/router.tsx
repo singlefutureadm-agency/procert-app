@@ -3,7 +3,11 @@ import { createBrowserRouter } from 'react-router-dom';
 
 import { RotaProtegida } from '@/auth/RotaProtegida';
 import { LoginPage } from '@/pages/LoginPage';
-import { ROTA_NAO_ENCONTRADA, ROTAS_PUBLICAS } from '@/rotas-publicas';
+import {
+  REDIRECIONAMENTOS_EM_ESPERA,
+  ROTA_NAO_ENCONTRADA,
+  ROTAS_PUBLICAS,
+} from '@/rotas-publicas';
 
 /**
  * Rotas da aplicação.
@@ -221,6 +225,8 @@ export const router = createBrowserRouter([
   // Site institucional público: home, páginas e documentos legais. Os
   // caminhos são a fonte única de PAGINAS/PAGINAS_LEGAIS; ver rotas-publicas.tsx.
   ...ROTAS_PUBLICAS,
+  // /sobre, /servicos e /contato: páginas em espera, desviadas para a seção da home.
+  ...REDIRECIONAMENTOS_EM_ESPERA,
 
   { path: '/login', element: <LoginPage /> },
   { path: '/esqueci-senha', element: <EsqueciSenhaPage /> },

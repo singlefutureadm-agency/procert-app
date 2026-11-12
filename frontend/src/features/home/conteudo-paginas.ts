@@ -24,7 +24,12 @@
  * `hasCredential` no JSON-LD de `lib/seo.ts`.
  */
 
-/** Itens de navegação do site. Fonte única do menu, do rodapé e do sitemap. */
+/**
+ * Menu das páginas próprias — EM ESPERA desde 12/11/2026, junto com as páginas
+ * (ver `ROTAS_EM_ESPERA` em src/rotas-publicas.tsx). Hoje o menu usa
+ * `NAVEGACAO` (conteudo.ts), que aponta para as seções da home. O conteúdo
+ * abaixo continua valendo: é o texto das páginas, pronto para quando voltarem.
+ */
 export const PAGINAS = [
   { rotulo: 'Início', caminho: '/' },
   { rotulo: 'Sobre', caminho: '/sobre' },

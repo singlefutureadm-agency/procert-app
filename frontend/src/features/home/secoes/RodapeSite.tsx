@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom';
 
-import { EMPRESA, REDES_SOCIAIS } from '../conteudo';
+import { EMPRESA, NAVEGACAO, REDES_SOCIAIS } from '../conteudo';
 import { PAGINAS_LEGAIS } from '../conteudo-legal';
-import { PAGINAS } from '../conteudo-paginas';
 
 const redes = REDES_SOCIAIS.filter((rede) => rede.url);
 
@@ -52,10 +51,11 @@ export function RodapeSite() {
           <div>
             <h2>Veja mais</h2>
             <ul>
-              {PAGINAS.map((pagina) => (
-                <li key={pagina.caminho}>
+              {/* Seções da home — ver o comentário do menu em CabecalhoSite. */}
+              {NAVEGACAO.map((item) => (
+                <li key={item.ancora}>
                   <i className="bi bi-chevron-right" aria-hidden />
-                  <Link to={pagina.caminho}>{pagina.rotulo}</Link>
+                  <a href={`/${item.ancora}`}>{item.rotulo}</a>
                 </li>
               ))}
             </ul>
