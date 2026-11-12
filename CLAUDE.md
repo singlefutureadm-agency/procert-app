@@ -574,8 +574,8 @@ concorrência otimista via `atualizadoEmVisto` → 409.
 `.../tema-escuro`. O fallback é **cruzado**: faltando a do tema vigente, usa-se a outra —
 quem envia uma logo só continua com marca nos dois modos. Quem resolve é
 `logoDoTema(aparencia, tema)` em `lib/tema.ts`, e o argumento é o tema do **fundo** onde a
-imagem vai aparecer, não o modo do usuário: o cabeçalho do site institucional é
-transparente sobre um hero escuro nos dois modos, então ele pede sempre a variante escura.
+imagem vai aparecer, não o modo do usuário. **O site institucional não usa essas logos**
+desde 12/11/2026: cabeçalho e rodapé exibem a fixa `/img/logo-branco.webp`.
 
 `::selection` e a barra de rolagem derivam de `--cor-primaria` em `global.css`, sem token
 próprio — mudam junto com a paleta sem acrescentar campo na tela. A regra de scrollbar
@@ -1153,8 +1153,9 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
 - **Imagens da home em WebP desde 12/11/2026** (redimensionadas com `sharp` fora do repo):
   hero 218→131 KB, com variante de 960px no `srcset` (44 KB no celular — o preload do
   `index.html` repete o mesmo `imagesrcset`; mudou num, mude no outro); CTA 332→98 KB;
-  fotos de depoimento 400→176px. `logo-branco.png` segue PNG (é fallback de uma logo que o
-  admin troca) e caiu de 942 para 488px. `depoimentos-bg.png` (2,4 MB) continua **sem
+  fotos de depoimento 400→176px. `logo-branco.webp` (488px, WebP sem perda, 31→20 KB) é a logo **fixa** do
+  cabeçalho e do rodapé do site: desde 12/11/2026 a logo enviada em Aparência vale só para o
+  painel. `depoimentos-bg.png` (2,4 MB) continua **sem
   referência**, decisão em aberto. O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.
 - **Dados de contato divergentes** em `features/home/conteudo.ts`: o legado tinha três
