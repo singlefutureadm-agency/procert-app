@@ -213,4 +213,36 @@ describe('NotificacoesService', () => {
       );
     });
   });
+
+  // -------------------------------------------------------- contato do site
+
+  describe('contatoRecebido — formulário público do site', () => {
+    it('escapa nome, e-mail, telefone e mensagem digitados pelo visitante', async () => {
+      await servico.contatoRecebido('caixa@procert.com.br', {
+        nome: '<a href="https://phishing.example">Confirme aqui</a>',
+        email: 'x@y.com',
+        telefone: '<b>11</b>',
+        assunto: 'Orçamento',
+        mensagem: 'linha 1\n<script>alert(1)</script>',
+      });
+
+      const { corpo } = ultimoEnvio();
+      expect(corpo).not.toContain('<a href');
+      expect(corpo).not.toContain('<script>');
+      expect(corpo).not.toContain('<b>11');
+      expect(corpo).toContain('&lt;a href=&quot;https://phishing.example&quot;&gt;');
+      expect(corpo).toContain('linha 1<br>&lt;script&gt;');
+    });
+
+    it('tira quebra de linha do assunto (sem cabeçalho emendado)', async () => {
+      await servico.contatoRecebido('caixa@procert.com.br', {
+        nome: 'Ana',
+        email: 'ana@x.com',
+        assunto: 'Oi\r\nBcc: vitima@x.com',
+        mensagem: 'mensagem qualquer',
+      });
+
+      expect(ultimoEnvio().assunto).toBe('[Site] Oi Bcc: vitima@x.com');
+    });
+  });
 });

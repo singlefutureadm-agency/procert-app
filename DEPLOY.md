@@ -541,8 +541,8 @@ risco da Parte II, §7). Ele está no secret `VPS_HOST`.
 
 Desde 12/11/2026 o `dist` traz um HTML por página pública (`sobre.html`, …), um
 `404.html` e o `app.html` (shell do painel). Com o `try_files ... /index.html` antigo
-**nada quebra** — mas recarregar uma rota do painel mostra a home por um instante, e URL
-desconhecida devolve 200 em vez de 404. O bloco certo, igual ao de `frontend/nginx.conf`
+**o SEO quebra**: toda URL recebe o HTML da home, com o `canonical` da home — as páginas
+legais saem do índice como cópia dela — e URL desconhecida devolve 200 em vez de 404. O bloco certo, igual ao de `frontend/nginx.conf`
 (a lista de prefixos é conferida por `src/rotas.test.ts`):
 
 ```nginx
@@ -565,6 +565,43 @@ location ~ ^/(login|esqueci-senha|redefinir-senha|sem-permissao|dashboard|certif
 
 É edição manual no servidor (`/etc/nginx/sites-available/`), seguida de `nginx -t` e
 `systemctl reload nginx` — o CD não toca na configuração do nginx.
+
+### 1.2 Endurecimento do servidor (IP real, firewall, SSH)
+
+Três ajustes de root, **fora do CD**, achados na revisão de segurança de 12/11/2026.
+
+**IP real do visitante.** A API limita tentativas por IP (`common/limites.ts`) e confia só
+no salto local (`TRUST_PROXY`). Atrás do Cloudflare, o `$remote_addr` do nginx é o IP de
+um servidor do Cloudflare — os visitantes de São Paulo dividiriam meia dúzia de IPs. O
+módulo `realip` troca pelo do cliente, **só** quando a conexão vem de uma faixa do
+Cloudflare; quem bate direto no IP da máquina não consegue forjar o cabeçalho:
+
+```bash
+{ for ip in $(curl -s https://www.cloudflare.com/ips-v4) $(curl -s https://www.cloudflare.com/ips-v6); do
+    echo "set_real_ip_from $ip;"; done
+  echo "real_ip_header CF-Connecting-IP;"; } > /etc/nginx/conf.d/cloudflare-real-ip.conf
+nginx -t && systemctl reload nginx
+```
+
+O `proxy_set_header X-Forwarded-For` do `location /api/` fica como está.
+
+**Só o Cloudflare fala com as portas 80 e 443.** Hoje o IP da máquina responde direto,
+fora do WAF, do bloqueio de robôs e do HTTPS forçado:
+
+```bash
+ufw allow 22/tcp
+for ip in $(curl -s https://www.cloudflare.com/ips-v4) $(curl -s https://www.cloudflare.com/ips-v6); do
+  ufw allow proto tcp from "$ip" to any port 80,443; done
+ufw default deny incoming && ufw enable
+```
+
+Se o certificado da origem for renovado por certbot com desafio HTTP, ele deixa de
+validar: use o certificado de origem do Cloudflare ou o desafio DNS.
+
+**SSH só por chave.** Depois de confirmar que o login por chave funciona — senão a
+máquina fica trancada —, em `/etc/ssh/sshd_config`: `PasswordAuthentication no` e
+`PermitRootLogin prohibit-password`; `systemctl reload ssh`. Troque a senha de root
+(`passwd`): ela circulou fora do servidor durante a montagem.
 
 ## 2. Como uma mudança vai ao ar
 
