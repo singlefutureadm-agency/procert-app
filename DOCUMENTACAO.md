@@ -109,7 +109,7 @@ relevantes:
 
 ### Evolução além da paridade com o legado
 
-Quatro incrementos posteriores levaram o sistema de "cópia modernizada" a algo utilizável
+Cinco incrementos posteriores levaram o sistema de "cópia modernizada" a algo utilizável
 por um organismo certificador real. Estão descritos em detalhe nas seções 5, 7 e 8; em
 resumo:
 
@@ -118,7 +118,8 @@ resumo:
 | **Categoria de processo + trilha versionada** | O legado tinha um catálogo único de etapas aplicado a todo processo. Famílias diferentes (EPI, brinquedo, eletrodoméstico) exigem normas e ensaios diferentes — e uma trilha muda com o tempo sem poder alterar a régua de quem já está em avaliação. |
 | **Não conformidade estruturada** | Reprovar era um status com observação em texto livre. Agora a reprovação vira um registro com código, gravidade, prazo, resposta do cliente e parecer — e a resolução reabre a etapa. |
 | **Certificado formal** | O processo terminava sem produzir nada. Agora emite um documento numerado, com validade, PDF e ciclo próprio (suspender, cancelar, vencer). |
-| **Evidências por etapa e notificação** | A avaliação não guardava prova nem avisava o cliente. Agora cada etapa aceita anexos (obrigatórios quando o modelo exige) e cada mudança de status dispara e-mail. |
+| **Evidências por etapa e notificação** | A avaliação não guardava prova nem avisava o cliente. Agora cada etapa aceita anexos (obrigatórios quando o modelo exige) e o cliente recebe e-mail nos **marcos que exigem ação dele** — reprovação, NC aberta ou avaliada, certificado emitido, suspenso ou cancelado (allowlist `EVENTOS_NOTIFICAVEIS`, decisão de 03/09/2026). |
+| **Quadro de processos** (05–08/09/2026) | A operação mantinha um quadro Trello paralelo. Agora `/processos/quadro` mostra os processos por fase (derivada da etapa atual), com checklist por etapa (`ModeloMicroEtapa` → `MicroEtapaCertificacao`), papel funcional responsável, aprovação automática ao fechar o checklist e cancelamento com motivo. Ver §15, "Quadro de processos". |
 
 ---
 
@@ -253,9 +254,13 @@ refresh token.
 ```
 procert-app/
 ├── docker-compose.yml            PostgreSQL 16 (host :5433) + Adminer (:8080)
-├── README.md                     Guia rápido de subida
+├── README.md                     Guia rápido de subida, CI e fluxo de contribuição
 ├── MIGRACAO.md                   Mapa arquivo PHP → módulo atual, bugs corrigidos, cutover
 ├── DOCUMENTACAO.md               Este documento
+├── DEPLOY.md                     Vercel + Supabase (I), FTP do legado (II), VPS Locaweb (III)
+├── LICENSE, THIRD-PARTY-NOTICES.md  Licença proprietária e auditoria de terceiros
+├── .github/workflows/            ci.yml (PR e push em main/qa/prod) · cd-vps.yml (prod → VPS)
+├── deploy/vps/procert-deploy.sh  Comando forçado da chave de deploy no VPS
 │
 ├── backend/
 │   ├── nest-cli.json             deleteOutDir: true, watchAssets
@@ -264,11 +269,16 @@ procert-app/
 │   ├── prisma/
 │   │   ├── schema.prisma         Fonte da verdade do modelo de dados
 │   │   ├── migrations/           Migrations versionadas (init → … → documentos_certificacao)
-│   │   ├── seed.ts               27 UFs, categoria "Geral" + trilha v1, admin (idempotente)
+│   │   ├── seed.ts               27 UFs, trilha "Certificação padrão" v1, categoria "Geral", admin
+│   │   ├── migrar-no-deploy.js   migrate deploy + RLS no build da Vercel (só VERCEL_ENV=production)
 │   │   ├── migrate-legacy.ts     ETL MySQL legado → PostgreSQL, com --dry-run
-│   │   └── migrate-categorias.ts Catálogo global de etapas → trilhas por categoria
+│   │   └── migrate-categorias.ts Catálogo global de etapas → trilhas por categoria (modelo antigo)
+│   ├── scripts/                  preparar-ambiente.js (npm run setup)
+│   ├── api/index.js              Entrada da função serverless na Vercel
+│   ├── test/                     6 suítes e2e (Supertest + PostgreSQL real)
 │   └── src/
-│       ├── main.ts               Bootstrap: prefixo, helmet, CORS, pipes, estáticos, Swagger
+│       ├── main.ts               Fino: chama configurarApp() de bootstrap.ts (o mesmo do e2e)
+│       ├── bootstrap.ts          helmet, CORS, pipes, estáticos de /uploads, Swagger
 │       ├── app.module.ts         Composição dos módulos + guards globais
 │       ├── prisma/               PrismaService (OnModuleInit/Destroy)
 │       ├── common/
@@ -281,18 +291,23 @@ procert-app/
 │           ├── auth/             login, /me, esqueci/redefinir/alterar senha, JwtStrategy
 │           ├── clientes/         CRUD + foto + soft delete
 │           ├── funcionarios/     ADMIN e FUNCIONARIO no mesmo módulo
-│           ├── categorias-processo/ CRUD de categorias (famílias de processo)
-│           ├── modelos-trilha/   versões da trilha: criar, editar, reordenar
-│           ├── processos/         CRUD + abertura da trilha na versão vigente
-│           ├── certificacoes/    painel, timeline, salvar lote, versão da trilha,
-│           │                     reiniciar + documentos.service (evidências)
+│           ├── categorias-processo/ CRUD de categorias; vincula a categoria a uma trilha
+│           ├── modelos-trilha/   catálogo de trilhas (família) e suas versões e etapas
+│           ├── processos/        CRUD + abertura da trilha na versão vigente
+│           ├── certificacoes/    painel, timeline, salvar lote, versão da trilha, quadro,
+│           │                     microetapas, mover-fase, cancelar/reabrir, reiniciar,
+│           │                     evidências e exportação XLSX/CSV
 │           ├── nao-conformidades/ abertura, resposta do cliente, avaliação
-│           ├── certificados/     emissão, status, expiração + certificado-pdf.service
-│           ├── dashboard/        métricas dos cards
+│           ├── certificados/     emissão, status, em risco, expiração (cron interno e
+│           │                     Vercel Cron) + certificado-pdf.service
+│           ├── dashboard/        métricas dos cards e dados dos gráficos
+│           ├── relatorios/       equipe, comparativos e tempo de ciclo (SQL), com exportação
+│           ├── aparencia/        design tokens e logos do painel (ADMIN)
+│           ├── health/           GET /api/health — SELECT 1, público, fora do throttler
 │           ├── estados/          UFs (controller inline, público)
 │           ├── contato/          formulário público do site + caixa de entrada
-│           ├── mail/             MailService (SMTP ou log simulado)
-│           └── uploads/          UploadsService global (allowlists, troca, remoção segura)
+│           ├── mail/             MailService (transporte) + NotificacoesService (texto)
+│           └── uploads/          UploadsService + driver de Armazenamento (disco | supabase)
 │
 └── frontend/
     ├── vite.config.ts            alias @, proxy /api e /uploads, manualChunks
@@ -308,8 +323,12 @@ procert-app/
         ├── components/           Layout, Sidebar, Campo, Badge, Paginacao, Modal, EstadoVazio…
         ├── features/
         │   ├── home/             Site institucional: conteudo.ts, hooks.ts, home.css, secoes/
-        │   ├── categorias-processo/ Listagem, modal, detalhe com versões e editor de etapas
-        │   ├── certificacoes/    Painel, timeline, DocumentosEtapa
+        │   ├── trilhas/          Catálogo, versões, editor de etapas e checklist (dnd-kit)
+        │   ├── categorias-processo/ Listagem, modal e escolha da trilha da categoria
+        │   ├── certificacoes/    Painel, quadro por fase, timeline, DocumentosEtapa
+        │   ├── relatorios/       Equipe, comparativos e tempo de ciclo
+        │   ├── aparencia/        Tela de design tokens e TemaProvider
+        │   ├── ajuda/            Botão "o que é esta tela?" e verbetes por rota e papel
         │   ├── nao-conformidades/ Página do cliente/equipe + CartaoNaoConformidade
         │   ├── certificados/     Página de certificados + painel dentro do processo
         │   └── <domínio>/        api.ts (chamadas tipadas) + páginas do domínio
@@ -374,8 +393,10 @@ diagrama registrado aqui ainda mostrava esse arranjo — corrigido em 05/09/2026
 | `Trilha` | `trilhas` | **Família** de processo do catálogo (nome, descrição, status); reutilizável por várias categorias |
 | `ModeloTrilha` | `modelos_trilha` | **Versão** de uma trilha do catálogo (`versao`, `ativo`, `vigenteDe/Ate`) |
 | `ModeloEtapa` | `modelos_etapa` | Etapa prevista por uma versão (`ordem`, `tipo`, `obrigatoria`, `prazoSlaHoras`, `papelResponsavel`, `fase`, `exigeDocumento`) |
-| `Processo` | `processos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão**; guarda `codigoProcesso` e `motivoProcesso` |
+| `ModeloMicroEtapa` | `modelos_micro_etapa` | Item do checklist de uma etapa do modelo (`nome`, `ordem`, `papelResponsavel`, `prazoSlaHoras`); imutável junto com a versão |
+| `Processo` | `processos` | Item submetido; aponta para a categoria e para a **versão da trilha da submissão**; guarda `codigoProcesso`, `motivoProcesso`, `aprovacaoAutomatica` (`null` = herda da trilha) e `canceladoEm` |
 | `CertificacaoProcesso` | `certificacoes_processo` | Uma etapa aplicada a um processo — o estado corrente, com `ordem` própria e os marcos `iniciadaEm`/`concluidaEm` |
+| `MicroEtapaCertificacao` | `micro_etapas_certificacao` | Cópia do checklist no processo — é o que se marca, com `concluida`, `concluidaEm` e autoria desnormalizada |
 | `CertificacaoHistorico` | `certificacoes_historico` | Trilha de auditoria imutável das transições e dos anexos |
 | `DocumentoCertificacao` | `documentos_certificacao` | Evidência anexada, presa ao registro de histórico que a trouxe |
 | `NaoConformidade` | `nao_conformidades` | Achado de uma etapa reprovada: código, gravidade, prazo, resposta e parecer |
@@ -384,6 +405,7 @@ diagrama registrado aqui ainda mostrava esse arranjo — corrigido em 05/09/2026
 | `EtapaCertificacao` | `etapas_certificacao` | **Obsoleto** — catálogo global do legado, mantido só até a conferência do cutover |
 | `TokenRedefinicaoSenha` | `tokens_redefinicao_senha` | Reset de senha; guarda **hash** do token |
 | `MensagemContato` | `mensagens_contato` | Formulário público do site |
+| `ConfiguracaoAparencia` | `configuracao_aparencia` | Linha única (`id = 1`) com os design tokens e as logos do painel |
 
 ### Campos que carregam decisão
 
@@ -471,6 +493,10 @@ Recortes que evitam número mentiroso:
 | `StatusNaoConformidade` | `ABERTA`, `EM_TRATATIVA`, `RESOLVIDA`, `REPROVADA` |
 | `StatusCertificado` | `EMITIDO`, `SUSPENSO`, `CANCELADO`, `VENCIDO` |
 | `StatusPagamento` | `PENDENTE`, `PAGO`, `CANCELADO`, `ESTORNADO` |
+| `PapelFuncional` | `CLIENTE`, `TECNICO`, `QUALIDADE`, `AUDITOR`, `DIRETORIA` — de quem é a etapa no fluxo; **não é `Role`** e nenhum guard o lê |
+| `FaseProcesso` | `ABERTURA`, `AMOSTRAGEM_AUDITORIA`, `ENSAIOS_LABORATORIO`, `ANALISE_PROCESSO`, `EMISSAO` — colunas do quadro |
+| `MotivoProcesso` | `INICIAL`, `RENOVACAO`, `RECERTIFICACAO`, `MANUTENCAO`, `TRANSFERENCIA`, `EXTENSAO_ESCOPO` |
+| `TemaPadrao` | `CLARO`, `ESCURO` |
 
 ### Restrições e índices que carregam regra
 
@@ -680,7 +706,23 @@ O coração do processo.
   pertence ao processo, recusa aprovar etapa que exige evidência sem anexo, recusa NC fora de
   reprovação, ignora as que não mudaram e, para cada mudança, grava `UPDATE` + `INSERT` de
   histórico (+ NC quando enviada) na mesma transação. Autoria vem da sessão, nunca de campo
-  editável. Depois do commit, dispara a notificação por e-mail sem bloquear a resposta.
+  editável. Depois do commit, notifica o cliente **só** se alguma etapa caiu num status de
+  `EVENTOS_NOTIFICAVEIS` (hoje, `REPROVADO`). O envio é `await`: em serverless a promessa
+  solta se perdia junto com a função congelada; cada `avisar*` engole a própria falha.
+- `GET /certificacoes/quadro` — equipe: colunas na ordem do pipeline, cada uma com a
+  contagem real e um recorte de cartões (`quadro.service.ts`, `DISTINCT ON` em SQL). A fase
+  é **derivada** da etapa atual, nunca gravada.
+- `PATCH /certificacoes/micro-etapas/:id` — marca ou desmarca um item do checklist. O `id`
+  é da cópia no processo (`MicroEtapaCertificacao`), não do catálogo. Fechar o último item
+  aprova a etapa quando o processo está em aprovação automática — como efeito do **ato**,
+  nunca como estado derivado — e a automação não contorna `exigeDocumento`; a resposta
+  traz `etapaAprovada` e, quando não aprovou, o `aviso` com o motivo.
+- `POST .../mover-fase` — destino do arrastar-e-soltar: marca `EM_ANDAMENTO` a primeira
+  etapa não aprovada da fase e devolve à fila as que estavam em andamento antes dela. **Não
+  aprova nada.**
+- `POST .../cancelar` (motivo obrigatório, autoria da sessão) e `POST .../reabrir` —
+  `Processo.canceladoEm` tira o cartão do fluxo para a coluna própria, com as etapas como
+  pararam. Reabrir devolve a coluna derivada; não existe "voltar para onde estava".
 - `GET .../versao-trilha` — consulta pura: diz se o processo ficou preso a uma versão antiga
   e **o que a migração faria**, sem efeito colateral.
 - `POST .../migrar-versao-trilha` — migra para a versão vigente adicionando só as etapas
@@ -720,9 +762,14 @@ transação de banco e o arquivo é derivável do registro. Se falhar, o certifi
 PDF nasce no primeiro download — `obterPdf()` também regenera se o arquivo sumiu do disco.
 
 `PATCH /certificados/:id/status` suspende, cancela ou reativa, com motivo obrigatório ao
-encerrar. `VENCIDO` não é aceito ali: vencimento decorre da data, aplicado por
-`POST /certificados/expirar-vencidos`, pensado para um agendador externo. Também bloqueia
-reativar fora da validade e mexer em cancelado.
+encerrar. `VENCIDO` não é aceito ali: vencimento decorre da data, aplicado pela rotina de
+expiração — `ExpiracaoCertificadosCron` dentro da API (servidor contínuo, como o VPS) ou
+`GET /certificados/cron/expirar-vencidos` com `CRON_SECRET` (serverless, Vercel Cron); a
+rota `POST /certificados/expirar-vencidos` (ADMIN) fica para acionamento manual. Também
+bloqueia reativar fora da validade e mexer em cancelado.
+
+`GET /certificados/em-risco` lista os vigentes que vencem dentro da janela pedida, com o
+mesmo escopo do CLIENTE da listagem — é a tela `certificacoes/em-risco`.
 
 `CertificadoPdfService` é isolado e não conhece o Prisma: recebe os dados e devolve um
 Buffer, para que o layout possa mudar sem tocar no domínio.
@@ -879,10 +926,15 @@ autoriza.
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/` | Autenticado (CLIENTE escopado) | Painel: uma linha por processo, com progresso |
+| GET | `/quadro` | ADMIN, FUNCIONARIO | Quadro por fase: contagem por coluna e recorte de cartões |
+| PATCH | `/micro-etapas/:id` | ADMIN, FUNCIONARIO | Marca/desmarca item do checklist; pode aprovar a etapa |
 | GET | `/processo/:processoId` | Autenticado (CLIENTE só os seus) | Timeline: etapas, evidências, NCs e histórico |
 | PUT | `/processo/:processoId` | ADMIN, FUNCIONARIO | Salva o lote, grava auditoria, abre NC e notifica |
 | GET | `/processo/:processoId/versao-trilha` | ADMIN, FUNCIONARIO | Diz se há versão mais nova e o que mudaria |
 | POST | `/processo/:processoId/migrar-versao-trilha` | ADMIN, FUNCIONARIO | Migra e renumera a trilha |
+| POST | `/processo/:processoId/mover-fase` | ADMIN, FUNCIONARIO | Arrastar-e-soltar do quadro: escreve etapa, não posição |
+| POST | `/processo/:processoId/cancelar` | ADMIN, FUNCIONARIO | Cancela com motivo; o cartão vai à coluna CANCELADO |
+| POST | `/processo/:processoId/reabrir` | ADMIN, FUNCIONARIO | Devolve ao fluxo um processo cancelado |
 | POST | `/processo/:processoId/reiniciar` | ADMIN | Recria a trilha do zero |
 | POST | `/processo/:processoId/etapas/:etapaId/documento` | ADMIN, FUNCIONARIO | Anexa evidência (`multipart`, campo `documento`) |
 | GET | `/certificacoes/documentos/:id/arquivo` | Autenticado (CLIENTE só os seus) | Baixa a evidência |
@@ -902,10 +954,12 @@ autoriza.
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/` | Autenticado (CLIENTE escopado) | Lista; filtros `status`, `processoId`, `clienteId`, `busca` |
+| GET | `/em-risco` | Autenticado (CLIENTE só os seus) | Vigentes que vencem dentro da janela. Declarada **antes** de `/:id`, senão o `ParseIntPipe` devolve 400 |
 | GET | `/:id` | Autenticado (CLIENTE só os seus) | Detalhe |
 | GET | `/:id/pdf` | Autenticado (CLIENTE só os seus) | PDF; gerado sob demanda se faltar |
 | PATCH | `/:id/status` | ADMIN | Suspende, cancela ou reativa; motivo obrigatório ao encerrar |
-| POST | `/expirar-vencidos` | ADMIN | Rotina de expiração (agendador externo) |
+| POST | `/expirar-vencidos` | ADMIN | Rotina de expiração, acionamento manual |
+| GET | `/cron/expirar-vencidos` | `@Public`, `Authorization: Bearer $CRON_SECRET` | A mesma rotina para o Vercel Cron (serverless, onde o timer interno não vive) |
 
 ### Relatórios — `/relatorios`
 
@@ -1192,7 +1246,8 @@ storage e redireciona para `/login?sessao=expirada`.
 
 ### Roteamento
 
-Rotas públicas: `/` (site institucional), `/login`, `/esqueci-senha`,
+Rotas públicas: `/` (site institucional), `/sobre`, `/servicos`, `/contato`,
+`/termos-de-uso`, `/politica-de-privacidade`, `/login`, `/esqueci-senha`,
 `/redefinir-senha`, `/sem-permissao`.
 
 O painel vive em uma **rota de layout sem `path`** — ela envolve
@@ -1201,9 +1256,9 @@ Os filhos declaram caminhos absolutos, com proteções adicionais por papel nas 
 
 | Rota | Quem vê |
 |---|---|
-| `dashboard`, `certificacoes`, `certificacoes/processo/:id`, `processos`, `nao-conformidades`, `certificados` | Autenticados (o backend escopa o CLIENTE) |
-| `processos/novo`, `processos/:id/editar`, `clientes/*`, `categorias`, `categorias/:id` | Equipe |
-| `equipe/*` | Só `ADMIN` |
+| `dashboard`, `certificacoes`, `certificacoes/processo/:id`, `certificacoes/em-risco`, `processos`, `nao-conformidades`, `certificados` | Autenticados (o backend escopa o CLIENTE) |
+| `processos/quadro`, `processos/novo`, `processos/:id/editar`, `clientes/*`, `trilhas`, `trilhas/:id`, `categorias`, `categorias/:id`, `relatorios/processos`, `relatorios/clientes`, `relatorios/tempo-ciclo` | Equipe |
+| `equipe/*`, `relatorios/equipe`, `dashboard/aparencia` | Só `ADMIN` |
 
 `*` cai em `NaoEncontradaPage`.
 
@@ -1211,13 +1266,19 @@ Os filhos declaram caminhos absolutos, com proteções adicionais por papel nas 
 
 | Tela | O que faz |
 |---|---|
-| `categorias-processo/CategoriasPage` | Lista com a versão vigente destacada e alerta de categoria **sem trilha** (que não aceita processo) |
-| `categorias-processo/CategoriaDetalhePage` | Versões da trilha e editor de etapas com drag-and-drop, bloqueado quando a versão já tem processos; botão "Nova versão" com confirmação |
+| `trilhas/TrilhasPage` | Catálogo de trilhas (famílias), com status, versão vigente e categorias que a seguem; duplicar trilha |
+| `trilhas/TrilhaDetalhePage` | Versões da trilha, editor de etapas com drag-and-drop e checklist (`EditorMicroEtapas`), bloqueado quando a versão já tem processos; "Nova versão", voltar a uma versão encerrada e excluir |
+| `categorias-processo/CategoriasPage` | Lista com a trilha seguida e alerta de categoria **sem trilha** ou com trilha **sem versão vigente** (nenhuma das duas aceita processo) |
+| `categorias-processo/CategoriaDetalhePage` | **Escolhe** a trilha da categoria — as etapas se editam em `trilhas`, não aqui |
+| `certificacoes/QuadroProcessosPage` | Quadro por fase com arrastar-e-soltar (`mover-fase`), filtros e coluna de cancelados; `AlternarVisao` alterna com a lista |
 | `certificacoes/CertificacaoDetalhePage` | Timeline com status, evidências, NCs, aviso de versão defasada, painel do certificado e histórico |
 | `certificacoes/DocumentosEtapa` | Evidências da etapa: lista com tamanho, download e anexo; marca "obrigatória para aprovar" |
 | `nao-conformidades/NaoConformidadesPage` | Para o cliente abre em "Aguardando ação" com resposta inline; para a equipe, a mesma lista com cliente e processo |
 | `certificados/CertificadosPage` | Filtros por situação, download do PDF e ações de suspender/cancelar/reativar (ADMIN) |
 | `certificados/PainelCertificadoProcesso` | Emissão dentro da tela do processo — o desfecho da trilha fica onde a trilha está |
+| `certificados/CertificadosEmRiscoPage` | Vigentes que vencem na janela escolhida (`GET /certificados/em-risco`) |
+| `relatorios/*` | Desempenho da equipe (ADMIN), comparativos de processos e de clientes, tempo de ciclo — todos com exportação XLSX/CSV |
+| `ajuda/AjudaDaTela` | Botão "o que é esta tela?" no `CabecalhoPagina` de toda tela do painel, com verbete por rota e por papel (`conteudo-ajuda.ts`). Rota sem verbete não mostra botão; o teste garante que toda rota do painel tem um |
 
 Downloads autenticados (PDF de certificado e evidências) passam pelo axios como **blob**:
 um link direto não serve, porque a rota exige o `Authorization` que só o interceptor injeta.
@@ -1413,16 +1474,19 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/dashboard/met
 
 | Comando | Ação |
 |---|---|
+| `npm run setup` | **Depois de todo `git pull`.** Copia os `.env` que faltarem (nunca sobrescreve), confere o banco, aplica migrations, regenera o client e semeia. Idempotente |
 | `npm run start:dev` | API em watch mode |
 | `npm run build` + `npm run start:prod` | Build e execução de produção |
-| `npm run seed` | UFs, categoria "Geral" com trilha v1 e admin (idempotente via upsert) |
+| `npm run seed` | UFs, trilha "Certificação padrão" v1, categoria "Geral" vinculada a ela e admin (idempotente via upsert) |
+| `npm run conferir:trilhas` | Confere a migração para trilhas-catálogo. Somente leitura; código 1 se achar problema grave |
+| `npm run mover:uploads-processos` | Copia `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase); só apaga a origem com `-- --remover-antigos` |
 | `npm run prisma:migrate` | Cria/aplica migration em desenvolvimento |
 | `npm run prisma:deploy` | Aplica migrations em produção (não gera novas) |
 | `npm run prisma:generate` | Regenera o client tipado |
 | `npm run prisma:studio` | Explorador visual do banco |
 | `npm run migrate:legacy` | ETL do MySQL legado (aceita `-- --dry-run`) |
 | `npm run migrate:categorias` | Catálogo global → trilhas por categoria (aceita `-- --dry-run`) |
-| `npm test` / `npm run lint` | Ver §14 — ambos falham hoje |
+| `npm test` / `npm run test:e2e` / `npm run lint` | Ver §14 — todos verdes |
 
 > **Não rode `npm run build` com o `start:dev` ativo.** O `deleteOutDir` do nest-cli apaga
 > o `dist/` embaixo do processo em watch e o derruba.
@@ -1564,6 +1628,27 @@ O model `EtapaCertificacao` continua no schema, marcado como obsoleto, para perm
 conferência pós-cutover. O módulo `etapas` do backend e a feature correspondente do frontend
 já foram removidos.
 
+### Ambientes e publicação
+
+Desde 12/11/2026 o código anda por **três branches protegidas** pelo mesmo ruleset (PR
+obrigatório, os dois checks do CI, sem push direto nem force-push):
+
+| Branch | Papel | Publica em |
+|---|---|---|
+| `main` | integração — todo PR de trabalho entra aqui | Vercel + Supabase, a cada push (`vercel-build` aplica as migrations) |
+| `qa` | homologação — recebe `main` por PR | nada automático |
+| `prod` | a versão no ar no VPS — recebe `qa` por PR | **VPS Locaweb**, pelo workflow `CD VPS` |
+
+O `CD VPS` (`.github/workflows/cd-vps.yml`) roda quando o CI termina verde num push em
+`prod`: faz o build no runner (o VPS não baixa do npm), sincroniza por **rsync
+incremental** com `/opt/procert/staging` e chama `instala <commit>`, que aplica as
+migrations, troca as versões e volta sozinho para a anterior se `/api/health` não
+responder `"banco":"ok"` em 60 s. A chave de deploy é restrita a esse script por comando
+forçado. Detalhes, secrets e o que a hospedagem ainda não tem: `DEPLOY.md`, Parte III.
+
+> **Vercel e VPS têm bancos separados** desde 12/11/2026 — o VPS recebeu uma cópia do
+> Supabase nessa data, conferida tabela a tabela. O que entra num não aparece no outro.
+
 ### Encerrando o ambiente
 
 ```bash
@@ -1580,7 +1665,8 @@ encerramento do terminal. Se a porta continuar ocupada:
 ## 14. Qualidade: testes, lint e lacunas reais
 
 Estado medido em **23/08/2026**, com a saída real de cada comando — não por leitura de
-código.
+código. Contagens de teste **remedidas em 12/11/2026** no log do CI verde de `main`
+(run `43147393639`).
 
 | Item | Situação |
 |---|---|
@@ -1590,11 +1676,11 @@ código.
 | **`npm run lint` (backend)** | ✅ **executa e sai 0** — `eslint.config.js` criado em `0966e96` |
 | **`npm run lint:ci` (ambos)** | ✅ 0 — é o que o CI roda: `--max-warnings=0` e **sem `--fix`**. O `lint` de desenvolvimento reescreve os arquivos, então usá-lo no pipeline faria o job passar justamente quando houvesse o que corrigir. |
 | `npm run lint` (frontend) | ✅ |
-| **CI (GitHub Actions)** | ✅ dois jobs obrigatórios, ~1m15s por execução (`8fd0363`, `d9ea0aa`) |
-| **`npm test` (backend)** | ✅ **234 testes, 12 suítes** |
-| **`npm run test:e2e` (backend)** | ✅ **75 testes, 2 suítes**, contra PostgreSQL de verdade |
+| **CI (GitHub Actions)** | ✅ dois jobs obrigatórios em PR e push para `main`, `qa` e `prod` (`8fd0363`, `d9ea0aa`, #48) |
+| **`npm test` (backend)** | ✅ **434 testes, 23 suítes** |
+| **`npm run test:e2e` (backend)** | ✅ **144 testes, 6 suítes**, contra PostgreSQL de verdade |
 | `npm run typecheck:scripts` | ❌ **falha, e é esperado** — dois erros em `migrate-legacy.ts` (§15). Fora de pipeline obrigatório de propósito. |
-| Testes no frontend | ❌ **inexistentes** — é a lacuna que sobrou |
+| Testes no frontend | ✅ **129 testes, 12 arquivos** (ver abaixo) |
 | Validação funcional manual | ✅ mantida a cada incremento |
 
 ### Cobertura dos services alvo
@@ -1709,7 +1795,7 @@ pior que nenhum gate: dá confiança sem dar proteção.
 
 ### Testes do frontend
 
-**86 testes, 8 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
+**129 testes, 12 arquivos** (Vitest + Testing Library, `environment: jsdom`). O CI roda
 `npm test` no job do frontend, antes do build.
 
 O critério de escolha foi **"quebra em silêncio?"**. Nada do que está coberto lança
@@ -1725,6 +1811,9 @@ exceção — são bugs que passam em revisão de código e em teste manual de q
 | `Campo` | Associação rótulo↔controle. `getByLabelText` só encontra se o elo existir — `querySelector('label')` passaria com o rótulo órfão |
 | `CampoSenha` | **`type="button"` no alternador**: sem ele, revelar a senha submete o formulário |
 | `Modal` | Foco inicial, foco preso no Tab, devolução ao fechar, botão desabilitado fora do ciclo |
+| `lib/imagem.ts` | PNG/WebP/GIF saem como **WebP, nunca JPEG** (o JPEG achata em preto o fundo transparente de uma logo); arquivo que já cabe volta intacto; o que não cabe é recusado em vez de virar 413 |
+| `aparencia/CampoImagem` | O seletor da tela de Aparência passa pelo `prepararImagem` — ficou três semanas de fora por usar input próprio |
+| `ajuda/*` | Toda rota do painel tem verbete, toda tela que o cliente alcança tem variante do cliente, nenhum verbete aponta para rota inexistente |
 
 > **Cuidado ao escrever teste de data.** `diasAteOPrazo` compara dias **locais**
 > (`getFullYear/getMonth/getDate`), e `formatarData` também. Um teste escrito com meia-noite
@@ -1738,11 +1827,11 @@ exceção — são bugs que passam em revisão de código e em teste manual de q
    router, `QueryClientProvider`, `AuthProvider` e mock de rede para provar pouco além do
    que o `tsc -b` já garante. As telas de trilha (drag-and-drop, renumeração) são o
    candidato mais forte caso isso mude — é onde há mais regra por linha.
-3. Services ainda sem unitário: `ProcessosService.criar` (abertura da trilha),
-   `FuncionariosService` (proteção do último ADMIN), `DashboardService` (classificação e
-   escopo), `AparenciaService` (allowlist de tokens), `UploadsService`,
-   `ExportacaoService` (`nomeAba`, data como `Date`) e `GraficosService` (faixas de
-   vencimento, desempate do ranking).
+3. Services ainda sem unitário: `FuncionariosService` (proteção do último ADMIN),
+   `DashboardService` (classificação e escopo), `AparenciaService` (allowlist de tokens),
+   `CategoriasProcessoService` (as duas guardas de categoria muda) e `GraficosService`
+   (faixas de vencimento, desempate do ranking). `ProcessosService`, `UploadsService` e as
+   exportações ganharam spec desde a primeira medição.
 
 ## 15. Problemas conhecidos e decisões registradas
 
@@ -2410,7 +2499,26 @@ de cliente alheio, 401 sem token): hoje ele está verificado à mão e nada impe
 | ~~`baseUrl` obsoleto no tsconfig~~ | `#19` |
 | ~~Comparativos de processos e de clientes~~ | `#20` |
 | ~~Tempo de ciclo~~ | `#23` |
-| ~~**Teste no frontend**~~ | este PR |
+| ~~**Teste no frontend**~~ | `#24` |
+
+### Concluído de 25/08 a 12/11/2026
+
+| Item | PR |
+|---|---|
+| ~~Migrations aplicadas no build de produção, com teto de tempo e session pooler derivado~~ | `#21`, `#22`, `#25`, `#26` |
+| ~~`npm run setup` e a API que recusa subir com migration pendente~~ | `#28`, `#29` |
+| ~~`engine-strict` e `prisma generate` no postinstall~~ | `#30` |
+| ~~Ajuda por tela, com versão por papel~~ | `#31` |
+| ~~E-mail que se perdia em serverless; logo grande voltando como CORS~~ | `#32`, `#33` |
+| ~~E-mail que não sai deixa de ser invisível~~ | `#34` |
+| ~~Trilha como catálogo, com CRUD próprio e vínculo por categoria~~ | `#36` |
+| ~~`NotificacoesService` e avisos só nos marcos decisivos~~ | `#38`, `#39` |
+| ~~`npm run conferir:trilhas`~~ | `#40` |
+| ~~Licença proprietária e auditoria de terceiros~~ | `#43` |
+| ~~Quadro de processos: fase, checklist, papel funcional, cancelamento~~ | `#44` |
+| ~~"Produto" passa a se chamar "processo" em toda a aplicação~~ | `#46` |
+| ~~Branches `qa` e `prod` protegidas, CI nas três~~ | `#48` |
+| ~~Publicação no VPS Locaweb e CD a partir de `prod`~~ | `#49`, `#52`, `#55` |
 
 ### Prioridade 1 — o que sustenta tudo que foi construído
 
@@ -2424,7 +2532,12 @@ Consequências práticas para quem trabalha aqui: todo trabalho vai por branch +
 `gh pr merge --auto` **não** está disponível neste plano (o repositório recusa
 `enablePullRequestAutoMerge`) — aguarde os dois checks e faça o merge.
 
-**2. ~~Teste no frontend~~ — FEITO.** 86 testes cobrindo o que quebra em silêncio, e
+**1b. Completar a hospedagem no VPS.** Faltam HTTPS (exige domínio apontado para o IP;
+depois é `certbot --nginx`), SMTP (`MAIL_USER`/`MAIL_PASS` vazios: e-mail só vai para o log)
+e **backup agendado do banco** — hoje uma falha de disco perde os dados do VPS. *Gatilho:
+antes de o VPS virar o endereço que os clientes usam.* Ver `DEPLOY.md`, Parte III §4.
+
+**2. ~~Teste no frontend~~ — FEITO.** Hoje são 129 testes cobrindo o que quebra em silêncio, e
 `npm test` no job do frontend do CI. Ver §14 para o critério de escolha e a lista.
 
 O que sobrou de propósito: **teste de página inteira**. Exigiria router, provider de query,
@@ -2453,8 +2566,10 @@ não veja a carteira de outro.*
 
 ### Prioridade 3 — desempenho e evolução prevista
 
-**5. Otimizar as imagens da home.** `depoimentos-bg.png` tem 2,4 MB e `cta-bg.jpg` 340 KB;
-converter para WebP/AVIF e redimensionar deve dar ~90% de redução. O `bootstrap-icons.css`
+**5. Otimizar as imagens da home.** O pior caso saiu do caminho em `841a6b7`:
+`depoimentos-bg.png` (2,4 MB) virou gradiente CSS e segue em `public/img/` **sem
+referência** — reprocessar ou apagar é decisão em aberto. `cta-bg.jpg` (332 KB) e
+`hero-bg.jpg` (218 KB) seguem como estão; WebP/AVIF redimensionado deve cortar a maior parte. O `bootstrap-icons.css`
 completo (~106 KB de fonte) é carregado por ~28 ícones — cabe um subset. *Gatilho: medição
 de Core Web Vitals do site público, ou reclamação de carregamento em conexão móvel.*
 
