@@ -82,9 +82,9 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 439 unitários, 24 suítes, Prisma mockado |
+| `npm test` | ✅ 448 unitários, 24 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 144 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 145 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -98,7 +98,7 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 439 unitários + 144 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 448 unitários + 145 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -428,6 +428,44 @@ usuário a uma ação que a tela não completa.
 - Código sequencial por ano `NC-2026-000001`, derivado do **maior código do ano** (não de
   `count`, que reutilizaria número após exclusão). Corridas esbarram no índice único e o
   filtro traduz para 409.
+
+### Guardas entre etapa, NC, certificado e processo (16/11/2026)
+
+Saíram de uma auditoria contra a API viva: cada módulo estava certo sozinho, e as
+combinações não. Nenhuma delas pode regredir:
+
+- **NC em aberto trava a aprovação.** `salvar` recusa aprovar etapa com NC `ABERTA` ou
+  `EM_TRATATIVA`; o checklist automático devolve `aviso` em etapa `REPROVADO` ou com NC
+  em aberto; `emitir` recusa processo com qualquer NC em aberto.
+- **`RESOLVIDA` só reabre etapa `REPROVADO`.** Com duas NCs na mesma etapa, a segunda
+  resolvida derrubava uma etapa já reaprovada.
+- **Certificado em vigor trava o que o desmentiria.** Tirar etapa de `APROVADO` com
+  certificado `EMITIDO` → 409 (suspenda antes). Cancelar ou desativar o processo com
+  certificado vigente → 409.
+- **Reativar segue a régua da emissão.** `SUSPENSO → EMITIDO` com etapa obrigatória fora
+  de `APROVADO` ou NC em aberto → 409. Sem isso, suspender → reabrir etapa → reativar
+  devolvia certificado vigente sobre avaliação que caiu (achado no navegador, 16/11/2026).
+- **Emissão trava a linha do processo** (`SELECT ... FOR UPDATE`) e reconfere o vigente
+  dentro da transação — duas emissões simultâneas criavam dois vigentes. Não há índice
+  único parcial de propósito: uma base que já tivesse duplicata derrubaria o deploy.
+- **Toda versão de trilha tem ao menos uma etapa obrigatória** (`garantirEtapaObrigatoria`),
+  e `emitir` recusa trilha sem nenhuma: "todas as obrigatórias aprovadas" é verdade no vazio.
+- **Processo cancelado não aceita escrita na trilha** (`garantirProcessoAberto`): lote,
+  mover fase e checklist. Cancelar e reabrir deixam uma anotação no histórico da etapa
+  atual (`statusAnterior = statusNovo`, o formato do anexo), porque `reabrir` limpa os
+  campos de cancelamento.
+- **Registro de certificação não se apaga.** `reiniciar` e `ProcessosService.remover`
+  recusam (409) processo com certificado, NC ou evidência — era também o que reemitia
+  código de NC já enviado ao cliente.
+- **`CertificadoHistorico`** guarda cada mudança de situação com autor e motivo;
+  `motivoStatus` segue sendo só o último. `VENCIDO` só sai para `CANCELADO`.
+- **O lote trava as linhas e confere o status lido**; etapa alterada por outra pessoa no
+  intervalo → 409. Id repetido no lote → 400.
+- **Upload confere a assinatura do arquivo**, não só o MIME declarado.
+- **`responsavelId` não é do cliente**: `PATCH /clientes/:id` com token de CLIENTE e esse
+  campo → 403.
+
+Cobertura ao vivo dessas combinações: skill local `procert-auditoria`.
 
 ### E-mails ao cliente — a lista de eventos é uma allowlist
 

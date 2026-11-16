@@ -11,6 +11,7 @@ import {
   Role,
   StatusCertificacao,
   StatusCertificado,
+  StatusRegistro,
 } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -238,13 +239,44 @@ export class CertificadosService {
         cliente: { select: { nome: true, cnpj: true, cpf: true } },
         categoria: true,
         certificacao: {
-          select: { status: true, etapa: { select: { nome: true, obrigatoria: true } } },
+          select: {
+            status: true,
+            etapa: { select: { nome: true, obrigatoria: true } },
+          },
         },
       },
     });
 
     if (!processo) {
       throw new NotFoundException(`Processo ${processoId} não encontrado.`);
+    }
+
+    if (processo.canceladoEm || processo.status !== StatusRegistro.ATIVO) {
+      throw new BadRequestException(
+        'Processo cancelado ou inativo não recebe certificado.',
+      );
+    }
+
+    // Sem etapa obrigatória, "todas as obrigatórias aprovadas" é verdade no
+    // vazio — e o certificado saía sem avaliação nenhuma.
+    if (!processo.certificacao.some((c) => c.etapa.obrigatoria)) {
+      throw new BadRequestException(
+        'A trilha deste processo não tem etapa obrigatória; não há avaliação ' +
+          'que sustente um certificado.',
+      );
+    }
+
+    const ncsAbertas = await this.prisma.naoConformidade.count({
+      where: {
+        certificacao: { processoId },
+        status: { in: ['ABERTA', 'EM_TRATATIVA'] },
+      },
+    });
+    if (ncsAbertas) {
+      throw new BadRequestException(
+        `Há ${ncsAbertas} não conformidade(s) em aberto neste processo. ` +
+          'Encerre-as antes de emitir o certificado.',
+      );
     }
 
     const pendentes = processo.certificacao.filter(
@@ -284,6 +316,20 @@ export class CertificadosService {
     }
 
     const certificado = await this.prisma.$transaction(async (tx) => {
+      // Trava a linha do processo e confere de novo: duas emissões simultâneas
+      // passavam as duas pela checagem acima (fora da transação) e nasciam dois
+      // vigentes. Com a trava, a segunda espera o commit da primeira e a vê.
+      await tx.$queryRaw`SELECT id FROM processos WHERE id = ${processoId} FOR UPDATE`;
+      const vigentes = await tx.certificado.count({
+        where: { processoId, status: { in: VIGENTES } },
+      });
+      if (vigentes) {
+        throw new ConflictException(
+          'Este processo acabou de receber um certificado em outra emissão. ' +
+            'Recarregue a página.',
+        );
+      }
+
       const numero = await this.gerarNumero(tx);
 
       return tx.certificado.create({
@@ -317,7 +363,11 @@ export class CertificadosService {
   }
 
   /** Suspensão, cancelamento ou reativação — sempre com justificativa. */
-  async alterarStatus(id: number, dto: AlterarStatusCertificadoDto) {
+  async alterarStatus(
+    id: number,
+    dto: AlterarStatusCertificadoDto,
+    usuario: UsuarioAutenticado,
+  ) {
     const certificado = await this.prisma.certificado.findUnique({
       where: { id },
       select: { id: true, status: true, dataValidade: true },
@@ -358,14 +408,64 @@ export class CertificadosService {
       );
     }
 
-    await this.prisma.certificado.update({
-      where: { id },
-      data: {
-        status: dto.status,
-        // Reativação limpa o motivo anterior para não confundir o histórico.
-        motivoStatus: encerra ? dto.motivoStatus : null,
-      },
-    });
+    // Reativar é voltar a afirmar a conformidade: vale a mesma régua da
+    // emissão. Sem isto, suspender → reabrir etapa → reativar devolvia um
+    // certificado vigente sobre avaliação que caiu.
+    if (dto.status === StatusCertificado.EMITIDO) {
+      const [pendentes, ncsAbertas] = await Promise.all([
+        this.prisma.certificacaoProcesso.count({
+          where: {
+            processo: { certificados: { some: { id } } },
+            etapa: { obrigatoria: true },
+            status: { not: StatusCertificacao.APROVADO },
+          },
+        }),
+        this.prisma.naoConformidade.count({
+          where: {
+            certificacao: { processo: { certificados: { some: { id } } } },
+            status: { in: ['ABERTA', 'EM_TRATATIVA'] },
+          },
+        }),
+      ]);
+      if (pendentes || ncsAbertas) {
+        throw new ConflictException(
+          `O processo tem ${pendentes || 0} etapa(s) obrigatória(s) não aprovada(s) e ` +
+            `${ncsAbertas || 0} não conformidade(s) em aberto. Regularize antes de reativar.`,
+        );
+      }
+    }
+
+    // Vencido só sai dessa situação para CANCELADO: suspendê-lo o devolvia ao
+    // conjunto "vigente" até a rotina noturna.
+    if (
+      certificado.status === StatusCertificado.VENCIDO &&
+      dto.status !== StatusCertificado.CANCELADO
+    ) {
+      throw new BadRequestException(
+        'Certificado vencido só pode ser cancelado. Emita um novo para renovar.',
+      );
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.certificado.update({
+        where: { id },
+        data: {
+          status: dto.status,
+          // Reativação limpa o motivo anterior; o histórico abaixo o preserva.
+          motivoStatus: encerra ? dto.motivoStatus : null,
+        },
+      }),
+      this.prisma.certificadoHistorico.create({
+        data: {
+          certificadoId: id,
+          statusAnterior: certificado.status,
+          statusNovo: dto.status,
+          motivo: dto.motivoStatus ?? null,
+          alteradoPorId: usuario.id,
+          alteradoPorNome: usuario.nome,
+        },
+      }),
+    ]);
 
     // Suspensão e cancelamento têm efeito comercial imediato para o cliente.
     // Reativação não avisa: é a volta ao estado que ele já considerava vigente.

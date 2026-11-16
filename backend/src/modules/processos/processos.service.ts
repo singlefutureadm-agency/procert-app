@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -9,6 +10,7 @@ import { Prisma, Role, StatusCertificacao, StatusRegistro } from '@prisma/client
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { ModelosTrilhaService } from '../modelos-trilha/modelos-trilha.service';
+import { VIGENTES } from '../certificados/vencimento.constantes';
 import { paginar } from '../../common/dto/paginacao.dto';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import {
@@ -330,6 +332,22 @@ export class ProcessosService {
 
   async alterarStatus(id: number, status: StatusRegistro) {
     await this.garantirExiste(id);
+
+    // Desativar tira o processo do painel, mas o certificado seguiria valendo
+    // sobre um cadastro que ninguém mais vê.
+    if (status === StatusRegistro.INATIVO) {
+      const vigente = await this.prisma.certificado.findFirst({
+        where: { processoId: id, status: { in: VIGENTES } },
+        select: { numero: true },
+      });
+      if (vigente) {
+        throw new ConflictException(
+          `Este processo tem o certificado ${vigente.numero} em vigor. ` +
+            'Cancele o certificado antes de desativar o processo.',
+        );
+      }
+    }
+
     return this.prisma.processo.update({
       where: { id },
       data: { status },
@@ -340,8 +358,27 @@ export class ProcessosService {
   /** Exclusão definitiva: remove em cascata certificações e histórico. */
   async remover(id: number): Promise<{ mensagem: string }> {
     const processo = await this.garantirExiste(id);
-    await this.uploads.remover(processo.fotoUrl);
+
+    // Certificado e não conformidade são registros de certificação: o delete
+    // os levaria (ou esbarraria na FK), e o código de uma NC já enviada ao
+    // cliente voltaria a ser emitido.
+    const [certificados, ncs] = await Promise.all([
+      this.prisma.certificado.count({ where: { processoId: id } }),
+      this.prisma.naoConformidade.count({
+        where: { certificacao: { processoId: id } },
+      }),
+    ]);
+    if (certificados || ncs) {
+      throw new ConflictException(
+        `Este processo tem ${certificados} certificado(s) e ${ncs} não ` +
+          'conformidade(s) registrados. Use a desativação em vez da exclusão.',
+      );
+    }
+
+    // Foto DEPOIS do delete: na ordem inversa, um delete recusado deixava o
+    // registro apontando para um arquivo que já não existia.
     await this.prisma.processo.delete({ where: { id } });
+    await this.uploads.remover(processo.fotoUrl);
     return { mensagem: 'Processo excluído definitivamente.' };
   }
 

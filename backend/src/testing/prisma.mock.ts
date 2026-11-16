@@ -99,6 +99,9 @@ function comRegistro<T extends object>(
 export function criarPrismaMock(): PrismaMock {
   const prisma = mockDeep<PrismaService>();
   const tx = mockDeep<Prisma.TransactionClient>();
+  // SQL cru devolve lista no Prisma real; os services usam `SELECT ... FOR
+  // UPDATE` para travar linhas e iteram o resultado.
+  (tx.$queryRaw as unknown as jest.Mock).mockResolvedValue([]);
 
   const registro: PrismaMock = {
     prisma,

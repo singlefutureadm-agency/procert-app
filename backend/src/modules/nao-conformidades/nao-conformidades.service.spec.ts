@@ -314,6 +314,28 @@ describe('NaoConformidadesService', () => {
       expect(dados).not.toHaveProperty('iniciadaEm');
     });
 
+    it('NÃO mexe em etapa que já saiu de REPROVADO — a 2ª NC derrubava a reaprovada', async () => {
+      banco.prisma.naoConformidade.findUnique.mockResolvedValue(
+        ncSalva({
+          status: StatusNaoConformidade.EM_TRATATIVA,
+          certificacao: {
+            ...ncSalva().certificacao,
+            status: StatusCertificacao.APROVADO,
+          },
+        }) as never,
+      );
+
+      await servico.avaliar(
+        500,
+        { status: StatusNaoConformidade.RESOLVIDA, parecer: 'Aceita' },
+        admin(),
+      );
+
+      expect(banco.tx.naoConformidade.update).toHaveBeenCalled();
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoHistorico.create).not.toHaveBeenCalled();
+    });
+
     it('a limpeza sai DENTRO da transação da avaliação', async () => {
       await servico.avaliar(
         500,
