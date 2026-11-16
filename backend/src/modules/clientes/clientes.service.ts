@@ -1,10 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, StatusRegistro } from '@prisma/client';
+import { Prisma, Role, StatusRegistro } from '@prisma/client';
+
+import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
@@ -128,8 +131,17 @@ export class ClientesService {
   async atualizar(
     id: number,
     dto: AtualizarClienteDto,
+    usuario?: UsuarioAutenticado,
   ): Promise<ClienteResposta> {
     await this.buscarPorId(id);
+
+    // A carteira é da gestão interna: o cliente edita o próprio cadastro pelo
+    // mesmo DTO, mas não escolhe quem o atende.
+    if (usuario?.role === Role.CLIENTE && dto.responsavelId !== undefined) {
+      throw new ForbiddenException(
+        'O responsável pela conta é definido pela equipe ProCert.',
+      );
+    }
 
     const { senha, email, dataNascimento, ...dados } = dto;
     const emailNormalizado = email?.trim().toLowerCase();
@@ -185,8 +197,9 @@ export class ClientesService {
       );
     }
 
-    await this.uploads.remover(cliente.fotoUrl);
+    // Foto depois do delete: se ele falhar, o cadastro não fica sem a imagem.
     await this.prisma.cliente.delete({ where: { id } });
+    await this.uploads.remover(cliente.fotoUrl);
 
     return { mensagem: 'Cliente excluído definitivamente.' };
   }

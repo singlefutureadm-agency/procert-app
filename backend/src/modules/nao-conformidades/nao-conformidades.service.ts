@@ -56,7 +56,7 @@ const SELECT_NC = {
 } satisfies Prisma.NaoConformidadeSelect;
 
 /** Situações em que a NC ainda espera alguma ação. */
-const EM_ABERTO: StatusNaoConformidade[] = [
+export const NC_EM_ABERTO: StatusNaoConformidade[] = [
   StatusNaoConformidade.ABERTA,
   StatusNaoConformidade.EM_TRATATIVA,
 ];
@@ -78,7 +78,7 @@ export class NaoConformidadesService {
     const where: Prisma.NaoConformidadeWhereInput = {
       ...(filtros.status && { status: filtros.status }),
       ...(filtros.criticidade && { criticidade: filtros.criticidade }),
-      ...(filtros.pendentes && { status: { in: EM_ABERTO } }),
+      ...(filtros.pendentes && { status: { in: NC_EM_ABERTO } }),
       certificacao: {
         processo: {
           ...(filtros.processoId && { id: filtros.processoId }),
@@ -195,7 +195,7 @@ export class NaoConformidadesService {
   ) {
     const registro = await this.buscarPorId(id, usuario);
 
-    if (!EM_ABERTO.includes(registro.status)) {
+    if (!NC_EM_ABERTO.includes(registro.status)) {
       throw new BadRequestException(
         'Esta não conformidade já foi avaliada e não aceita nova resposta.',
       );
@@ -246,7 +246,7 @@ export class NaoConformidadesService {
       );
     }
 
-    if (!EM_ABERTO.includes(registro.status)) {
+    if (!NC_EM_ABERTO.includes(registro.status)) {
       throw new BadRequestException(
         'Esta não conformidade já foi encerrada e não pode ser reavaliada.',
       );
@@ -265,6 +265,11 @@ export class NaoConformidadesService {
       });
 
       if (!resolvida) return;
+
+      // Só a etapa REPROVADO volta para reavaliação. Com duas NCs na mesma
+      // etapa, a primeira resolvida já a reabriu; a segunda encontraria a etapa
+      // em andamento — ou já reaprovada — e a derrubaria de novo.
+      if (registro.certificacao.status !== StatusCertificacao.REPROVADO) return;
 
       await tx.certificacaoProcesso.update({
         where: { id: registro.certificacao.id },

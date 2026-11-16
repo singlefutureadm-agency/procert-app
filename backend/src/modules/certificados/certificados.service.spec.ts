@@ -32,6 +32,8 @@ const processoBase = (
 ) => ({
   id: 1,
   nome: 'Disjuntor DIN 25A',
+  status: 'ATIVO',
+  canceladoEm: null,
   descricao: 'Linha residencial',
   clienteId: CLIENTE_DONO,
   cliente: { nome: 'Indústria Cliente Ltda', cnpj: '12345678000199', cpf: null },
@@ -149,6 +151,44 @@ describe('CertificadosService', () => {
         servico.emitir(1, { escopo: 'Disjuntores' }, admin()),
       ).resolves.toBeDefined();
       expect(banco.tx.certificado.create).toHaveBeenCalled();
+    });
+
+    it('recusa trilha SEM etapa obrigatória — "todas aprovadas" seria verdade no vazio', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
+          etapa('Selo verde (opcional)', false, StatusCertificacao.PENDENTE),
+        ]) as never,
+      );
+
+      await expect(
+        servico.emitir(1, { escopo: 'x' }, admin()),
+      ).rejects.toThrow(/não tem etapa obrigatória/);
+    });
+
+    it('recusa com não conformidade em aberto, mesmo com tudo aprovado', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue(
+        processoBase([
+          etapa('Análise documental', true, StatusCertificacao.APROVADO),
+        ]) as never,
+      );
+      banco.prisma.naoConformidade.count.mockResolvedValue(1 as never);
+
+      await expect(
+        servico.emitir(1, { escopo: 'x' }, admin()),
+      ).rejects.toThrow(/não conformidade\(s\) em aberto/);
+    });
+
+    it('recusa processo cancelado', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue({
+        ...processoBase([
+          etapa('Análise documental', true, StatusCertificacao.APROVADO),
+        ]),
+        canceladoEm: new Date(),
+      } as never);
+
+      await expect(
+        servico.emitir(1, { escopo: 'x' }, admin()),
+      ).rejects.toThrow(/cancelado ou inativo/);
     });
 
     it('recusa processo inexistente', async () => {
@@ -366,6 +406,9 @@ describe('CertificadosService', () => {
       // A leitura do último número e a criação precisam estar no MESMO commit:
       // fora dele, duas emissões simultâneas leriam o mesmo 000044.
       expect(banco.chamadasNaTransacao).toEqual([
+        // Trava a linha do processo e reconfere o vigente antes de numerar.
+        '$queryRaw',
+        'certificado.count',
         'certificado.findFirst',
         'certificado.create',
       ]);
@@ -426,7 +469,7 @@ describe('CertificadosService', () => {
       banco.prisma.certificado.findUnique.mockResolvedValue(vigente as never);
 
       await expect(
-        servico.alterarStatus(55, { status: StatusCertificado.VENCIDO }),
+        servico.alterarStatus(55, { status: StatusCertificado.VENCIDO }, admin()),
       ).rejects.toThrow(
         new BadRequestException(
           'O vencimento decorre da data de validade e não pode ser aplicado manualmente.',
@@ -445,7 +488,7 @@ describe('CertificadosService', () => {
         servico.alterarStatus(55, {
           status: StatusCertificado.EMITIDO,
           motivoStatus: 'tentativa de reativar',
-        }),
+        }, admin()),
       ).rejects.toThrow(
         new ConflictException(
           'Certificado cancelado não pode mudar de situação. Emita um novo.',
@@ -460,7 +503,7 @@ describe('CertificadosService', () => {
     ])('exige motivo ao aplicar %s', async (status) => {
       banco.prisma.certificado.findUnique.mockResolvedValue(vigente as never);
 
-      await expect(servico.alterarStatus(55, { status })).rejects.toThrow(
+      await expect(servico.alterarStatus(55, { status }, admin())).rejects.toThrow(
         new BadRequestException(
           'Informe o motivo ao suspender ou cancelar um certificado.',
         ),
@@ -475,12 +518,26 @@ describe('CertificadosService', () => {
       } as never);
 
       await expect(
-        servico.alterarStatus(55, { status: StatusCertificado.EMITIDO }),
+        servico.alterarStatus(55, { status: StatusCertificado.EMITIDO }, admin()),
       ).rejects.toThrow(
         new BadRequestException(
           'Este certificado está fora da validade e não pode voltar a vigorar.',
         ),
       );
+    });
+
+    it('reativação é recusada com etapa obrigatória fora de APROVADO', async () => {
+      banco.prisma.certificado.findUnique.mockResolvedValue({
+        ...vigente,
+        status: StatusCertificado.SUSPENSO,
+      } as never);
+      banco.prisma.certificacaoProcesso.count.mockResolvedValue(1);
+      banco.prisma.naoConformidade.count.mockResolvedValue(0);
+
+      await expect(
+        servico.alterarStatus(55, { status: StatusCertificado.EMITIDO }, admin()),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(banco.prisma.certificado.update).not.toHaveBeenCalled();
     });
 
     it('reativação limpa o motivo anterior', async () => {
@@ -489,7 +546,7 @@ describe('CertificadosService', () => {
         status: StatusCertificado.SUSPENSO,
       } as never);
 
-      await servico.alterarStatus(55, { status: StatusCertificado.EMITIDO });
+      await servico.alterarStatus(55, { status: StatusCertificado.EMITIDO }, admin());
 
       expect(banco.prisma.certificado.update).toHaveBeenCalledWith({
         where: { id: 55 },
@@ -503,7 +560,7 @@ describe('CertificadosService', () => {
       await servico.alterarStatus(55, {
         status: StatusCertificado.SUSPENSO,
         motivoStatus: 'Auditoria de manutenção reprovada',
-      });
+      }, admin());
 
       expect(banco.prisma.certificado.update).toHaveBeenCalledWith({
         where: { id: 55 },
@@ -553,7 +610,7 @@ describe('CertificadosService', () => {
       await servico.alterarStatus(1, {
         status: StatusCertificado.SUSPENSO,
         motivoStatus: 'Ensaio de rotina reprovado.',
-      } as never);
+      } as never, admin());
 
       expect(notificacoes.certificadoAlterado).toHaveBeenCalledTimes(1);
       const [para, , processo, certificado] =
@@ -580,7 +637,7 @@ describe('CertificadosService', () => {
       await servico.alterarStatus(1, {
         status: StatusCertificado.CANCELADO,
         motivoStatus: 'Escopo encerrado.',
-      } as never);
+      } as never, admin());
 
       expect(
         notificacoes.certificadoAlterado.mock.calls[0][3],
@@ -597,7 +654,7 @@ describe('CertificadosService', () => {
 
       await servico.alterarStatus(1, {
         status: StatusCertificado.EMITIDO,
-      } as never);
+      } as never, admin());
 
       expect(notificacoes.certificadoAlterado).not.toHaveBeenCalled();
     });

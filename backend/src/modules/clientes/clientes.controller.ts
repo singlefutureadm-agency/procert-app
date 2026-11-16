@@ -74,7 +74,7 @@ export class ClientesController {
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
     this.garantirAcesso(usuario, id);
-    return this.clientesService.atualizar(id, dto);
+    return this.clientesService.atualizar(id, dto, usuario);
   }
 
   @Patch(':id/status')
