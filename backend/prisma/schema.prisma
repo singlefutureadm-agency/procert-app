@@ -238,6 +238,7 @@ model Funcionario {
   historicoAlteracao    CertificacaoHistorico[]
   naoConformidades      NaoConformidade[]
   certificadosEmitidos  Certificado[]
+  historicoCertificados CertificadoHistorico[]
   documentosEnviados    DocumentoCertificacao[]
   aparenciaAtualizada   ConfiguracaoAparencia[]
   microEtapasConcluidas MicroEtapaCertificacao[] @relation("MicroEtapaConcluida")
@@ -760,10 +761,32 @@ model Certificado {
 
   processo    Processo      @relation(fields: [processoId], references: [id], onDelete: Restrict)
   emitidoPor Funcionario? @relation(fields: [emitidoPorId], references: [id], onDelete: SetNull)
+  historico  CertificadoHistorico[]
 
   @@index([processoId, dataEmissao])
   @@index([status, dataValidade])
   @@map("certificados")
+}
+
+/// Cada mudança de situação do certificado: quem, quando, de→para e por quê.
+/// `Certificado.motivoStatus` guarda só o último motivo, e a reativação o
+/// limpa — sem esta tabela, uma suspensão revertida não deixava rastro.
+model CertificadoHistorico {
+  id             Int               @id @default(autoincrement())
+  certificadoId  Int               @map("certificado_id")
+  statusAnterior StatusCertificado @map("status_anterior")
+  statusNovo     StatusCertificado @map("status_novo")
+  motivo         String?           @db.Text
+  alteradoPorId  Int?              @map("alterado_por_id")
+  /// Desnormalizado: a autoria sobrevive à exclusão do colaborador.
+  alteradoPorNome String           @map("alterado_por_nome") @db.VarChar(150)
+  criadoEm       DateTime          @default(now()) @map("criado_em")
+
+  certificado Certificado  @relation(fields: [certificadoId], references: [id], onDelete: Cascade)
+  alteradoPor Funcionario? @relation(fields: [alteradoPorId], references: [id], onDelete: SetNull)
+
+  @@index([certificadoId, criadoEm])
+  @@map("certificados_historico")
 }
 
 /// Pagamentos do processo (legado: tbl_pagamento — antes só era lido).

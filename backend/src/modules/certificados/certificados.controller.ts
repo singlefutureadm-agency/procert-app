@@ -140,7 +140,8 @@ export class CertificadosController {
   alterarStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AlterarStatusCertificadoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.certificados.alterarStatus(id, dto);
+    return this.certificados.alterarStatus(id, dto, usuario);
   }
 }

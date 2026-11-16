@@ -208,9 +208,10 @@ export class FuncionariosService {
       await this.garantirOutroAdminAtivo(id);
     }
 
-    await this.uploads.remover(funcionario.fotoUrl);
     // O histórico de certificação mantém o nome de quem alterou (SetNull na FK).
     await this.prisma.funcionario.delete({ where: { id } });
+    // Foto depois do delete: se ele falhar, o cadastro não fica sem a imagem.
+    await this.uploads.remover(funcionario.fotoUrl);
 
     return { mensagem: 'Colaborador excluído definitivamente.' };
   }

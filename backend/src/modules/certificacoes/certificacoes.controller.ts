@@ -243,15 +243,26 @@ export class CertificacoesController {
       'A coluna volta a ser derivada da etapa atual — não há "voltar para ' +
       'onde estava", porque nunca se gravou onde estava.',
   })
-  reabrir(@Param('processoId', ParseIntPipe) processoId: number) {
-    return this.certificacoesService.reabrir(processoId);
+  reabrir(
+    @Param('processoId', ParseIntPipe) processoId: number,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.certificacoesService.reabrir(processoId, usuario);
   }
 
   @Post('processo/:processoId/reiniciar')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Reinicia a certificação do zero (apaga o histórico)' })
-  reiniciar(@Param('processoId', ParseIntPipe) processoId: number) {
-    return this.certificacoesService.reiniciar(processoId);
+  @ApiOperation({
+    summary: 'Reinicia a certificação do zero',
+    description:
+      'Recusado (409) quando o processo já tem certificado, não conformidade ' +
+      'ou evidência — o reinício os apagaria.',
+  })
+  reiniciar(
+    @Param('processoId', ParseIntPipe) processoId: number,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.certificacoesService.reiniciar(processoId, usuario);
   }
 
   /** `etapaId` é o id da linha de certificação (processo × etapa) da timeline. */

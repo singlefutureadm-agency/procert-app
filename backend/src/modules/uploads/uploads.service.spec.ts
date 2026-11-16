@@ -6,15 +6,31 @@ import type { Armazenamento } from './uploads.armazenamento';
 import { UploadsService } from './uploads.service';
 
 /** Multer entrega o arquivo em memória; só estes campos são lidos. */
+/** Assinatura real de cada formato: o serviço confere os primeiros bytes. */
+const CABECALHOS: Record<string, number[]> = {
+  'image/jpeg': [0xff, 0xd8, 0xff],
+  'image/png': [0x89, 0x50, 0x4e, 0x47],
+  'image/gif': [0x47, 0x49, 0x46, 0x38],
+  'image/webp': [0x52, 0x49, 0x46, 0x46],
+  'application/pdf': [0x25, 0x50, 0x44, 0x46],
+};
+
 function arquivo(
   mimetype: string,
-  { tamanho = 1024, nome = 'foto.png' } = {},
+  { tamanho = 1024, nome = 'foto.png', conteudo = undefined as Buffer | undefined } = {},
 ): Express.Multer.File {
   return {
     mimetype,
     size: tamanho,
     originalname: nome,
-    buffer: Buffer.from('conteudo'),
+    buffer:
+      conteudo ??
+      Buffer.from(
+        CABECALHOS[mimetype] ??
+          (mimetype.includes('openxml')
+            ? [0x50, 0x4b, 0x03, 0x04]
+            : [0xd0, 0xcf, 0x11, 0xe0]),
+      ),
   } as Express.Multer.File;
 }
 
@@ -54,7 +70,7 @@ describe('UploadsService', () => {
         armazenamento.gravar.mock.calls[0];
       expect(pasta).toBe('processos');
       expect(url.endsWith(nomeArquivo)).toBe(true);
-      expect(conteudo.toString()).toBe('conteudo');
+      expect(conteudo.subarray(1, 4).toString()).toBe('PNG');
       expect(tipoMime).toBe('image/png');
     });
 
@@ -77,6 +93,18 @@ describe('UploadsService', () => {
       await expect(
         servico.salvarImagem(arquivo(mime), 'processos'),
       ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(armazenamento.gravar).not.toHaveBeenCalled();
+    });
+
+    it('recusa conteúdo que não bate com o MIME declarado', async () => {
+      // O MIME vem do cliente: um HTML rotulado de PNG passava pela allowlist.
+      await expect(
+        servico.salvarImagem(
+          arquivo('image/png', { conteudo: Buffer.from('<html>') }),
+          'processos',
+        ),
+      ).rejects.toThrow(/não corresponde ao formato/);
 
       expect(armazenamento.gravar).not.toHaveBeenCalled();
     });
