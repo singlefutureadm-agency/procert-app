@@ -3,6 +3,7 @@ import { FaseProcesso, PapelFuncional, StatusCertificacao } from '@prisma/client
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -62,6 +63,10 @@ export class SalvarCertificacaoDto {
   @ApiProperty({ type: [EtapaCertificacaoAtualizacaoDto] })
   @IsArray()
   @ArrayMinSize(1)
+  // Etapa repetida no lote gravava histórico com `statusAnterior` errado.
+  @ArrayUnique((etapa: EtapaCertificacaoAtualizacaoDto) => etapa?.id, {
+    message: 'Cada etapa só pode aparecer uma vez no lote.',
+  })
   @ValidateNested({ each: true })
   @Type(() => EtapaCertificacaoAtualizacaoDto)
   etapas!: EtapaCertificacaoAtualizacaoDto[];

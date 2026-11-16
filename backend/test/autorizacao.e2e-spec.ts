@@ -88,8 +88,13 @@ describe('Autorização (e2e)', () => {
   });
 
   describe('PUT /api/certificacoes/processo/:id — cliente acompanha, não altera', () => {
+    // Mantém o status do cenário (APROVADO, com certificado EMITIDO) e muda só
+    // a observação: tirar a etapa de APROVADO é recusado enquanto o
+    // certificado vigora — caso próprio logo abaixo.
     const corpo = () => ({
-      etapas: [{ id: c.certificacaoId, status: 'EM_ANDAMENTO' }],
+      etapas: [
+        { id: c.certificacaoId, status: 'APROVADO', observacao: 'Revisado' },
+      ],
     });
 
     it.each([
@@ -116,6 +121,17 @@ describe('Autorização (e2e)', () => {
       expect(resposta.status).toBe(200);
     });
 
+    it('reabrir etapa aprovada com certificado EMITIDO → 409', async () => {
+      const resposta = await pedir(
+        'put',
+        `/api/certificacoes/processo/${c.processoDonoId}`,
+        c.funcionario,
+      ).send({ etapas: [{ id: c.certificacaoId, status: 'EM_ANDAMENTO' }] });
+
+      // O certificado ficaria vigente sobre uma avaliação que caiu.
+      expect(resposta.status).toBe(409);
+    });
+
     it('o CLIENTE dono é barrado pelo @Roles, antes de o service ler qualquer coisa', async () => {
       const resposta = await pedir(
         'put',
@@ -128,7 +144,7 @@ describe('Autorização (e2e)', () => {
       const etapa = await prisma(app).certificacaoProcesso.findUniqueOrThrow({
         where: { id: c.certificacaoId },
       });
-      expect(etapa.status).toBe('EM_ANDAMENTO');
+      expect(etapa.status).toBe('APROVADO');
     });
   });
 

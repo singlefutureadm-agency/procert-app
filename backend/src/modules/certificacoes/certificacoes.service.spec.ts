@@ -766,6 +766,54 @@ describe('CertificacoesService', () => {
     });
   });
 
+  describe('salvar — guardas da auditoria de 16/11/2026', () => {
+    const lote = { etapas: [{ id: 10, status: StatusCertificacao.APROVADO }] };
+
+    beforeEach(() => {
+      banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
+        {
+          id: 10,
+          status: StatusCertificacao.REPROVADO,
+          observacao: null,
+          iniciadaEm: null,
+          etapa: { nome: 'Ensaios laboratoriais' },
+        },
+      ] as never);
+    });
+
+    it('não aprova etapa com não conformidade em aberto', async () => {
+      banco.prisma.naoConformidade.findMany.mockResolvedValue([
+        { codigo: 'NC-2026-000001', certificacaoId: 10 },
+      ] as never);
+
+      await expect(servico.salvar(1, lote as never, admin())).rejects.toThrow(
+        /não conformidade em aberto.*Ensaios laboratoriais/,
+      );
+      expect(banco.transacoesAbertas).toBe(0);
+    });
+
+    it('processo cancelado não aceita alteração', async () => {
+      banco.prisma.processo.findUnique.mockResolvedValue({
+        canceladoEm: new Date(),
+      } as never);
+
+      await expect(servico.salvar(1, lote as never, admin())).rejects.toThrow(
+        /está cancelado/,
+      );
+    });
+
+    it('recusa o lote quando a etapa mudou depois da leitura', async () => {
+      (banco.tx.$queryRaw as unknown as jest.Mock).mockResolvedValue([
+        { id: 10, status: StatusCertificacao.APROVADO },
+      ]);
+
+      await expect(servico.salvar(1, lote as never, admin())).rejects.toThrow(
+        /alterada por outra pessoa/,
+      );
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('salvar — não conformidade', () => {
     beforeEach(() => {
       banco.prisma.certificacaoProcesso.findMany.mockResolvedValue([
@@ -856,6 +904,8 @@ describe('CertificacoesService', () => {
       // seria reprovada e a NC poderia não nascer.
       expect(banco.chamadasForaDaTransacao).toEqual([]);
       expect(banco.chamadasNaTransacao).toEqual([
+        // Trava as linhas do lote antes de escrever.
+        '$queryRaw',
         'certificacaoProcesso.update',
         'certificacaoHistorico.create',
         'naoConformidade.create',

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -10,11 +11,16 @@ import {
   Prisma,
   Role,
   StatusCertificacao,
+  StatusCertificado,
   StatusRegistro,
 } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
-import { NaoConformidadesService } from '../nao-conformidades/nao-conformidades.service';
+import {
+  NaoConformidadesService,
+  NC_EM_ABERTO,
+} from '../nao-conformidades/nao-conformidades.service';
+import { VIGENTES } from '../certificados/vencimento.constantes';
 import {
   NaoConformidadeAvisada,
   NotificacoesService,
@@ -324,6 +330,7 @@ export class CertificacoesService {
         `Nenhuma certificação encontrada para o processo ${processoId}.`,
       );
     }
+    await this.garantirNaoCancelado(processoId);
 
     const porId = new Map(existentes.map((e) => [e.id, e]));
     const invalidas = dto.etapas.filter((e) => !porId.has(e.id));
@@ -366,10 +373,59 @@ export class CertificacoesService {
       );
     }
 
+    // Não se aprova por cima de não conformidade em aberto: a NC existe para
+    // forçar a correção, e sem esta guarda o certificado saía com ela pendente.
+    // Só as que estão VIRANDO aprovadas, como na checagem de evidência acima.
+    const comNcAberta = aprovacoes.length
+      ? await this.prisma.naoConformidade.findMany({
+          where: { certificacaoId: { in: aprovacoes }, status: { in: NC_EM_ABERTO } },
+          select: { codigo: true, certificacaoId: true },
+        })
+      : [];
+    if (comNcAberta?.length) {
+      const nomes = [
+        ...new Set(comNcAberta.map((nc) => porId.get(nc.certificacaoId)!.etapa.nome)),
+      ];
+      throw new BadRequestException(
+        'Estas etapas têm não conformidade em aberto e não podem ser aprovadas ' +
+          `antes de ela ser encerrada: ${nomes.join(', ')}.`,
+      );
+    }
+
+    // Etapa aprovada é a base do certificado em vigor: tirá-la de APROVADO
+    // deixaria um certificado EMITIDO sobre uma avaliação que caiu.
+    const saiDeAprovado = dto.etapas.some(
+      (etapa) =>
+        porId.get(etapa.id)!.status === StatusCertificacao.APROVADO &&
+        etapa.status !== StatusCertificacao.APROVADO,
+    );
+    if (saiDeAprovado) {
+      await this.garantirSemCertificado(
+        processoId,
+        [StatusCertificado.EMITIDO],
+        'Suspenda ou cancele o certificado antes de reabrir uma etapa aprovada.',
+      );
+    }
+
     const mudancas: Array<{ etapa: string; statusNovo: StatusCertificacao }> = [];
     const ncsAbertas: NaoConformidadeAvisada[] = [];
 
     await this.prisma.$transaction(async (tx) => {
+      // Trava as linhas do lote e confere o status LIDO lá em cima: se outra
+      // pessoa mudou a etapa nesse intervalo, o lote cai. Antes as duas
+      // gravações passavam e o histórico ficava com dois "de PENDENTE para…".
+      const ids = dto.etapas.map((etapa) => etapa.id);
+      const travadas = await tx.$queryRaw<
+        { id: number; status: StatusCertificacao }[]
+      >`SELECT id, status::text AS status FROM certificacoes_processo WHERE id IN (${Prisma.join(ids)}) FOR UPDATE`;
+      const mudou = travadas.find((linha) => porId.get(linha.id)?.status !== linha.status);
+      if (mudou) {
+        throw new ConflictException(
+          `A etapa "${porId.get(mudou.id)!.etapa.nome}" foi alterada por outra ` +
+            'pessoa enquanto você editava. Recarregue a página e tente de novo.',
+        );
+      }
+
       for (const alteracao of dto.etapas) {
         const atual = porId.get(alteracao.id)!;
         const mudouStatus = atual.status !== alteracao.status;
@@ -463,12 +519,33 @@ export class CertificacoesService {
    * Reabre a certificação: apaga as linhas atuais (e o histórico em cascata)
    * e recria a trilha a partir das etapas ativas.
    */
-  async reiniciar(processoId: number) {
+  async reiniciar(processoId: number, usuario: UsuarioAutenticado) {
     const processo = await this.prisma.processo.findUnique({
       where: { id: processoId },
     });
     if (!processo) {
       throw new NotFoundException(`Processo ${processoId} não encontrado.`);
+    }
+
+    // Reiniciar APAGA as etapas, e com elas — em cascata — NCs e evidências.
+    // Registro de certificação não se apaga: com qualquer um destes o reinício
+    // é recusado. Era também o que reemitia código de NC já enviado ao cliente.
+    const [certificados, ncs, documentos] = await Promise.all([
+      this.prisma.certificado.count({ where: { processoId } }),
+      this.prisma.naoConformidade.count({
+        where: { certificacao: { processoId } },
+      }),
+      this.prisma.documentoCertificacao.count({
+        where: { historico: { certificacao: { processoId } } },
+      }),
+    ]);
+    if (certificados || ncs || documentos) {
+      throw new ConflictException(
+        'Este processo já tem registros que o reinício apagaria ' +
+          `(${certificados} certificado(s), ${ncs} não conformidade(s), ` +
+          `${documentos} evidência(s)). Reavalie as etapas na linha do tempo ` +
+          'ou abra um novo processo.',
+      );
     }
 
     // Reabre pela trilha que o processo carrega, não pela vigente da categoria:
@@ -502,6 +579,17 @@ export class CertificacoesService {
             ordem: etapa.ordem,
             status: StatusCertificacao.PENDENTE,
             observacao: 'Etapa pendente',
+            // O histórico antigo foi apagado junto; fica ao menos o rastro de
+            // quem reiniciou e quando.
+            historico: {
+              create: {
+                statusAnterior: null,
+                statusNovo: StatusCertificacao.PENDENTE,
+                observacao: 'Trilha reiniciada do zero.',
+                alteradoPorId: usuario.id,
+                alteradoPorNome: usuario.nome,
+              },
+            },
             // Reiniciar zera o checklist junto: as marcações antigas
             // sustentavam uma avaliação que deixou de existir.
             microEtapas: {
@@ -856,6 +944,7 @@ export class CertificacoesService {
         `Nenhuma certificação encontrada para o processo ${processoId}.`,
       );
     }
+    await this.garantirNaoCancelado(processoId);
 
     const daFase = etapas.filter((e) => e.etapa.fase === fase);
 
@@ -998,18 +1087,94 @@ export class CertificacoesService {
       throw new BadRequestException('Este processo já está cancelado.');
     }
 
-    await this.prisma.processo.update({
-      where: { id: processoId },
-      data: {
-        canceladoEm: new Date(),
-        motivoCancelamento: motivo,
-        // Autoria da sessão, nunca de campo do payload.
-        canceladoPorId: usuario.id,
-        canceladoPorNome: usuario.nome,
-      },
+    // Processo cancelado com certificado valendo é incoerência que só aparece
+    // para terceiros: o certificado segue consultável como vigente.
+    await this.garantirSemCertificado(
+      processoId,
+      VIGENTES,
+      'Cancele o certificado antes de cancelar o processo.',
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.processo.update({
+        where: { id: processoId },
+        data: {
+          canceladoEm: new Date(),
+          motivoCancelamento: motivo,
+          // Autoria da sessão, nunca de campo do payload.
+          canceladoPorId: usuario.id,
+          canceladoPorNome: usuario.nome,
+        },
+      });
+      // Os campos acima são limpos na reabertura; a linha do tempo guarda.
+      await this.anotarNaTrilha(
+        tx,
+        processoId,
+        `Processo cancelado. Motivo: ${motivo}`,
+        usuario,
+      );
     });
 
     return { mensagem: 'Processo cancelado.' };
+  }
+
+  /**
+   * Anota um evento do PROCESSO na etapa atual da trilha.
+   *
+   * Marcação, não transição: `statusAnterior = statusNovo`, o mesmo formato do
+   * anexo de documento, que os relatórios de ciclo já descartam. Evita uma
+   * tabela só para cancelar/reabrir.
+   */
+  private async anotarNaTrilha(
+    tx: Prisma.TransactionClient,
+    processoId: number,
+    observacao: string,
+    usuario: UsuarioAutenticado,
+  ): Promise<void> {
+    const etapas = await tx.certificacaoProcesso.findMany({
+      where: { processoId },
+      orderBy: { ordem: 'asc' },
+      select: { id: true, status: true },
+    });
+    const atual = etapaAtualDe(etapas);
+    if (!atual) return;
+
+    await tx.certificacaoHistorico.create({
+      data: {
+        certificacaoId: atual.id,
+        statusAnterior: atual.status,
+        statusNovo: atual.status,
+        observacao,
+        alteradoPorId: usuario.id,
+        alteradoPorNome: usuario.nome,
+      },
+    });
+  }
+
+  /** Versão com consulta de `garantirProcessoAberto`, para quem só tem o id. */
+  private async garantirNaoCancelado(processoId: number): Promise<void> {
+    const processo = await this.prisma.processo.findUnique({
+      where: { id: processoId },
+      select: { canceladoEm: true },
+    });
+    if (processo) garantirProcessoAberto(processo);
+  }
+
+  /** Recusa a ação enquanto o processo tiver certificado numa das situações. */
+  private async garantirSemCertificado(
+    processoId: number,
+    status: StatusCertificado[],
+    orientacao: string,
+  ): Promise<void> {
+    const certificado = await this.prisma.certificado.findFirst({
+      where: { processoId, status: { in: status } },
+      select: { numero: true },
+    });
+    if (certificado) {
+      throw new ConflictException(
+        `Este processo tem o certificado ${certificado.numero} em vigor. ${orientacao}`,
+      );
+    }
   }
 
   /**
@@ -1018,10 +1183,15 @@ export class CertificacoesService {
    * A coluna do quadro volta a ser derivada da etapa atual — não há "voltar
    * para onde estava", porque nunca se gravou onde estava.
    */
-  async reabrir(processoId: number) {
+  async reabrir(processoId: number, usuario: UsuarioAutenticado) {
     const processo = await this.prisma.processo.findUnique({
       where: { id: processoId },
-      select: { id: true, canceladoEm: true },
+      select: {
+        id: true,
+        canceladoEm: true,
+        motivoCancelamento: true,
+        canceladoPorNome: true,
+      },
     });
 
     if (!processo) {
@@ -1032,14 +1202,28 @@ export class CertificacoesService {
       throw new BadRequestException('Este processo não está cancelado.');
     }
 
-    await this.prisma.processo.update({
-      where: { id: processoId },
-      data: {
-        canceladoEm: null,
-        motivoCancelamento: null,
-        canceladoPorId: null,
-        canceladoPorNome: null,
-      },
+    const canceladoEm = processo.canceladoEm;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.processo.update({
+        where: { id: processoId },
+        data: {
+          canceladoEm: null,
+          motivoCancelamento: null,
+          canceladoPorId: null,
+          canceladoPorNome: null,
+        },
+      });
+      // Os campos são limpos, o fato não: a linha do tempo guarda que o
+      // processo esteve cancelado, por quem e por quê.
+      await this.anotarNaTrilha(
+        tx,
+        processoId,
+        `Processo reaberto. Estava cancelado desde ${canceladoEm.toISOString().slice(0, 10)}` +
+          ` por ${processo.canceladoPorNome ?? 'autor não registrado'}` +
+          ` — motivo: ${processo.motivoCancelamento ?? 'não informado'}`,
+        usuario,
+      );
     });
 
     return { mensagem: 'Processo reaberto.' };
@@ -1051,6 +1235,20 @@ export class CertificacoesService {
         'Você só pode acompanhar as certificações dos seus processos.',
       );
     }
+  }
+}
+
+/**
+ * Processo cancelado não aceita mudança na trilha: as etapas "ficam como
+ * pararam", e escrever nelas depois desmentia isso. Reabrir é o caminho.
+ */
+export function garantirProcessoAberto(processo: {
+  canceladoEm: Date | null;
+}): void {
+  if (processo.canceladoEm) {
+    throw new BadRequestException(
+      'Este processo está cancelado. Reabra-o antes de alterar a certificação.',
+    );
   }
 }
 

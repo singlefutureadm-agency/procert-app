@@ -110,6 +110,7 @@ export class ModelosTrilhaService {
         'Informe as etapas da nova versão: não há versão anterior para copiar.',
       );
     }
+    garantirEtapaObrigatoria(etapas);
 
     const agregado = await this.prisma.modeloTrilha.aggregate({
       where: { trilhaId },
@@ -149,6 +150,7 @@ export class ModelosTrilhaService {
    */
   async substituirEtapas(modeloId: number, dto: SubstituirEtapasDto) {
     const modelo = await this.garantirEditavel(modeloId);
+    garantirEtapaObrigatoria(dto.etapas);
 
     // `create` numa transação, e não `createMany`: as microetapas são relação
     // aninhada, e `createMany` as descartaria em silêncio.
@@ -383,6 +385,22 @@ export class ModelosTrilhaService {
  * da trilha. Por isso a criação NÃO pode usar `createMany`: ele não escreve
  * relação aninhada, e as microetapas sumiriam sem erro.
  */
+/**
+ * Toda versão precisa de ao menos uma etapa obrigatória. A emissão exige
+ * "todas as obrigatórias aprovadas", o que é verdade no vazio: trilha só de
+ * opcionais fazia o processo nascer concluído e certificável sem avaliação.
+ */
+export function garantirEtapaObrigatoria(
+  etapas: { obrigatoria?: boolean }[],
+): void {
+  // `obrigatoria` omitida vale o default do schema (true).
+  if (!etapas.some((etapa) => etapa.obrigatoria !== false)) {
+    throw new BadRequestException(
+      'A trilha precisa de ao menos uma etapa obrigatória.',
+    );
+  }
+}
+
 export function paraCriacao(
   etapa: EtapaModeloDto,
   indice: number,

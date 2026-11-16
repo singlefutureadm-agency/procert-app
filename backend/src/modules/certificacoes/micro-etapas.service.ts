@@ -9,7 +9,7 @@ import { Role, StatusCertificacao } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import { DocumentosCertificacaoService } from './documentos.service';
-import { marcosDaTransicao } from './certificacoes.service';
+import { garantirProcessoAberto, marcosDaTransicao } from './certificacoes.service';
 
 /**
  * Resolve a política de aprovação automática de um processo.
@@ -103,6 +103,7 @@ export class MicroEtapasService {
             processo: {
               select: {
                 id: true,
+                canceladoEm: true,
                 aprovacaoAutomatica: true,
                 modeloTrilha: { select: { aprovacaoAutomatica: true } },
               },
@@ -117,6 +118,7 @@ export class MicroEtapasService {
     }
 
     const certificacao = micro.certificacao;
+    garantirProcessoAberto(certificacao.processo);
 
     // Etapa já aprovada não aceita mexer no checklist: o histórico afirma que
     // ela foi avaliada com aquele conjunto marcado, e mudá-lo depois faria o
@@ -154,6 +156,27 @@ export class MicroEtapasService {
         aviso:
           'Checklist concluído. Este processo aprova as etapas manualmente — ' +
           'a aprovação continua sendo um ato da equipe, na linha do tempo.',
+        concluidas,
+        total,
+      };
+    }
+
+    // Etapa reprovada ou com NC em aberto não se aprova por checklist: o
+    // caminho de volta é o ciclo da não conformidade, e fechar os itens aqui
+    // o contornava.
+    const ncsAbertas = await this.prisma.naoConformidade.count({
+      where: {
+        certificacaoId: certificacao.id,
+        status: { in: ['ABERTA', 'EM_TRATATIVA'] },
+      },
+    });
+    if (certificacao.status === StatusCertificacao.REPROVADO || ncsAbertas > 0) {
+      return {
+        etapaAprovada: false,
+        aviso:
+          'Checklist concluído, mas esta etapa está reprovada ou tem não ' +
+          'conformidade em aberto. Encerre a não conformidade e reavalie a ' +
+          'etapa na linha do tempo.',
         concluidas,
         total,
       };

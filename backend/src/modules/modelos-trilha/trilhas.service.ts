@@ -16,7 +16,7 @@ import {
   VincularCategoriasDto,
 } from './dto/trilha.dto';
 import { EtapaModeloDto } from './dto/modelo-trilha.dto';
-import { paraCriacao } from './modelos-trilha.service';
+import { garantirEtapaObrigatoria, paraCriacao } from './modelos-trilha.service';
 
 /**
  * Resumo por trilha para a listagem não precisar de uma segunda consulta.
@@ -139,6 +139,7 @@ export class TrilhasService {
     await this.garantirNomeDisponivel(dto.nome);
 
     const { etapas, ...dados } = dto;
+    if (etapas?.length) garantirEtapaObrigatoria(etapas);
 
     const trilha = await this.prisma.trilha.create({
       data: {

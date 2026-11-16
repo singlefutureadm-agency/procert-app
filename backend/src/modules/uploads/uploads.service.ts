@@ -35,6 +35,23 @@ const MIMES_DOCUMENTO: Record<string, string> = {
 };
 
 /**
+ * Primeiros bytes de cada formato aceito, pela extensão que o MIME declarado
+ * resolve. O MIME vem do cliente: sem isto, um HTML enviado como
+ * `application/pdf` era guardado como evidência.
+ */
+const ASSINATURAS: Record<string, number[]> = {
+  '.jpg': [0xff, 0xd8, 0xff],
+  '.png': [0x89, 0x50, 0x4e, 0x47],
+  '.gif': [0x47, 0x49, 0x46, 0x38],
+  '.webp': [0x52, 0x49, 0x46, 0x46], // RIFF
+  '.pdf': [0x25, 0x50, 0x44, 0x46], // %PDF
+  '.doc': [0xd0, 0xcf, 0x11, 0xe0], // OLE2
+  '.xls': [0xd0, 0xcf, 0x11, 0xe0],
+  '.docx': [0x50, 0x4b, 0x03, 0x04], // ZIP
+  '.xlsx': [0x50, 0x4b, 0x03, 0x04],
+};
+
+/**
  * Armazenamento de imagens e documentos enviados pelos usuários.
  *
  * Corrige três falhas do legado:
@@ -162,6 +179,15 @@ export class UploadsService {
     if (!permitidos[arquivo.mimetype]) {
       throw new BadRequestException(
         `Formato não permitido. Aceitos: ${Object.keys(permitidos).join(', ')}.`,
+      );
+    }
+    const assinatura = ASSINATURAS[permitidos[arquivo.mimetype]];
+    if (
+      assinatura &&
+      !assinatura.every((byte, indice) => arquivo.buffer?.[indice] === byte)
+    ) {
+      throw new BadRequestException(
+        'O conteúdo do arquivo não corresponde ao formato informado.',
       );
     }
     if (arquivo.size > this.tamanhoMaximo) {
