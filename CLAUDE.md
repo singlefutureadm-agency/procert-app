@@ -452,13 +452,13 @@ combinações não. Nenhuma delas pode regredir:
   e `emitir` recusa trilha sem nenhuma: "todas as obrigatórias aprovadas" é verdade no vazio.
 - **Processo cancelado ou `INATIVO` não aceita escrita na trilha** (`garantirProcessoAberto`):
   lote, mover fase e checklist. O inativo entrou em 17/11/2026 — o checklist dele ainda
-  aprovava etapa.
+  aprovava etapa. Cancelar e reabrir deixam uma anotação no histórico da etapa
+  atual (`statusAnterior = statusNovo`, o formato do anexo), porque `reabrir` limpa os
+  campos de cancelamento.
 - **A aprovação pelo checklist trava a linha e confere o status lido** (`MicroEtapasService.aprovar`,
   `FOR UPDATE`, o padrão do lote). Sem isso, uma reprovação gravada em paralelo ao último
   item virava `APROVADO` com `statusAnterior` errado (achado 17/11/2026). Anexar evidência
-  **não** aprova: depois do anexo, marca-se de novo o último item ou aprova-se à mão. Cancelar e reabrir deixam uma anotação no histórico da etapa
-  atual (`statusAnterior = statusNovo`, o formato do anexo), porque `reabrir` limpa os
-  campos de cancelamento.
+  **não** aprova: depois do anexo, marca-se de novo o último item ou aprova-se à mão.
 - **Registro de certificação não se apaga.** `reiniciar` e `ProcessosService.remover`
   recusam (409) processo com certificado, NC ou evidência — era também o que reemitia
   código de NC já enviado ao cliente.
