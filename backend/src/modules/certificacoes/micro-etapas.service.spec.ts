@@ -28,6 +28,7 @@ describe('MicroEtapasService', () => {
     exigeDocumento?: boolean;
     aprovacaoProcesso?: boolean | null;
     aprovacaoTrilha?: boolean;
+    statusProcesso?: 'ATIVO' | 'INATIVO';
   } = {}) => ({
     id: 5,
     concluida: extra.concluida ?? false,
@@ -42,6 +43,8 @@ describe('MicroEtapasService', () => {
       },
       processo: {
         id: 1,
+        canceladoEm: null,
+        status: extra.statusProcesso ?? 'ATIVO',
         aprovacaoAutomatica: extra.aprovacaoProcesso ?? null,
         modeloTrilha: { aprovacaoAutomatica: extra.aprovacaoTrilha ?? true },
       },
@@ -60,6 +63,11 @@ describe('MicroEtapasService', () => {
     banco = criarPrismaMock();
     documentos = mockDeep<DocumentosCertificacaoService>();
     documentos.etapasSemDocumento.mockResolvedValue([]);
+    // A trava da aprovação relê o status sob `FOR UPDATE`; por padrão ele não
+    // mudou desde a leitura (o EM_ANDAMENTO de `microNoBanco`).
+    (banco.tx.$queryRaw as unknown as jest.Mock).mockResolvedValue([
+      { status: StatusCertificacao.EM_ANDAMENTO },
+    ]);
 
     servico = new MicroEtapasService(
       banco.prisma as unknown as PrismaService,
@@ -251,10 +259,43 @@ describe('MicroEtapasService', () => {
       // Fora do commit, uma falha deixaria a etapa aprovada sem rastro de quem
       // a aprovou.
       expect(banco.chamadasNaTransacao).toEqual([
+        '$queryRaw',
         'certificacaoProcesso.update',
         'certificacaoHistorico.create',
       ]);
       expect(banco.prisma.certificacaoProcesso.update).not.toHaveBeenCalled();
+    });
+
+    it('etapa alterada por outra pessoa entre a leitura e a aprovação NÃO é sobrescrita', async () => {
+      // Reprovação gravada em paralelo virava APROVADO com statusAnterior
+      // errado no histórico (auditoria de 17/11/2026).
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco() as never,
+      );
+      checklist(2, 0);
+      (banco.tx.$queryRaw as unknown as jest.Mock).mockResolvedValue([
+        { status: StatusCertificacao.REPROVADO },
+      ]);
+
+      const resultado = await servico.alternar(5, true, admin());
+
+      expect(resultado.etapaAprovada).toBe(false);
+      expect(resultado.aviso).toMatch(/alterada por outra pessoa/i);
+      expect(banco.tx.certificacaoProcesso.update).not.toHaveBeenCalled();
+      expect(banco.tx.certificacaoHistorico.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('processo fora do fluxo', () => {
+    it('processo INATIVO não aceita marcar', async () => {
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco({ statusProcesso: 'INATIVO' }) as never,
+      );
+
+      await expect(servico.alternar(5, true, admin())).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(banco.prisma.microEtapaCertificacao.update).not.toHaveBeenCalled();
     });
   });
 });
