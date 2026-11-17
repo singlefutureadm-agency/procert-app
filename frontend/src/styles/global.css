@@ -3192,6 +3192,12 @@ fieldset.secao-form legend {
   margin: 0;
 }
 
+/* Checklist dentro do card da linha do tempo (~268px): o nome de quem marcou
+   desce para a linha de baixo em vez de espremer o item. */
+.etapa__micro .processo__checklist li {
+  flex-wrap: wrap;
+}
+
 /* --------------------- Editor de microetapas (trilha) -------------------- */
 
 .micro-editor {

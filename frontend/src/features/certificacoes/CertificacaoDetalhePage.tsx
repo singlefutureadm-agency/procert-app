@@ -31,6 +31,7 @@ import type {
 } from '@/types';
 import { certificacoesApi, type EtapaAlteracao } from './api';
 import { DocumentosEtapa } from './DocumentosEtapa';
+import { ChecklistEtapa } from './ModalProcesso';
 
 const CLASSE_ETAPA: Record<StatusCertificacao, string> = {
   PENDENTE: 'etapa--pendente',
@@ -253,6 +254,26 @@ export function CertificacaoDetalhePage() {
       void queryClient.invalidateQueries({ queryKey: ['nao-conformidades'] });
     },
     onError: (erro) => toast.error(mensagemDeErro(erro)),
+  });
+
+  /** Mesma rota do quadro: fechar o checklist pode aprovar a etapa. */
+  const marcarMicro = useMutation({
+    mutationFn: ({ id: microId, concluida }: { id: number; concluida: boolean }) =>
+      certificacoesApi.alternarMicroEtapa(microId, concluida),
+    onSuccess: (resultado) => {
+      if (resultado.etapaAprovada) {
+        toast.success('Checklist concluído: a etapa foi aprovada.');
+      } else if (resultado.aviso) {
+        toast.warning(resultado.aviso, { duration: 8000 });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['certificacoes'] });
+      if (resultado.etapaAprovada) {
+        void queryClient.invalidateQueries({ queryKey: ['processos'] });
+        void queryClient.invalidateQueries({ queryKey: chaves.dashboard });
+      }
+    },
+    onError: (erro) =>
+      toast.error(mensagemDeErro(erro, 'Não foi possível marcar a microetapa.')),
   });
 
   // Consulta silenciosa: se a categoria publicou uma versão nova da trilha
@@ -513,6 +534,27 @@ export function CertificacaoDetalhePage() {
                           {etapa.observacao ?? 'Sem observações.'}
                         </p>
                       </>
+                    )}
+
+                    {podeEditar && etapa.microEtapas.length > 0 && (
+                      <div className="etapa__micro">
+                        <span className="texto-pequeno texto-fraco">Checklist</span>
+                        {/* Marcar recarrega a certificação, e a recarga refaz o
+                            rascunho: status digitado e não salvo se perderia. */}
+                        <ChecklistEtapa
+                          etapa={etapa}
+                          salvando={marcarMicro.isPending}
+                          bloqueado={alteracoes.length > 0}
+                          aoAlternar={(microId, concluida) =>
+                            marcarMicro.mutate({ id: microId, concluida })
+                          }
+                        />
+                        {alteracoes.length > 0 && (
+                          <p className="texto-pequeno texto-fraco">
+                            Salve ou descarte as alterações para marcar o checklist.
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     <DocumentosEtapa

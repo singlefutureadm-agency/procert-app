@@ -313,9 +313,7 @@ function BlocoEtapa({
   salvando: boolean;
   aoAlternar: (id: number, concluida: boolean) => void;
 }) {
-  const concluidas = etapa.microEtapas.filter((m) => m.concluida).length;
   const total = etapa.microEtapas.length;
-  const aprovada = etapa.status === 'APROVADO';
 
   return (
     <section className="processo__etapa">
@@ -342,6 +340,36 @@ function BlocoEtapa({
       )}
 
       {total > 0 && (
+        <ChecklistEtapa etapa={etapa} salvando={salvando} aoAlternar={aoAlternar} />
+      )}
+    </section>
+  );
+}
+
+/**
+ * As caixas de marcar do checklist de UMA etapa do processo.
+ *
+ * Compartilhado pelo modal do quadro e pela tela de avaliação — era só do
+ * quadro, e quem avaliava pela linha do tempo não via checklist nenhum.
+ * `bloqueado` trava tudo sem esconder (a tela de avaliação usa enquanto há
+ * status em rascunho, que a recarga da marcação descartaria).
+ */
+export function ChecklistEtapa({
+  etapa,
+  salvando,
+  bloqueado = false,
+  aoAlternar,
+}: {
+  etapa: EtapaTimeline;
+  salvando: boolean;
+  bloqueado?: boolean;
+  aoAlternar: (id: number, concluida: boolean) => void;
+}) {
+  const concluidas = etapa.microEtapas.filter((m) => m.concluida).length;
+  const total = etapa.microEtapas.length;
+  const aprovada = etapa.status === 'APROVADO';
+
+  return (
         <>
           <p className="texto-pequeno texto-suave">
             {concluidas} de {total} concluída{total === 1 ? '' : 's'}
@@ -361,7 +389,7 @@ function BlocoEtapa({
                     // Etapa aprovada trava o checklist: o histórico afirma que
                     // ela foi avaliada com aquele conjunto marcado. O backend
                     // recusa de qualquer forma; aqui é só não oferecer.
-                    disabled={salvando || aprovada}
+                    disabled={salvando || bloqueado || aprovada}
                     onChange={(evento) =>
                       aoAlternar(micro.id, evento.target.checked)
                     }
@@ -394,7 +422,5 @@ function BlocoEtapa({
             ))}
           </ul>
         </>
-      )}
-    </section>
   );
 }
