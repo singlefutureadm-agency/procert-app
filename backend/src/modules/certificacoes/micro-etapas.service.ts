@@ -104,6 +104,7 @@ export class MicroEtapasService {
               select: {
                 id: true,
                 canceladoEm: true,
+                status: true,
                 aprovacaoAutomatica: true,
                 modeloTrilha: { select: { aprovacaoAutomatica: true } },
               },
@@ -191,15 +192,28 @@ export class MicroEtapasService {
         return {
           etapaAprovada: false,
           aviso:
+            // Anexar não aprova sozinho (a aprovação é efeito do ATO de marcar):
+            // o texto diz o que fazer depois, em vez de prometer o que não vem.
             'Checklist concluído, mas esta etapa exige evidência anexada para ' +
-            'ser aprovada. Anexe o documento e a aprovação segue.',
+            'ser aprovada. Anexe o documento e depois desmarque e marque o ' +
+            'último item, ou aprove a etapa na linha do tempo.',
           concluidas,
           total,
         };
       }
     }
 
-    await this.aprovar(certificacao, usuario);
+    const aprovou = await this.aprovar(certificacao, usuario);
+    if (!aprovou) {
+      return {
+        etapaAprovada: false,
+        aviso:
+          'Checklist concluído, mas a etapa foi alterada por outra pessoa neste ' +
+          'instante e não foi aprovada. Confira o status na linha do tempo.',
+        concluidas,
+        total,
+      };
+    }
 
     return { etapaAprovada: true, aviso: null, concluidas, total };
   }
@@ -228,6 +242,11 @@ export class MicroEtapasService {
    * Reusa `marcosDaTransicao` de propósito — a invariante
    * `ck_certificacao_concluida_em` recusaria a linha se este caminho gravasse
    * o status sem a conclusão, e duplicar a regra aqui era a chance de errar.
+   *
+   * Trava a linha e confere o status lido lá em cima — o mesmo padrão do lote em
+   * `salvar`. Sem isso, uma reprovação gravada entre a leitura e esta escrita
+   * era sobrescrita pela aprovação, com `statusAnterior` errado no histórico
+   * (achado na auditoria de 17/11/2026). Devolve `false` quando a etapa mudou.
    */
   private aprovar(
     certificacao: {
@@ -237,8 +256,13 @@ export class MicroEtapasService {
       etapa: { nome: string };
     },
     usuario: UsuarioAutenticado,
-  ) {
+  ): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
+      const [atual] = await tx.$queryRaw<
+        { status: StatusCertificacao }[]
+      >`SELECT status::text AS status FROM certificacoes_processo WHERE id = ${certificacao.id} FOR UPDATE`;
+      if (atual?.status !== certificacao.status) return false;
+
       await tx.certificacaoProcesso.update({
         where: { id: certificacao.id },
         data: {
@@ -264,6 +288,7 @@ export class MicroEtapasService {
           alteradoPorNome: usuario.nome,
         },
       });
+      return true;
     });
   }
 }
