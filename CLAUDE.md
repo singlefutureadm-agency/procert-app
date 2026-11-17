@@ -82,7 +82,7 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 448 unitários, 24 suítes, Prisma mockado |
+| `npm test` | ✅ 450 unitários, 24 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 145 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -98,7 +98,7 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 448 unitários + 145 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 450 unitários + 145 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -450,8 +450,13 @@ combinações não. Nenhuma delas pode regredir:
   único parcial de propósito: uma base que já tivesse duplicata derrubaria o deploy.
 - **Toda versão de trilha tem ao menos uma etapa obrigatória** (`garantirEtapaObrigatoria`),
   e `emitir` recusa trilha sem nenhuma: "todas as obrigatórias aprovadas" é verdade no vazio.
-- **Processo cancelado não aceita escrita na trilha** (`garantirProcessoAberto`): lote,
-  mover fase e checklist. Cancelar e reabrir deixam uma anotação no histórico da etapa
+- **Processo cancelado ou `INATIVO` não aceita escrita na trilha** (`garantirProcessoAberto`):
+  lote, mover fase e checklist. O inativo entrou em 17/11/2026 — o checklist dele ainda
+  aprovava etapa.
+- **A aprovação pelo checklist trava a linha e confere o status lido** (`MicroEtapasService.aprovar`,
+  `FOR UPDATE`, o padrão do lote). Sem isso, uma reprovação gravada em paralelo ao último
+  item virava `APROVADO` com `statusAnterior` errado (achado 17/11/2026). Anexar evidência
+  **não** aprova: depois do anexo, marca-se de novo o último item ou aprova-se à mão. Cancelar e reabrir deixam uma anotação no histórico da etapa
   atual (`statusAnterior = statusNovo`, o formato do anexo), porque `reabrir` limpa os
   campos de cancelamento.
 - **Registro de certificação não se apaga.** `reiniciar` e `ProcessosService.remover`

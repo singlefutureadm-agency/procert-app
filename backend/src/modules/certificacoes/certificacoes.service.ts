@@ -1155,7 +1155,7 @@ export class CertificacoesService {
   private async garantirNaoCancelado(processoId: number): Promise<void> {
     const processo = await this.prisma.processo.findUnique({
       where: { id: processoId },
-      select: { canceladoEm: true },
+      select: { canceladoEm: true, status: true },
     });
     if (processo) garantirProcessoAberto(processo);
   }
@@ -1241,13 +1241,22 @@ export class CertificacoesService {
 /**
  * Processo cancelado não aceita mudança na trilha: as etapas "ficam como
  * pararam", e escrever nelas depois desmentia isso. Reabrir é o caminho.
+ *
+ * Processo INATIVO (soft delete do cadastro) também não: some das listagens e do
+ * quadro, e o checklist dele ainda aprovava etapa (auditoria de 17/11/2026).
  */
 export function garantirProcessoAberto(processo: {
   canceladoEm: Date | null;
+  status: StatusRegistro;
 }): void {
   if (processo.canceladoEm) {
     throw new BadRequestException(
       'Este processo está cancelado. Reabra-o antes de alterar a certificação.',
+    );
+  }
+  if (processo.status === StatusRegistro.INATIVO) {
+    throw new BadRequestException(
+      'Este processo está inativo. Reative-o antes de alterar a certificação.',
     );
   }
 }
