@@ -49,6 +49,7 @@ export type NomeIcone =
   | 'bussola'
   | 'atualizar'
   | 'verificado'
+  | 'sino'
   | 'check'
   | 'x'
   | 'ampulheta'
@@ -269,6 +270,13 @@ const DESENHOS: Record<NomeIcone, ReactElement> = {
     <>
       <circle cx="12" cy="12" r="10" />
       <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  /* Corpo do sino mais o badalo. Grade 24, traço aberto, como os vizinhos. */
+  sino: (
+    <>
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
     </>
   ),
   check: <path d="M20 6 9 17l-5-5" />,

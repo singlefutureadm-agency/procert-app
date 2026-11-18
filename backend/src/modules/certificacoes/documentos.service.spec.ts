@@ -8,6 +8,7 @@ import { SituacaoDocumento, StatusCertificacao } from '@prisma/client';
 import { mockDeep } from 'jest-mock-extended';
 
 import { DocumentosCertificacaoService } from './documentos.service';
+import { NotificacoesService } from '../notificacoes/notificacoes.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { criarPrismaMock, PrismaMock } from '../../testing/prisma.mock';
@@ -17,6 +18,7 @@ const PROCESSO = 1;
 const ETAPA = 10;
 const MICRO = 5;
 const CLIENTE_DONO = 100;
+const RESPONSAVEL = 7;
 
 /**
  * O ciclo do documento pedido ao cliente: enviado, e aceito ou não.
@@ -30,6 +32,7 @@ describe('DocumentosCertificacaoService', () => {
   let servico: DocumentosCertificacaoService;
   let banco: PrismaMock;
   let uploads: jest.Mocked<UploadsService>;
+  let notificacoes: jest.Mocked<NotificacoesService>;
 
   const arquivo = {
     originalname: 'calibracao.pdf',
@@ -41,15 +44,22 @@ describe('DocumentosCertificacaoService', () => {
   const etapaNoBanco = (extra: {
     canceladoEm?: Date | null;
     statusProcesso?: 'ATIVO' | 'INATIVO';
+    responsavelId?: number | null;
   } = {}) => ({
     id: ETAPA,
     processoId: PROCESSO,
     status: StatusCertificacao.EM_ANDAMENTO,
     etapa: { nome: 'Ensaios laboratoriais' },
     processo: {
+      id: PROCESSO,
+      nome: 'Disjuntor DIN 25A',
       clienteId: CLIENTE_DONO,
       canceladoEm: extra.canceladoEm ?? null,
       status: extra.statusProcesso ?? 'ATIVO',
+      // `in` e não `??`: `null` aqui é "processo sem responsável", um VALOR com
+      // significado — e é justamente um dos casos de teste.
+      responsavelId:
+        'responsavelId' in extra ? extra.responsavelId : RESPONSAVEL,
     },
   });
 
@@ -68,6 +78,7 @@ describe('DocumentosCertificacaoService', () => {
     situacao?: SituacaoDocumento | null;
     itemConcluido?: boolean;
     semMicroEtapa?: boolean;
+    responsavelId?: number | null;
   } = {}) => ({
     id: 7,
     nomeArquivo: 'calibracao.pdf',
@@ -86,7 +97,14 @@ describe('DocumentosCertificacaoService', () => {
       certificacaoId: ETAPA,
       certificacao: {
         status: StatusCertificacao.EM_ANDAMENTO,
-        processo: { canceladoEm: null, status: 'ATIVO' as const },
+        processo: {
+          id: PROCESSO,
+          nome: 'Disjuntor DIN 25A',
+          canceladoEm: null,
+          status: 'ATIVO' as const,
+          responsavelId:
+            'responsavelId' in extra ? extra.responsavelId : RESPONSAVEL,
+        },
       },
     },
   });
@@ -102,6 +120,13 @@ describe('DocumentosCertificacaoService', () => {
     uploads.salvarDocumento.mockResolvedValue(
       '/uploads/certificacoes/uuid.pdf',
     );
+    notificacoes = mockDeep<NotificacoesService>();
+    // Grava PELO cliente que recebeu, para que `chamadasNaTransacao` prove o
+    // commit. Comparar o argumento com `banco.tx` não funciona: o service
+    // recebe o Proxy de registro, e não o mock cru — ver `prisma.mock.ts`.
+    notificacoes.gravar.mockImplementation(async (tx, avisos) => {
+      if (avisos.length > 0) await tx.notificacao.createMany({ data: avisos });
+    });
 
     banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue(
       etapaNoBanco() as never,
@@ -116,6 +141,7 @@ describe('DocumentosCertificacaoService', () => {
     servico = new DocumentosCertificacaoService(
       banco.prisma as unknown as PrismaService,
       uploads,
+      notificacoes,
     );
   });
 
@@ -166,9 +192,13 @@ describe('DocumentosCertificacaoService', () => {
     it('documento e histórico nascem no MESMO commit', async () => {
       await servico.anexar(PROCESSO, ETAPA, arquivo, cliente(CLIENTE_DONO), MICRO);
 
+      // O aviso ao responsável entra no MESMO commit — ver o describe
+      // "aviso ao responsável". A lista é exata de propósito: uma escrita nova
+      // escapando da transação tem de aparecer aqui.
       expect(banco.chamadasNaTransacao).toEqual([
         'certificacaoHistorico.create',
         'documentoCertificacao.create',
+        'notificacao.createMany',
       ]);
       // E nada escreveu fora da transação.
       expect(banco.prisma.documentoCertificacao.create).not.toHaveBeenCalled();
@@ -350,6 +380,7 @@ describe('DocumentosCertificacaoService', () => {
       expect(banco.chamadasNaTransacao).toEqual([
         'documentoCertificacao.update',
         'certificacaoHistorico.create',
+        'notificacao.createMany',
       ]);
     });
 
@@ -385,6 +416,133 @@ describe('DocumentosCertificacaoService', () => {
     it('devolve true havendo ao menos um', async () => {
       banco.prisma.documentoCertificacao.count.mockResolvedValue(1 as never);
       await expect(servico.temDocumentoAceito(MICRO)).resolves.toBe(true);
+    });
+  });
+
+  /**
+   * O aviso ao responsável nasce no MESMO commit do evento.
+   *
+   * O modo de falha que isto cobre é o pior possível: o documento é gravado, a
+   * tela diz "enviado", e **ninguém é avisado**. Nenhum erro em lugar nenhum —
+   * só um arquivo esperando numa fila que a pessoa responsável não sabe que
+   * existe.
+   */
+  describe('aviso ao responsável', () => {
+    /** O primeiro argumento de `gravar` é o cliente de transação. */
+    const avisosGravados = () =>
+      notificacoes.gravar.mock.calls[0]?.[1] ?? [];
+
+    it('envio do cliente avisa o responsável, dentro da transação', async () => {
+      await servico.anexar(PROCESSO, ETAPA, arquivo, cliente(CLIENTE_DONO), MICRO);
+
+      expect(notificacoes.gravar).toHaveBeenCalledTimes(1);
+      expect(avisosGravados()).toEqual([
+        expect.objectContaining({
+          destinatarioId: RESPONSAVEL,
+          tipo: 'DOCUMENTO_ENVIADO',
+        }),
+      ]);
+      // O aviso caiu DENTRO do commit, depois do documento. O mock de `gravar`
+      // escreve pelo cliente que recebeu, então a ordem aqui é a prova.
+      expect(banco.chamadasNaTransacao).toEqual([
+        'certificacaoHistorico.create',
+        'documentoCertificacao.create',
+        'notificacao.createMany',
+      ]);
+    });
+
+    it('o texto é COMPOSTO na gravação, com nome do arquivo e do item', async () => {
+      // Derivar na leitura faria renomear a microetapa reescrever um aviso de
+      // três semanas atrás.
+      await servico.anexar(PROCESSO, ETAPA, arquivo, cliente(CLIENTE_DONO), MICRO);
+
+      const [aviso] = avisosGravados();
+      expect(aviso.titulo).toContain('Disjuntor DIN 25A');
+      expect(aviso.detalhe).toContain('calibracao.pdf');
+      expect(aviso.detalhe).toContain('Certificado de calibração');
+    });
+
+    it('evidência da etapa (sem item) NÃO avisa ninguém', async () => {
+      // Ela não espera ação de nenhuma pessoa em particular, e avisar sobre ela
+      // treinaria o destinatário a ignorar a caixa.
+      await servico.anexar(PROCESSO, ETAPA, arquivo, admin());
+
+      expect(notificacoes.gravar).not.toHaveBeenCalled();
+    });
+
+    it('processo SEM responsável: avisa com lista vazia, e não quebra', async () => {
+      banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue(
+        etapaNoBanco({ responsavelId: null }) as never,
+      );
+
+      await expect(
+        servico.anexar(PROCESSO, ETAPA, arquivo, cliente(CLIENTE_DONO), MICRO),
+      ).resolves.toBeDefined();
+      expect(avisosGravados()).toEqual([]);
+    });
+
+    it('o autor do envio do CLIENTE viaja como null', async () => {
+      // `sub` é o id na tabela Cliente OU na Funcionario, e as sequências são
+      // independentes. Passar o id do cliente como autor silenciaria o aviso
+      // sempre que ele coincidisse com o do responsável — pessoas diferentes
+      // com o mesmo número.
+      //
+      // O cenário: o CLIENTE DONO tem id 100, e o funcionário responsável
+      // também. O aviso TEM de sair.
+      banco.prisma.certificacaoProcesso.findUnique.mockResolvedValue(
+        etapaNoBanco({ responsavelId: CLIENTE_DONO }) as never,
+      );
+
+      await servico.anexar(PROCESSO, ETAPA, arquivo, cliente(CLIENTE_DONO), MICRO);
+
+      expect(avisosGravados()).toEqual([
+        expect.objectContaining({ destinatarioId: CLIENTE_DONO }),
+      ]);
+    });
+
+    it('avaliação avisa o responsável quando OUTRA pessoa decidiu', async () => {
+      banco.prisma.documentoCertificacao.findUnique.mockResolvedValue(
+        documentoNoBanco() as never,
+      );
+
+      await servico.avaliar(
+        7,
+        { situacao: SituacaoDocumento.RECUSADO, parecer: 'Fora da validade.' },
+        admin(),
+      );
+
+      expect(avisosGravados()).toEqual([
+        expect.objectContaining({
+          destinatarioId: RESPONSAVEL,
+          tipo: 'DOCUMENTO_RECUSADO',
+        }),
+      ]);
+      // O parecer vai no aviso: é o que o responsável precisa ler.
+      expect(avisosGravados()[0].detalhe).toContain('Fora da validade.');
+    });
+
+    it('aceitação usa o tipo próprio', async () => {
+      banco.prisma.documentoCertificacao.findUnique.mockResolvedValue(
+        documentoNoBanco() as never,
+      );
+
+      await servico.avaliar(7, { situacao: SituacaoDocumento.ACEITO }, admin());
+
+      expect(avisosGravados()[0].tipo).toBe('DOCUMENTO_ACEITO');
+    });
+
+    it('o responsável NÃO é avisado da própria decisão', async () => {
+      banco.prisma.documentoCertificacao.findUnique.mockResolvedValue(
+        documentoNoBanco() as never,
+      );
+
+      await servico.avaliar(
+        7,
+        { situacao: SituacaoDocumento.ACEITO },
+        { ...admin(), id: RESPONSAVEL },
+      );
+
+      expect(avisosGravados()).toEqual([]);
     });
   });
 });

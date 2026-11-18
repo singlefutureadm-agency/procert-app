@@ -1067,6 +1067,112 @@ table.tabela {
   color: var(--cor-alerta);
 }
 
+/* ---------------------------------------------------------------- sino
+
+   Caixa de avisos pendurada no cabeçalho do painel. */
+.sino {
+  position: relative;
+}
+
+/* O contador cola no canto do sino. `position: relative` no botão para o
+   absoluto do badge se ancorar nele, e não no `.sino`. */
+.sino__botao {
+  position: relative;
+}
+
+.sino__contador {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  padding: 0 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  color: #fff;
+  /* `--cor-erro` e não `--cor-primaria`: o badge precisa se separar do ícone,
+     que já é da paleta. O número vai no `aria-label` do BOTÃO, então a cor
+     nunca é a única pista — ver a nota dos gráficos. */
+  background: var(--cor-erro);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.sino__painel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: var(--espaco-3);
+  border-radius: var(--raio);
+  text-align: left;
+}
+
+.sino__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+  margin-bottom: var(--espaco-2);
+}
+
+.sino__vazio {
+  margin: 0;
+  padding: var(--espaco-2) 0;
+}
+
+.sino__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sino__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--espaco-2);
+  border-radius: var(--raio-sm);
+  border-left: 3px solid var(--cor-primaria);
+  background: var(--vidro-fundo);
+}
+
+/* Lido perde a marca da esquerda e esmaece — a diferença não é só a cor: a
+   borda sai, que é uma pista de forma. */
+.sino__item--lido {
+  border-left-color: transparent;
+  opacity: 0.68;
+}
+
+.sino__item-link {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sino__item-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+}
+
+.sino__item-titulo {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
 /* Documentos PEDIDOS ao cliente — bloco separado das evidências da etapa.
    São dois tipos de arquivo com ciclos diferentes, e misturá-los faria um
    documento recusado parecer prova aceita. */

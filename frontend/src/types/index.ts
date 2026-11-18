@@ -61,6 +61,40 @@ interface PessoaBase {
   atualizadoEm: string;
 }
 
+/**
+ * O que aconteceu, num aviso do painel.
+ *
+ * **É uma allowlist**, espelho do enum do backend: alargar a régua é
+ * acrescentar um valor nos dois lados. Aviso demais treina o destinatário a
+ * ignorar todos.
+ */
+export type TipoNotificacao =
+  | 'DOCUMENTO_ENVIADO'
+  | 'DOCUMENTO_ACEITO'
+  | 'DOCUMENTO_RECUSADO';
+
+/**
+ * Aviso no painel, endereçado a UMA pessoa da equipe.
+ *
+ * O destinatário é sempre o responsável pelo processo, e o servidor o tira do
+ * token — não há como pedir a caixa de outra pessoa, nem sendo ADMIN.
+ *
+ * `titulo` e `detalhe` vêm PRONTOS do servidor, compostos no instante do
+ * evento. Não remonte o texto aqui: derivá-lo faria um aviso antigo mudar de
+ * sentido quando o dado mudasse.
+ */
+export interface Notificacao {
+  id: number;
+  tipo: TipoNotificacao;
+  titulo: string;
+  detalhe: string | null;
+  /** Para onde o clique leva. `null` se o processo deixou de existir. */
+  processoId: number | null;
+  /** `null` = não lida. */
+  lidaEm: string | null;
+  criadoEm: string;
+}
+
 /** Referência enxuta a um colaborador (GET /funcionarios/resumo). */
 export interface FuncionarioResumo {
   id: number;
