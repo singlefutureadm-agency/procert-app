@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { FaseProcesso, PapelFuncional, StatusCertificacao } from '@prisma/client';
+import {
+  FaseProcesso,
+  PapelFuncional,
+  SituacaoDocumento,
+  StatusCertificacao,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -15,6 +20,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -237,4 +243,65 @@ export class ExportarCertificacaoDto {
   @IsOptional()
   @IsIn(['xlsx', 'csv'])
   formato?: 'xlsx' | 'csv';
+}
+
+/**
+ * A que item do checklist o documento responde.
+ *
+ * `multipart/form-data`, então o campo chega como TEXTO — daí o
+ * `@Type(() => Number)`. Omitido, o arquivo é evidência da ETAPA, anexada pela
+ * equipe, e não entra na fila de avaliação.
+ *
+ * Para o CLIENTE é obrigatório, e a exigência vive no service: ele só envia
+ * contra um pedido. O DTO não sabe quem está chamando.
+ */
+export class AnexarDocumentoDto {
+  @ApiPropertyOptional({
+    example: 12,
+    description:
+      'Id da microetapa (item do checklist DO PROCESSO) a que este documento ' +
+      'responde. Obrigatório quando quem envia é o CLIENTE.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  microEtapaId?: number;
+}
+
+/**
+ * Aceite ou recusa de um documento enviado para um item do checklist.
+ *
+ * `PENDENTE` não entra no enum de propósito: é o estado de chegada, escrito
+ * pelo envio. Permitir voltar um documento para "pendente" criaria uma terceira
+ * transição sem significado operacional — a equipe já olhou o arquivo.
+ */
+export class AvaliarDocumentoDto {
+  @ApiProperty({
+    enum: [SituacaoDocumento.ACEITO, SituacaoDocumento.RECUSADO],
+    description:
+      'ACEITO libera a conclusão do item do checklist; RECUSADO devolve ao ' +
+      'cliente para reenvio. Aceitar NÃO conclui o item — isso continua sendo ' +
+      'o ato de marcar.',
+  })
+  @IsIn([SituacaoDocumento.ACEITO, SituacaoDocumento.RECUSADO], {
+    message: 'Informe ACEITO ou RECUSADO.',
+  })
+  situacao!: typeof SituacaoDocumento.ACEITO | typeof SituacaoDocumento.RECUSADO;
+
+  /**
+   * Obrigatório na RECUSA. A exigência é condicional, então mora numa
+   * validação própria em vez de um `@IsString()` solto: documento devolvido
+   * sem motivo é um reenvio às cegas, e `ck_documento_avaliacao` recusaria a
+   * linha no banco — com uma mensagem que o usuário não entenderia.
+   */
+  @ApiPropertyOptional({
+    example: 'Certificado de calibração fora da validade.',
+    description: 'OBRIGATÓRIO quando a situação é RECUSADO.',
+  })
+  @ValidateIf((dto: AvaliarDocumentoDto) => dto.situacao === SituacaoDocumento.RECUSADO)
+  @IsString({ message: 'Descreva por que o documento foi recusado.' })
+  @MinLength(5, { message: 'Descreva por que o documento foi recusado.' })
+  @MaxLength(2000)
+  parecer?: string;
 }

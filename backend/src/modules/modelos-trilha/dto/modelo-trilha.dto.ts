@@ -56,6 +56,18 @@ export class MicroEtapaModeloDto {
     message: 'O prazo da microetapa não pode passar de 8760 horas (um ano).',
   })
   prazoSlaHoras?: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Este item é um DOCUMENTO PEDIDO AO CLIENTE: ele envia pelo painel, a ' +
+      'equipe aceita ou recusa, e o item só se conclui com um envio ACEITO. ' +
+      'Diferente de `EtapaModeloDto.exigeDocumento`, que é evidência da ETAPA ' +
+      'anexada pela equipe — os dois convivem na mesma etapa.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  exigeDocumento?: boolean;
 }
 
 export class EtapaModeloDto {

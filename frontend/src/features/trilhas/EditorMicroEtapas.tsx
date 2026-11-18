@@ -50,6 +50,9 @@ export function EditorMicroEtapas({
       <p className="texto-pequeno texto-fraco micro-editor__dica">
         Cada processo recebe uma cópia própria desta lista ao entrar na trilha, e
         é a cópia que a equipe marca. Área e prazo em branco seguem os da etapa.
+        Marque <strong>Pedir documento</strong> para que o item seja um arquivo
+        solicitado ao cliente: ele envia pelo painel, a equipe aceita ou recusa,
+        e o item só se conclui com um envio aceito.
       </p>
 
       {itens.length === 0 && (
@@ -125,6 +128,20 @@ export function EditorMicroEtapas({
                   })
                 }
               />
+
+              {/* Rótulo VISÍVEL, não `apenas-leitor-tela` como os de cima: os
+                  outros campos se explicam pelo placeholder, e uma caixa de
+                  seleção sem texto ao lado não se explica por nada. */}
+              <label className="micro-editor__pedido">
+                <input
+                  type="checkbox"
+                  checked={item.exigeDocumento ?? false}
+                  onChange={(evento) =>
+                    alterar(indice, { exigeDocumento: evento.target.checked })
+                  }
+                />
+                <span className="texto-pequeno">Pedir documento</span>
+              </label>
             </div>
 
             <div className="micro-editor__acoes">

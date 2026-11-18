@@ -72,6 +72,21 @@ enum StatusNaoConformidade {
   REPROVADA
 }
 
+/// Situação de um documento PEDIDO ao cliente — enviado, e aceito ou não.
+///
+/// Vive no DOCUMENTO, não na microetapa: cada envio é julgado por si. Um
+/// documento recusado seguido de outro aceito são duas linhas com desfechos
+/// diferentes, e guardar a situação na microetapa apagaria a primeira — que é
+/// justamente o que o cliente precisa poder ver para entender o reenvio.
+enum SituacaoDocumento {
+  /// Enviado e aguardando a avaliação da equipe.
+  PENDENTE
+  /// Aceito: serve como evidência e libera a conclusão do item do checklist.
+  ACEITO
+  /// Recusado, sempre com parecer. O cliente reenvia — a linha recusada fica.
+  RECUSADO
+}
+
 enum StatusCertificado {
   EMITIDO
   SUSPENSO
@@ -240,6 +255,8 @@ model Funcionario {
   certificadosEmitidos  Certificado[]
   historicoCertificados CertificadoHistorico[]
   documentosEnviados    DocumentoCertificacao[]
+  /// Documentos do cliente que este funcionário aceitou ou recusou.
+  documentosAvaliados   DocumentoCertificacao[]  @relation("DocumentoAvaliado")
   aparenciaAtualizada   ConfiguracaoAparencia[]
   microEtapasConcluidas MicroEtapaCertificacao[] @relation("MicroEtapaConcluida")
   processosCancelados   Processo[]                @relation("ProcessoCancelado")
@@ -545,6 +562,17 @@ model ModeloMicroEtapa {
   /// interno, e a soma dos itens NÃO precisa fechar com o prazo da etapa —
   /// forçar isso transformaria uma estimativa em restrição.
   prazoSlaHoras    Int?            @map("prazo_sla_horas")
+  /// Este item é um DOCUMENTO PEDIDO AO CLIENTE.
+  ///
+  /// Não confundir com `ModeloEtapa.exigeDocumento`, que exige evidência para
+  /// a etapa ser aprovada e é anexada pela EQUIPE. Aqui o item é o pedido em
+  /// si: o cliente envia pelo painel dele, a equipe aceita ou recusa, e o item
+  /// só se conclui com um documento ACEITO.
+  ///
+  /// Os dois convivem numa mesma etapa: "relatório de ensaio" (evidência da
+  /// equipe) e "certificado de calibração do laboratório" (pedido ao cliente)
+  /// são documentos de naturezas diferentes no mesmo passo.
+  exigeDocumento   Boolean         @default(false) @map("exige_documento")
 
   modeloEtapa ModeloEtapa              @relation(fields: [modeloEtapaId], references: [id], onDelete: Cascade)
   copias      MicroEtapaCertificacao[]
@@ -663,6 +691,9 @@ model MicroEtapaCertificacao {
   /// executado, mesmo que o catálogo mude depois.
   papelResponsavel   PapelFuncional? @map("papel_responsavel")
   prazoSlaHoras      Int?            @map("prazo_sla_horas")
+  /// Cópia de `ModeloMicroEtapa.exigeDocumento`: este item é um documento
+  /// pedido ao cliente, e só se conclui com um envio ACEITO.
+  exigeDocumento     Boolean         @default(false) @map("exige_documento")
   concluida          Boolean         @default(false)
   concluidaEm        DateTime?       @map("concluida_em")
   /// Autoria vem da sessão. Desnormalizada, como as demais: sobrevive à
@@ -674,6 +705,9 @@ model MicroEtapaCertificacao {
   certificacao     CertificacaoProcesso @relation(fields: [certificacaoId], references: [id], onDelete: Cascade)
   modeloMicroEtapa ModeloMicroEtapa?   @relation(fields: [modeloMicroEtapaId], references: [id], onDelete: SetNull)
   concluidaPor     Funcionario?        @relation("MicroEtapaConcluida", fields: [concluidaPorId], references: [id], onDelete: SetNull)
+  /// Envios do cliente para ESTE item. Vários: um recusado não apaga a linha,
+  /// e o reenvio é um documento novo.
+  documentos       DocumentoCertificacao[]
 
   @@index([certificacaoId, ordem])
   @@map("micro_etapas_certificacao")
@@ -742,6 +776,17 @@ model CertificacaoHistorico {
 model DocumentoCertificacao {
   id             Int      @id @default(autoincrement())
   historicoId    Int      @map("historico_id")
+  /// Item do checklist que este documento responde. `null` = evidência da
+  /// ETAPA, anexada pela equipe (o caso que já existia).
+  ///
+  /// O documento continua pendurado em `CertificacaoHistorico`, e este campo é
+  /// adicional: o histórico é que registra em que ponto da trilha e por quem o
+  /// arquivo entrou, e trocar a âncora perderia isso em toda linha antiga.
+  ///
+  /// `SetNull`: se a microetapa deixar de existir, o arquivo continua sendo
+  /// evidência válida da etapa. Apagá-lo junto destruiria prova por causa de
+  /// uma mudança de checklist.
+  microEtapaId   Int?     @map("micro_etapa_id")
   /// Nome original enviado pelo usuário, só para exibição/download.
   nomeArquivo    String   @map("nome_arquivo") @db.VarChar(255)
   /// Caminho relativo em /uploads (nome real é um UUID).
@@ -750,12 +795,39 @@ model DocumentoCertificacao {
   tamanhoBytes   Int      @map("tamanho_bytes")
   enviadoPorId   Int?     @map("enviado_por_id")
   enviadoPorNome String   @map("enviado_por_nome") @db.VarChar(150)
+  /// Quem enviou foi o CLIENTE, e não a equipe.
+  ///
+  /// Campo próprio, e não `enviadoPorId IS NULL`: aquele `null` já significa
+  /// duas coisas — envio do cliente E funcionário excluído depois (a FK é
+  /// `SetNull`) —, e a tela decide por ele o que exibir e quais ações oferecer.
+  /// Um booleano explícito sobrevive à exclusão do colaborador, como as
+  /// autorias desnormalizadas ao lado.
+  enviadoPorCliente Boolean @default(false) @map("enviado_por_cliente")
+  /// Aceito ou não. `null` = **não passa por aceite**: é evidência que a
+  /// própria equipe anexou, e era o caso de toda linha anterior a 17/11/2026.
+  ///
+  /// `null` NÃO é "pendente". Marcar as evidências antigas como pendentes
+  /// inventaria uma fila de avaliação que nunca existiu, e ela apareceria na
+  /// tela como trabalho a fazer.
+  situacao       SituacaoDocumento? @map("situacao")
+  /// Parecer da equipe. **Obrigatório na recusa** — documento devolvido sem
+  /// motivo é um reenvio às cegas. Imposto no banco por `ck_documento_avaliacao`.
+  parecer        String?  @db.Text
+  avaliadoPorId   Int?     @map("avaliado_por_id")
+  /// Desnormalizado, como as demais autorias: sobrevive à exclusão do autor.
+  avaliadoPorNome String?  @map("avaliado_por_nome") @db.VarChar(150)
+  avaliadoEm      DateTime? @map("avaliado_em")
   criadoEm       DateTime @default(now()) @map("criado_em")
 
-  historico  CertificacaoHistorico @relation(fields: [historicoId], references: [id], onDelete: Cascade)
-  enviadoPor Funcionario?          @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull)
+  historico   CertificacaoHistorico   @relation(fields: [historicoId], references: [id], onDelete: Cascade)
+  enviadoPor  Funcionario?            @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull)
+  avaliadoPor Funcionario?            @relation("DocumentoAvaliado", fields: [avaliadoPorId], references: [id], onDelete: SetNull)
+  microEtapa  MicroEtapaCertificacao? @relation(fields: [microEtapaId], references: [id], onDelete: SetNull)
 
   @@index([historicoId])
+  /// "Os envios deste item, e quais estão pendentes" é a consulta da tela do
+  /// checklist e a da guarda de conclusão.
+  @@index([microEtapaId, situacao])
   @@map("documentos_certificacao")
 }
 

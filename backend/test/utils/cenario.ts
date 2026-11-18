@@ -63,6 +63,15 @@ export interface Cenario {
   documentoId: number;
   /** Etapa com `exigeDocumento`, usada nos testes de escrita. */
   certificacaoId: number;
+  /**
+   * Item de checklist que PEDE documento ao cliente, na etapa acima.
+   *
+   * O par dono/alheio existe para o caso que vaza sem erro nenhum: enviar
+   * para a PRÓPRIA etapa informando a microetapa de OUTRO processo. Com um id
+   * só, esse teste não é escrevível.
+   */
+  microEtapaDonoId: number;
+  microEtapaAlheiaId: number;
 
   categoriaId: number;
   /** Trilha do catálogo à qual a categoria está vinculada. */
@@ -212,10 +221,29 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
             status: StatusCertificacao.APROVADO,
             iniciadaEm: APROVADA_EM,
             concluidaEm: APROVADA_EM,
+            // Só a etapa de ensaio ganha checklist, e nele um item que PEDE
+            // documento ao cliente. `modeloMicroEtapaId` fica nulo: é rastro
+            // da origem no catálogo, e o que se marca é esta cópia.
+            ...(etapa.exigeDocumento && {
+              microEtapas: {
+                create: [
+                  {
+                    nome: 'Certificado de calibração do laboratório',
+                    ordem: 1,
+                    exigeDocumento: true,
+                  },
+                ],
+              },
+            }),
           })),
         },
       },
-      include: { certificacao: { orderBy: { ordem: 'asc' } } },
+      include: {
+        certificacao: {
+          orderBy: { ordem: 'asc' },
+          include: { microEtapas: true },
+        },
+      },
     });
 
   const processoDono = await criarProcesso(dono.id, 'Disjuntor DIN 25A');
@@ -272,6 +300,8 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     certificadoId: certificado.id,
     documentoId: documento.id,
     certificacaoId: processoDono.certificacao[1].id,
+    microEtapaDonoId: processoDono.certificacao[1].microEtapas[0].id,
+    microEtapaAlheiaId: processoAlheio.certificacao[1].microEtapas[0].id,
 
     categoriaId: categoria.id,
     trilhaId: catalogo.id,

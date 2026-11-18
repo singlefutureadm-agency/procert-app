@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Workbook } from 'exceljs';
 import {
   CriticidadeNaoConformidade,
+  SituacaoDocumento,
   StatusCertificacao,
   StatusNaoConformidade,
   TipoEtapa,
@@ -56,6 +57,21 @@ const ROTULO_STATUS: Record<StatusCertificacao, string> = {
   EM_ANDAMENTO: 'Em andamento',
   APROVADO: 'Aprovado',
   REPROVADO: 'Reprovado',
+};
+
+/**
+ * Situação de um documento na planilha.
+ *
+ * `null` vira "Evidência da equipe", NÃO um traço: a planilha é o artefato que
+ * sai para auditoria, e ali a diferença entre "arquivo que a equipe anexou como
+ * prova" e "arquivo que o cliente mandou e foi recusado" é a informação toda.
+ * Sem esta coluna, um documento RECUSADO era exportado na mesma lista das
+ * evidências, indistinguível de prova aceita.
+ */
+const ROTULO_SITUACAO_DOCUMENTO: Record<SituacaoDocumento, string> = {
+  PENDENTE: 'Enviado pelo cliente — em análise',
+  ACEITO: 'Enviado pelo cliente — aceito',
+  RECUSADO: 'Enviado pelo cliente — RECUSADO',
 };
 
 const ROTULO_TIPO: Record<TipoEtapa, string> = {
@@ -269,13 +285,23 @@ export class ExportacaoCertificacaoService {
     } else {
       tabela(
         aba,
-        ['Arquivo', 'Tipo', 'Tamanho (KB)', 'Enviado por', 'Enviado em'],
+        [
+          'Arquivo',
+          'Tipo',
+          'Tamanho (KB)',
+          'Enviado por',
+          'Enviado em',
+          'Situação',
+        ],
         documentos.map((d) => [
           d.nomeArquivo,
           d.tipoMime,
           Math.max(1, Math.round(d.tamanhoBytes / 1024)),
           d.enviadoPorNome,
           d.criadoEm,
+          d.situacao
+            ? ROTULO_SITUACAO_DOCUMENTO[d.situacao]
+            : 'Evidência da equipe',
         ]),
       );
     }

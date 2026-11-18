@@ -87,6 +87,181 @@ describe('Autorização (e2e)', () => {
     });
   });
 
+  /**
+   * O ciclo do documento pedido ao cliente (17/11/2026).
+   *
+   * Esta é a PRIMEIRA rota de escrita aberta ao CLIENTE, e por isso toda a
+   * matriz passa por aqui. A assimetria é o ponto: ele ENVIA o documento e não
+   * pode JULGAR o próprio envio — se pudesse, o aceite não valeria nada.
+   */
+  describe('POST .../etapas/:id/documento — o cliente envia', () => {
+    /** O upload confere a ASSINATURA do arquivo, não só o MIME declarado. */
+    const pdf = () => Buffer.from('%PDF-1.4', 'latin1');
+
+    const rotaDono = () =>
+      `/api/certificacoes/processo/${c.processoDonoId}/etapas/${c.certificacaoId}/documento`;
+
+    const enviar = (rota: string, token?: string, microEtapaId?: number) => {
+      let requisicao = http(app).post(rota);
+      if (token) requisicao = requisicao.set('Authorization', token);
+      if (microEtapaId !== undefined) {
+        requisicao = requisicao.field('microEtapaId', String(microEtapaId));
+      }
+      return requisicao.attach('documento', pdf(), 'calibracao.pdf');
+    };
+
+    it.each([
+      { ator: 'anônimo', token: () => undefined, esperado: 401 },
+      { ator: 'CLIENTE dono', token: () => c.clienteDono, esperado: 201 },
+      { ator: 'CLIENTE alheio', token: () => c.clienteAlheio, esperado: 403 },
+      { ator: 'FUNCIONARIO', token: () => c.funcionario, esperado: 201 },
+      { ator: 'ADMIN', token: () => c.admin, esperado: 201 },
+    ])('$ator → $esperado', async ({ token, esperado }) => {
+      const resposta = await enviar(rotaDono(), token(), c.microEtapaDonoId);
+      expect(resposta.status).toBe(esperado);
+    });
+
+    it('o envio do cliente nasce PENDENTE e marcado como dele', async () => {
+      const resposta = await enviar(rotaDono(), c.clienteDono, c.microEtapaDonoId);
+
+      expect(resposta.status).toBe(201);
+      expect(resposta.body).toMatchObject({
+        situacao: 'PENDENTE',
+        enviadoPorCliente: true,
+        microEtapaId: c.microEtapaDonoId,
+      });
+    });
+
+    it('a equipe anexando SEM item: evidência da etapa, situacao nula', async () => {
+      const resposta = await enviar(rotaDono(), c.funcionario);
+
+      expect(resposta.status).toBe(201);
+      expect(resposta.body.situacao).toBeNull();
+      expect(resposta.body.enviadoPorCliente).toBe(false);
+    });
+
+    it('CLIENTE sem informar o item → 400', async () => {
+      const resposta = await enviar(rotaDono(), c.clienteDono);
+
+      expect(resposta.status).toBe(400);
+    });
+
+    it('CLIENTE informando item de OUTRO processo → 404', async () => {
+      // O vazamento que não gera erro nenhum: id de microetapa válido, mas de
+      // outro cliente. Sem a conferência de que o item pertence À ETAPA, o
+      // arquivo apareceria no checklist de quem não o enviou.
+      const resposta = await enviar(rotaDono(), c.clienteDono, c.microEtapaAlheiaId);
+
+      expect(resposta.status).toBe(404);
+    });
+
+    it('CLIENTE não escolhe a situação do próprio envio → 400', async () => {
+      // `forbidNonWhitelisted`: `situacao` não existe no DTO de anexo. Sem a
+      // whitelist, o cliente se autoaprovaria.
+      const resposta = await http(app)
+        .post(rotaDono())
+        .set('Authorization', c.clienteDono)
+        .field('microEtapaId', String(c.microEtapaDonoId))
+        .field('situacao', 'ACEITO')
+        .attach('documento', pdf(), 'calibracao.pdf');
+
+      expect(resposta.status).toBe(400);
+    });
+  });
+
+  describe('PATCH /api/certificacoes/documentos/:id/avaliacao — só a equipe julga', () => {
+    const pdf = () => Buffer.from('%PDF-1.4', 'latin1');
+
+    /** Um envio novo por caso: avaliar é transição, não é idempotente. */
+    async function enviarDoCliente(): Promise<number> {
+      const resposta = await http(app)
+        .post(
+          `/api/certificacoes/processo/${c.processoDonoId}/etapas/${c.certificacaoId}/documento`,
+        )
+        .set('Authorization', c.clienteDono)
+        .field('microEtapaId', String(c.microEtapaDonoId))
+        .attach('documento', pdf(), 'calibracao.pdf');
+
+      expect(resposta.status).toBe(201);
+      return resposta.body.id as number;
+    }
+
+    it.each([
+      { ator: 'anônimo', token: () => undefined, esperado: 401 },
+      // O dono do documento NÃO julga o próprio envio. É a assimetria que faz
+      // o aceite significar alguma coisa.
+      { ator: 'CLIENTE dono', token: () => c.clienteDono, esperado: 403 },
+      { ator: 'CLIENTE alheio', token: () => c.clienteAlheio, esperado: 403 },
+      { ator: 'FUNCIONARIO', token: () => c.funcionario, esperado: 200 },
+    ])('$ator → $esperado', async ({ token, esperado }) => {
+      const id = await enviarDoCliente();
+      const alvo = `/api/certificacoes/documentos/${id}/avaliacao`;
+      const resposta = await pedir('patch', alvo, token()).send({
+        situacao: 'ACEITO',
+      });
+
+      expect(resposta.status).toBe(esperado);
+    });
+
+    it('recusa SEM parecer é barrada na borda → 400', async () => {
+      // Para nunca chegar à constraint `ck_documento_avaliacao`, que daria 500
+      // com texto de banco em vez da frase que diz o que fazer.
+      const id = await enviarDoCliente();
+
+      const resposta = await pedir(
+        'patch',
+        `/api/certificacoes/documentos/${id}/avaliacao`,
+        c.admin,
+      ).send({ situacao: 'RECUSADO' });
+
+      expect(resposta.status).toBe(400);
+    });
+
+    it('recusa com parecer grava situação, parecer e autoria', async () => {
+      const id = await enviarDoCliente();
+
+      const resposta = await pedir(
+        'patch',
+        `/api/certificacoes/documentos/${id}/avaliacao`,
+        c.admin,
+      ).send({
+        situacao: 'RECUSADO',
+        parecer: 'Certificado de calibração fora da validade.',
+      });
+
+      expect(resposta.status).toBe(200);
+      expect(resposta.body).toMatchObject({
+        situacao: 'RECUSADO',
+        parecer: 'Certificado de calibração fora da validade.',
+        avaliadoPorNome: 'Ana Administradora',
+      });
+      expect(resposta.body.avaliadoEm).not.toBeNull();
+    });
+
+    it('a evidência da equipe não passa por aceite → 400', async () => {
+      // `c.documentoId` é a evidência do cenário, com `situacao` nula.
+      const resposta = await pedir(
+        'patch',
+        `/api/certificacoes/documentos/${c.documentoId}/avaliacao`,
+        c.admin,
+      ).send({ situacao: 'ACEITO' });
+
+      expect(resposta.status).toBe(400);
+    });
+
+    it('PENDENTE não é destino de avaliação → 400', async () => {
+      const id = await enviarDoCliente();
+
+      const resposta = await pedir(
+        'patch',
+        `/api/certificacoes/documentos/${id}/avaliacao`,
+        c.admin,
+      ).send({ situacao: 'PENDENTE' });
+
+      expect(resposta.status).toBe(400);
+    });
+  });
+
   describe('PUT /api/certificacoes/processo/:id — cliente acompanha, não altera', () => {
     // Mantém o status do cenário (APROVADO, com certificado EMITIDO) e muda só
     // a observação: tirar a etapa de APROVADO é recusado enquanto o
