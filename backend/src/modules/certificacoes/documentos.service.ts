@@ -5,10 +5,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, Role, SituacaoDocumento } from '@prisma/client';
+import {
+  Prisma,
+  Role,
+  SituacaoDocumento,
+  TipoNotificacao,
+} from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { UploadsService } from '../uploads/uploads.service';
+import {
+  avisosPara,
+  NotificacoesService,
+} from '../notificacoes/notificacoes.service';
 import { UsuarioAutenticado } from '../../common/decorators/current-user.decorator';
 import { garantirProcessoAberto } from './certificacoes.service';
 import { AvaliarDocumentoDto } from './dto/certificacao.dto';
@@ -54,6 +63,7 @@ export class DocumentosCertificacaoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly uploads: UploadsService,
+    private readonly notificacoes: NotificacoesService,
   ) {}
 
   /**
@@ -85,7 +95,15 @@ export class DocumentosCertificacaoService {
         status: true,
         etapa: { select: { nome: true } },
         processo: {
-          select: { clienteId: true, canceladoEm: true, status: true },
+          select: {
+            id: true,
+            nome: true,
+            clienteId: true,
+            canceladoEm: true,
+            status: true,
+            // Quem recebe o aviso do envio. `null` = ninguém — ver `avisosPara`.
+            responsavelId: true,
+          },
         },
       },
     });
@@ -148,7 +166,7 @@ export class DocumentosCertificacaoService {
         },
       });
 
-      return tx.documentoCertificacao.create({
+      const criado = await tx.documentoCertificacao.create({
         data: {
           historicoId: historico.id,
           microEtapaId: micro?.id,
@@ -166,6 +184,34 @@ export class DocumentosCertificacaoService {
         },
         select: SELECT_DOCUMENTO,
       });
+
+      // Avisa o responsável, no MESMO commit. Só envio para um ITEM notifica:
+      // evidência que a equipe anexou não espera ação de ninguém, e avisar
+      // sobre ela treinaria o destinatário a ignorar a caixa.
+      //
+      // O autor é `null` quando quem envia é o cliente — então o responsável é
+      // avisado mesmo que o id dele coincida com o do cliente, que é o caso que
+      // `avisosPara` NÃO deve filtrar. Ver a nota sobre `sub` em
+      // `NotificacoesService`.
+      if (micro) {
+        await this.notificacoes.gravar(
+          tx,
+          avisosPara(
+            certificacao.processo.responsavelId,
+            doCliente ? null : usuario.id,
+            {
+              tipo: TipoNotificacao.DOCUMENTO_ENVIADO,
+              titulo: `Documento recebido em "${certificacao.processo.nome}"`,
+              detalhe:
+                `${usuario.nome} enviou "${nomeArquivo}" para o item ` +
+                `"${micro.nome}" da etapa "${certificacao.etapa.nome}".`,
+              processoId: certificacao.processo.id,
+            },
+          ),
+        );
+      }
+
+      return criado;
     });
 
     return documento;
@@ -209,7 +255,15 @@ export class DocumentosCertificacaoService {
             certificacao: {
               select: {
                 status: true,
-                processo: { select: { canceladoEm: true, status: true } },
+                processo: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    canceladoEm: true,
+                    status: true,
+                    responsavelId: true,
+                  },
+                },
               },
             },
           },
@@ -241,6 +295,7 @@ export class DocumentosCertificacaoService {
 
     const certificacaoId = documento.historico.certificacaoId;
     const statusEtapa = documento.historico.certificacao.status;
+    const processo = documento.historico.certificacao.processo;
 
     return this.prisma.$transaction(async (tx) => {
       const atualizado = await tx.documentoCertificacao.update({
@@ -273,6 +328,26 @@ export class DocumentosCertificacaoService {
           alteradoPorNome: usuario.nome,
         },
       });
+
+      // Avisa o responsável de uma decisão tomada por OUTRA pessoa no processo
+      // dele. Quem decidiu não recebe aviso da própria decisão — é o que
+      // `avisosPara` filtra, e sem isso a caixa de quem trabalha encheria com o
+      // eco do próprio trabalho.
+      await this.notificacoes.gravar(
+        tx,
+        avisosPara(processo.responsavelId, usuario.id, {
+          tipo: recusando
+            ? TipoNotificacao.DOCUMENTO_RECUSADO
+            : TipoNotificacao.DOCUMENTO_ACEITO,
+          titulo: recusando
+            ? `Documento recusado em "${processo.nome}"`
+            : `Documento aceito em "${processo.nome}"`,
+          detalhe: recusando
+            ? `${usuario.nome} recusou "${documento.nomeArquivo}": ${dto.parecer}`
+            : `${usuario.nome} aceitou "${documento.nomeArquivo}".`,
+          processoId: processo.id,
+        }),
+      );
 
       return atualizado;
     });

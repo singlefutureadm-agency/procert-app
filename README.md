@@ -230,8 +230,8 @@ Dois jobs independentes:
 
 | Job | O que roda |
 |---|---|
-| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 505 unitários → 163 e2e |
-| **Frontend** | `npm ci` → `lint:ci` → `npm test` (156) → `build` (o `tsc -b` é o type-check) |
+| **Backend** | `npm ci` → `prisma generate` → `lint:ci` → `build` → 538 unitários → 178 e2e |
+| **Frontend** | `npm ci` → `lint:ci` → `npm test` (165) → `build` (o `tsc -b` é o type-check) |
 
 Um terceiro workflow, `.github/workflows/cd-vps.yml`, **não** é check de PR: roda depois
 do CI verde num push em `prod` e publica no VPS (ver [Fluxo de contribuição](#fluxo-de-contribuição)).
