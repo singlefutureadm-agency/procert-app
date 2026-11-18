@@ -82,7 +82,7 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 450 unitários, 24 suítes, Prisma mockado |
+| `npm test` | ✅ 468 unitários, 25 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
 | `npm run test:e2e` | ✅ 145 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
@@ -98,7 +98,7 @@ npm run dev                   # http://localhost:5173
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 450 unitários + 145 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 468 unitários + 145 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -533,6 +533,46 @@ CertificacaoProcesso ──1:N──► MicroEtapaCertificacao   (é o que se ma
 a etapa no fluxo. São eixos independentes — o mesmo FUNCIONARIO é TECNICO num
 processo e QUALIDADE em outro. **Nenhum guard lê `papelResponsavel`**, e ligá-lo
 a autorização transformaria escala de trabalho em concessão de acesso.
+
+### `Processo.responsavelId` — o dono do processo é uma PESSOA (17/11/2026)
+
+Terceiro eixo, e o mais fácil de confundir com os dois acima. **São três
+perguntas diferentes, e cada campo responde uma:**
+
+| Pergunta | Campo | Tipo |
+|---|---|---|
+| O que esta pessoa alcança no sistema? | `Funcionario.role` | `Role` |
+| De que ÁREA é esta etapa no fluxo? | `ModeloEtapa.papelResponsavel` | `PapelFuncional` |
+| De QUEM é este processo? | `Processo.responsavelId` | FK → `Funcionario` |
+
+Também **não é `Cliente.responsavelId`**: a carteira é por EMPRESA, e dois
+técnicos precisam poder dividir processos do mesmo cliente.
+
+**Não restringe acesso, e isso não é provisório.** Nenhum service filtra por
+ele sem pedido explícito: o padrão do quadro e da listagem continua sendo todo
+mundo vendo tudo, porque esconder o processo de quem saiu de férias é esconder
+justamente o que está parado. O campo existe para **endereçar aviso** — é ele
+que decide quem recebe notificação sobre o processo (ver §7, item 34).
+
+Três detalhes que não são óbvios:
+
+- **`0` e `null` significam coisas diferentes, em lugares diferentes.** No
+  FILTRO da listagem e do quadro, `responsavelId=0` é o recorte "sem
+  responsável" (mesma convenção de `ListarClientesDto`); nenhum id é 0, então o
+  SQL do quadro tem ramo próprio para ele, senão o recorte devolveria quadro
+  vazio. No CORPO da escrita quem diz "deixe sem dono" é `null`, e o `0` é
+  recusado pelo DTO — duas grafias para a mesma coisa viram uma delas valendo
+  como id algum dia.
+- **`@Type(() => Number)` sobre `null` NÃO converte** (seria `0`, e desatribuir
+  responderia `400 — Funcionário 0 não encontrado`). Verificado, e travado em
+  `processo.dto.spec.ts` — o único spec de DTO do projeto existe por isso.
+- **"Sem responsável" é dito na tela, não omitido.** Listagem e cartão do quadro
+  escrevem o estado, e os dois filtram por ele: processo sem dono não gera aviso
+  para ninguém, e um campo em branco esconderia exatamente isso.
+
+O rótulo do filtro de `PapelFuncional` no quadro passou a ser **"Área da
+etapa"** no mesmo commit — dois filtros chamados "Responsável" na mesma barra
+deixavam as duas perguntas sem resposta.
 
 **A fase é DERIVADA da etapa atual, nunca gravada em `Processo`.** No Trello, a
 posição da lista e o progresso do checklist eram duas fontes mantidas à mão, e
@@ -1383,6 +1423,26 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
     `rrsync -wo`; o workflow **não** atualiza o próprio script — mudou
     `procert-deploy.sh`, reinstale à mão (`DEPLOY.md`, Parte III §3). **Vercel e VPS têm
     bancos separados** desde a cópia de 12/11/2026. Faltam HTTPS, SMTP e backup.
+
+**Notificação de microetapas** — leva de 3 PRs sequenciais, pedida em 17/11/2026 para que
+o funcionário responsável seja avisado dos documentos de uma microetapa, **e somente ele**:
+
+34. `Processo.responsavelId` (migration `20261117140000_processo_ganha_responsavel`): o
+    dono do processo passa a ser uma PESSOA, atribuível no formulário do processo, com
+    coluna e filtro na listagem e no cartão e filtro do quadro (ver §4). Primeiro dos
+    três PRs — é a pré-condição de "notificar só o responsável", porque antes dele não
+    havia a quem endereçar aviso.
+
+Os dois seguintes, **ainda não feitos**, nesta ordem:
+
+35. **Ciclo do documento na microetapa**: exigência de documento no item do checklist,
+    envio **pelo cliente** (hoje o `POST .../documentos` é `@Roles(ADMIN, FUNCIONARIO)` e
+    o cliente não consegue enviar, embora o `anexar` já tenha o ramo dele), e situação
+    `ACEITO`/`RECUSADO` com parecer — que também não existe: `DocumentoCertificacao` não
+    tem campo de situação nenhum.
+36. **Tabela `Notificacao` + sino e central no painel.** Escopo **literal: só o
+    responsável, nem o ADMIN** — ADMIN segue vendo tudo pelo quadro e pelos relatórios.
+    Canal só no painel, sem e-mail: o SMTP não está no ar em produção.
 
 A lacuna do frontend foi fechada — são 137 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada

@@ -30,6 +30,8 @@ const linha = (extra: Record<string, unknown> = {}) => ({
   cliente_nome: 'Indústria Alfa',
   categoria_id: 7,
   categoria_nome: 'EPIs de altura',
+  responsavel_id: null,
+  responsavel_nome: null,
   etapa_id: 10,
   etapa_nome: 'Ensaios laboratoriais',
   etapa_status: StatusCertificacao.EM_ANDAMENTO,
@@ -233,6 +235,83 @@ describe('QuadroService', () => {
       const quadro = await servico.listar({}, admin());
       expect(quadro.limitePorFase).toBe(50);
       expect(quadro.limiares).toEqual(ALERTAS_AGING);
+    });
+  });
+
+  /**
+   * O DONO do processo no cartão — a pessoa, não a área.
+   *
+   * `responsavel` e `etapaAtual.papelResponsavel` são informações diferentes e
+   * viajam juntas: "é do Carlos, e agora está na mão da Qualidade". Colapsar as
+   * duas num campo só não daria erro — daria um quadro que responde uma
+   * pergunta e cala a outra.
+   *
+   * O caso que quebra calado é o `null`: sem o ramo explícito, um cartão sem
+   * responsável viria com `{ id: null, nome: null }` e a tela escreveria um
+   * nome vazio em vez do aviso de que ninguém recebe notificação daquele
+   * processo.
+   */
+  describe('responsável do processo no cartão', () => {
+    const PRIMEIRA = FaseProcesso.ENSAIOS_LABORATORIO;
+
+    const cartaoDe = async () => {
+      const quadro = await servico.listar({}, admin());
+      return quadro.colunas.find((c) => c.fase === PRIMEIRA)!.cartoes[0];
+    };
+
+    it('traz id e nome quando o processo tem dono', async () => {
+      banco.prisma.$queryRaw.mockResolvedValue([
+        linha({ responsavel_id: 3, responsavel_nome: 'Carlos Técnico' }),
+      ] as never);
+
+      expect((await cartaoDe()).responsavel).toEqual({
+        id: 3,
+        nome: 'Carlos Técnico',
+      });
+    });
+
+    it('sem dono devolve `null`, não um objeto de campos vazios', async () => {
+      banco.prisma.$queryRaw.mockResolvedValue([linha()] as never);
+
+      expect((await cartaoDe()).responsavel).toBeNull();
+    });
+
+    it('o dono do processo não substitui o papel funcional da etapa', async () => {
+      // Os dois eixos são independentes: Role decide acesso, PapelFuncional
+      // decide de que área é a etapa, e este campo decide de quem é o processo.
+      banco.prisma.$queryRaw.mockResolvedValue([
+        linha({
+          responsavel_id: 3,
+          responsavel_nome: 'Carlos Técnico',
+          papel_responsavel: PapelFuncional.QUALIDADE,
+        }),
+      ] as never);
+
+      const cartao = await cartaoDe();
+
+      expect(cartao.responsavel?.nome).toBe('Carlos Técnico');
+      expect(cartao.etapaAtual?.papelResponsavel).toBe(PapelFuncional.QUALIDADE);
+    });
+
+    it('o filtro por responsável vai como parâmetro, nunca interpolado', async () => {
+      await servico.listar({ responsavelId: 3 }, admin());
+
+      const consulta = banco.prisma.$queryRaw.mock.calls[0][0] as {
+        values: unknown[];
+      };
+      expect(consulta.values).toContain(3);
+    });
+
+    it('o filtro `0` viaja como 0 — é o recorte "sem responsável"', async () => {
+      // Nenhum id é 0, então o SQL tem um ramo próprio para ele. Se o 0 fosse
+      // tratado como ausência de filtro (um `|| null` no lugar do `?? null`),
+      // o recorte devolveria o quadro inteiro em silêncio.
+      await servico.listar({ responsavelId: 0 }, admin());
+
+      const consulta = banco.prisma.$queryRaw.mock.calls[0][0] as {
+        values: unknown[];
+      };
+      expect(consulta.values).toContain(0);
     });
   });
 });
