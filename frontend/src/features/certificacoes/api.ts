@@ -2,7 +2,7 @@ import { api } from '@/lib/api';
 import type {
   AberturaNaoConformidade,
   CertificacaoDetalhe,
-  DocumentoCertificacao,
+  DocumentoMicroEtapa,
   FaseProcesso,
   LinhaPainelCertificacao,
   PapelFuncional,
@@ -108,19 +108,49 @@ export const certificacoesApi = {
     return data;
   },
 
-  /** Anexa uma evidência à etapa (`certificacaoId` é a linha da timeline). */
+  /**
+   * Envia um documento à etapa (`certificacaoId` é a linha da timeline).
+   *
+   * Sem `microEtapaId` é evidência da ETAPA, anexada pela equipe. COM ele é a
+   * resposta a um item do checklist que pede documento — e aí o arquivo nasce
+   * `PENDENTE` e entra na fila de avaliação. O CLIENTE só consegue a segunda
+   * forma, e é o backend que impõe isso.
+   */
   anexarDocumento: async (
     processoId: number,
     certificacaoId: number,
     arquivo: File,
+    microEtapaId?: number,
   ) => {
     const formulario = new FormData();
     formulario.append('documento', arquivo);
+    // `FormData` só transporta texto: o DTO declara `@Type(() => Number)`.
+    if (microEtapaId !== undefined) {
+      formulario.append('microEtapaId', String(microEtapaId));
+    }
 
-    const { data } = await api.post<DocumentoCertificacao>(
+    const { data } = await api.post<DocumentoMicroEtapa>(
       `/certificacoes/processo/${processoId}/etapas/${certificacaoId}/documento`,
       formulario,
       { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return data;
+  },
+
+  /**
+   * Aceita ou recusa um documento enviado para um item do checklist.
+   *
+   * Rota da EQUIPE: o cliente envia e não julga o próprio envio. O `parecer` é
+   * obrigatório na recusa — o backend recusa 400 sem ele, e é o texto que o
+   * cliente lê para saber o que reenviar.
+   */
+  avaliarDocumento: async (
+    id: number,
+    dados: { situacao: 'ACEITO' | 'RECUSADO'; parecer?: string },
+  ) => {
+    const { data } = await api.patch<DocumentoMicroEtapa>(
+      `/certificacoes/documentos/${id}/avaliacao`,
+      dados,
     );
     return data;
   },

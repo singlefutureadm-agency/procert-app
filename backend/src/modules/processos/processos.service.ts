@@ -192,6 +192,7 @@ export class ProcessosService {
                   nome: micro.nome,
                   papelResponsavel: micro.papelResponsavel,
                   prazoSlaHoras: micro.prazoSlaHoras,
+                  exigeDocumento: micro.exigeDocumento,
                   ordem: micro.ordem,
                 })),
               },

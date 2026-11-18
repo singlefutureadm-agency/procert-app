@@ -82,9 +82,9 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 450 unitários, 24 suítes, Prisma mockado |
+| `npm test` | ✅ 487 unitários, 26 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 145 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 163 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -94,11 +94,11 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 137 testes, 14 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 156 testes, 15 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 450 unitários + 145 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 487 unitários + 163 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -601,6 +601,67 @@ As etapas ficam como pararam.
 `CertificacaoProcesso` — assim fica registrado em que ponto da trilha e por quem cada
 arquivo entrou. Uma etapa com `ModeloEtapa.exigeDocumento` **não pode ser aprovada sem
 evidência anexada**; a regra vive no service, não na UI.
+
+### Documento pedido ao cliente na microetapa (17/11/2026)
+
+**São DOIS tipos de documento, e `microEtapaId` é o que os distingue.** Confundi-los é o
+erro mais provável nesta área:
+
+| | Evidência da ETAPA | Documento PEDIDO na microetapa |
+|---|---|---|
+| Quem exige | `ModeloEtapa.exigeDocumento` | `ModeloMicroEtapa.exigeDocumento` |
+| `DocumentoCertificacao.microEtapaId` | `null` | o item do checklist |
+| Quem envia | a equipe | o **CLIENTE**, pelo painel dele |
+| `situacao` | `null` — **não passa por aceite** | PENDENTE → ACEITO ou RECUSADO |
+| Para que serve | aprovar a etapa | concluir o item do checklist |
+
+```
+equipe pede  →  cliente envia  →  PENDENTE  →  ACEITO   (libera marcar o item)
+                                            ↘  RECUSADO (com parecer; cliente reenvia)
+```
+
+Pontos que não devem regredir:
+
+- **`situacao: null` NÃO é PENDENTE.** É "não se julga este arquivo", e era o caso de
+  toda linha anterior a 17/11/2026. Marcar as evidências antigas como pendentes
+  inventaria uma fila de avaliação que nunca existiu, e ela apareceria na tela como
+  trabalho a fazer. A migration não faz backfill por isso.
+- **`POST /certificacoes/processo/:id/etapas/:id/documento` aceita CLIENTE** — é a
+  primeira rota de escrita aberta a ele. O escopo é imposto no service pelo `clienteId`
+  do PROCESSO, e ele só envia **contra um item que pede documento**: sem isso, anexaria
+  arquivo solto em qualquer etapa e a equipe ganharia uma caixa de entrada que ninguém
+  pediu. `microEtapaId` de outro processo → 404, porque o item precisa pertencer À ETAPA.
+- **O cliente não julga o próprio envio.** `PATCH /certificacoes/documentos/:id/avaliacao`
+  é `@Roles(ADMIN, FUNCIONARIO)`. É a assimetria que faz o aceite significar algo.
+- **Recusa exige parecer.** O DTO dá a mensagem boa (`@ValidateIf`), e
+  `ck_documento_avaliacao` é a garantia no banco — documento devolvido sem motivo é um
+  reenvio às cegas. A constraint entra **já validada**, ao contrário de
+  `ck_certificacao_concluida_em`: as colunas nascem nesta migration e toda linha
+  existente as tem nulas, então não há dado antigo possível que a viole.
+- **Aceitar NÃO conclui o item.** A conclusão segue sendo o ato de marcar, como manda a
+  regra da aprovação automática — derivada do documento, a microetapa se concluiria
+  sozinha e levaria a etapa com ela. A tela diz isso em texto.
+- **Marcar item com `exigeDocumento` exige envio ACEITO** (`temDocumentoAceito`). É
+  ACEITO, não "tem documento": um PENDENTE não foi olhado e um RECUSADO foi olhado e
+  negado. Recusa com **item já concluído → 409**, orientando a desmarcar primeiro;
+  desmarcar em silêncio apagaria trabalho de outra pessoa. **Desmarcar é sempre
+  permitido** — é a saída que esse 409 manda usar.
+- **`enviadoPorCliente` é campo próprio, não `enviadoPorId IS NULL`.** Aquele `null`
+  significa duas coisas (envio do cliente E funcionário excluído depois, porque a FK é
+  `SetNull`), e a tela decide por ele o que exibir.
+- **A tela e a planilha separam os dois tipos.** `DocumentosEtapa` filtra
+  `microEtapaId === null`, senão o mesmo arquivo apareceria duas vezes e um RECUSADO
+  constaria como evidência válida. A planilha ganhou coluna **Situação** pelo mesmo
+  motivo — e ela é o artefato que sai para auditoria.
+- A régua da tela vive em **`features/certificacoes/pedidos.ts`**, espelho de
+  `temDocumentoAceito`: existe só para não oferecer o clique que o servidor recusa.
+  Divergir daria 400 com toast genérico longe do item.
+
+> **`exigeDocumento` da microetapa entra nos SEIS pontos de cópia**, como todo campo de
+> microetapa: `criarVersao` e `paraCriacao` (`modelos-trilha.service.ts`), `paraEntrada`
+> (`trilhas.service.ts`), abertura da trilha (`processos.service.ts`), `reiniciar` e
+> `migrarParaVersaoVigente` (`certificacoes.service.ts`), e `paraEntrada` do frontend
+> (`TrilhaDetalhePage.tsx`). Campo que ficar de fora some em silêncio.
 
 ### Proteções de integridade em `funcionarios`
 
@@ -1384,7 +1445,23 @@ Na prática: **todo trabalho vai por branch + PR**, o merge espera os dois jobs 
     `procert-deploy.sh`, reinstale à mão (`DEPLOY.md`, Parte III §3). **Vercel e VPS têm
     bancos separados** desde a cópia de 12/11/2026. Faltam HTTPS, SMTP e backup.
 
-A lacuna do frontend foi fechada — são 137 testes hoje, mirando o que quebra em silêncio
+**Notificação de microetapas** — leva de 3 PRs sequenciais, pedida em 17/11/2026 para que
+o funcionário responsável seja avisado dos documentos de uma microetapa, **e somente ele**.
+Os dois primeiros abrem caminho; o aviso em si é o terceiro:
+
+34. `Processo.responsavelId` — o dono do processo passa a ser uma PESSOA (ver §4). É a
+    pré-condição de "notificar só o responsável": antes dele não havia a quem endereçar
+    aviso.
+35. Ciclo do documento na microetapa (migration
+    `20261117180000_documento_pedido_na_microetapa`): `exigeDocumento` no item do
+    checklist, envio **pelo cliente** — primeira rota de escrita aberta a ele —, e
+    situação ACEITO/RECUSADO com parecer, mais a invariante `ck_documento_avaliacao`.
+    Ver §4, "Documento pedido ao cliente na microetapa".
+36. **Tabela `Notificacao` + sino e central no painel** — ainda não feito. Escopo
+    **literal: só o responsável, nem o ADMIN** (o ADMIN segue vendo tudo pelo quadro e
+    pelos relatórios). Canal só no painel, sem e-mail: o SMTP não está no ar em produção.
+
+A lacuna do frontend foi fechada — são 156 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
 item.
 

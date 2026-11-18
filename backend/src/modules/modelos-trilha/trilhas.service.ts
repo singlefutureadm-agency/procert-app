@@ -424,6 +424,7 @@ function paraEntrada(etapa: {
     nome: string;
     papelResponsavel: EtapaModeloDto['papelResponsavel'] | null;
     prazoSlaHoras: number | null;
+    exigeDocumento: boolean;
   }[];
 }): EtapaModeloDto {
   return {
@@ -439,6 +440,7 @@ function paraEntrada(etapa: {
       nome: micro.nome,
       papelResponsavel: micro.papelResponsavel ?? undefined,
       prazoSlaHoras: micro.prazoSlaHoras ?? undefined,
+      exigeDocumento: micro.exigeDocumento,
     })),
   };
 }

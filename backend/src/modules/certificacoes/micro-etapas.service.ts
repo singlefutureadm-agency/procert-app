@@ -63,6 +63,16 @@ export interface ResultadoMarcacao {
  * `exigeDocumento` continua valendo. Etapa que exige evidência e não tem anexo
  * completa o checklist e **não** aprova — devolve `aviso` dizendo o que falta.
  * Furar isso aqui reabriria por outra porta a regra que `salvar()` protege.
+ *
+ * ## Item que PEDE documento não se marca sem aceite
+ *
+ * `MicroEtapaCertificacao.exigeDocumento` é outra coisa: o item é um documento
+ * pedido ao CLIENTE, e concluí-lo exige um envio com situação `ACEITO`. A
+ * guarda recusa a marcação (400) em vez de devolver `aviso`, e a diferença é
+ * deliberada: o `aviso` existe para "o checklist fechou mas a etapa não
+ * aprovou", um caso em que a marcação é legítima. Aqui a marcação em si é que
+ * não pode valer — o item afirma que a equipe conferiu um arquivo que ela não
+ * conferiu.
  */
 @Injectable()
 export class MicroEtapasService {
@@ -92,7 +102,9 @@ export class MicroEtapasService {
       where: { id },
       select: {
         id: true,
+        nome: true,
         concluida: true,
+        exigeDocumento: true,
         certificacaoId: true,
         certificacao: {
           select: {
@@ -129,6 +141,21 @@ export class MicroEtapasService {
         'Esta etapa já está aprovada. Para retomar o checklist, reabra a etapa ' +
           'mudando o status dela na linha do tempo.',
       );
+    }
+
+    // Item que PEDE documento ao cliente só se conclui com um envio ACEITO.
+    // Vale apenas ao MARCAR: desmarcar é sempre permitido, e é o caminho que a
+    // recusa de um documento já aceito manda usar.
+    if (concluida && micro.exigeDocumento) {
+      const aceito = await this.documentos.temDocumentoAceito(micro.id);
+
+      if (!aceito) {
+        throw new BadRequestException(
+          `O item "${micro.nome}" espera um documento do cliente. Marque-o ` +
+            'apenas depois de aceitar o arquivo enviado — aceitar o documento ' +
+            'não marca o item sozinho.',
+        );
+      }
     }
 
     await this.prisma.microEtapaCertificacao.update({

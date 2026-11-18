@@ -25,13 +25,22 @@ describe('MicroEtapasService', () => {
   const microNoBanco = (extra: {
     concluida?: boolean;
     statusEtapa?: StatusCertificacao;
+    /** `ModeloEtapa.exigeDocumento` — evidência da ETAPA, anexada pela equipe. */
     exigeDocumento?: boolean;
+    /**
+     * `MicroEtapaCertificacao.exigeDocumento` — o ITEM é um documento pedido
+     * ao cliente. Campo DIFERENTE do de cima, e a confusão entre os dois é o
+     * motivo de os dois aparecerem nomeados aqui.
+     */
+    itemPedeDocumento?: boolean;
     aprovacaoProcesso?: boolean | null;
     aprovacaoTrilha?: boolean;
     statusProcesso?: 'ATIVO' | 'INATIVO';
   } = {}) => ({
     id: 5,
+    nome: 'Certificado de calibração',
     concluida: extra.concluida ?? false,
+    exigeDocumento: extra.itemPedeDocumento ?? false,
     certificacaoId: 10,
     certificacao: {
       id: 10,
@@ -296,6 +305,86 @@ describe('MicroEtapasService', () => {
         BadRequestException,
       );
       expect(banco.prisma.microEtapaCertificacao.update).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Item que PEDE documento ao cliente só se conclui com um envio ACEITO.
+   *
+   * A guarda recusa a marcação (400) em vez de devolver `aviso`, ao contrário
+   * de todos os outros bloqueios deste service. A diferença é deliberada: o
+   * `aviso` cobre "o checklist fechou e a etapa não aprovou", onde a marcação é
+   * legítima. Aqui é a marcação que não pode valer — o item marcado afirma que
+   * a equipe conferiu um arquivo que ela não conferiu.
+   *
+   * Nenhum destes casos gera erro sem a guarda: o item fica marcado, o
+   * checklist fecha, e a etapa aprova sobre um documento pendente ou recusado.
+   */
+  describe('item que pede documento ao cliente', () => {
+    it('não marca sem documento ACEITO', async () => {
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco({ itemPedeDocumento: true }) as never,
+      );
+      documentos.temDocumentoAceito.mockResolvedValue(false);
+
+      await expect(servico.alternar(5, true, admin())).rejects.toThrow(
+        BadRequestException,
+      );
+      // E não grava nada: a recusa é antes da escrita.
+      expect(banco.prisma.microEtapaCertificacao.update).not.toHaveBeenCalled();
+    });
+
+    it('a mensagem diz que aceitar o documento não marca o item', async () => {
+      // Aceitar NÃO conclui — a conclusão segue sendo o ato de marcar. Prometer
+      // o contrário faria a pessoa aceitar o arquivo e esperar.
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco({ itemPedeDocumento: true }) as never,
+      );
+      documentos.temDocumentoAceito.mockResolvedValue(false);
+
+      await expect(servico.alternar(5, true, admin())).rejects.toThrow(
+        /não marca o item sozinho/,
+      );
+    });
+
+    it('marca quando há documento ACEITO', async () => {
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco({ itemPedeDocumento: true }) as never,
+      );
+      documentos.temDocumentoAceito.mockResolvedValue(true);
+      checklist(1, 1);
+
+      await expect(servico.alternar(5, true, admin())).resolves.toMatchObject({
+        etapaAprovada: false,
+      });
+      expect(banco.prisma.microEtapaCertificacao.update).toHaveBeenCalled();
+    });
+
+    it('DESMARCAR é sempre permitido, mesmo sem documento aceito', async () => {
+      // É o caminho que a recusa de um documento já aceito manda usar: o 409 de
+      // `avaliar` orienta a desmarcar o item antes. Se desmarcar também
+      // exigisse aceite, não haveria saída — a recusa ficaria impossível.
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco({ itemPedeDocumento: true, concluida: true }) as never,
+      );
+      checklist(0, 2);
+
+      await expect(servico.alternar(5, false, admin())).resolves.toMatchObject({
+        etapaAprovada: false,
+      });
+      expect(documentos.temDocumentoAceito).not.toHaveBeenCalled();
+    });
+
+    it('item que NÃO pede documento não consulta envio nenhum', async () => {
+      // A guarda custa uma consulta; item comum não paga por ela.
+      banco.prisma.microEtapaCertificacao.findUnique.mockResolvedValue(
+        microNoBanco() as never,
+      );
+      checklist(1, 1);
+
+      await servico.alternar(5, true, admin());
+
+      expect(documentos.temDocumentoAceito).not.toHaveBeenCalled();
     });
   });
 });

@@ -34,6 +34,8 @@ import { QuadroService } from './quadro.service';
 import { MicroEtapasService } from './micro-etapas.service';
 import {
   AlternarMicroEtapaDto,
+  AnexarDocumentoDto,
+  AvaliarDocumentoDto,
   CancelarProcessoDto,
   ExportarCertificacaoDto,
   ListarCertificacoesDto,
@@ -265,21 +267,50 @@ export class CertificacoesController {
     return this.certificacoesService.reiniciar(processoId, usuario);
   }
 
-  /** `etapaId` é o id da linha de certificação (processo × etapa) da timeline. */
+  /**
+   * `etapaId` é o id da linha de certificação (processo × etapa) da timeline.
+   *
+   * **Aberta ao CLIENTE desde 17/11/2026**, e o escopo é imposto no service:
+   * ele envia só para os processos dele, e só contra um item de checklist que
+   * pede documento. Sem isso, um item com `exigeDocumento` seria um pedido que
+   * apenas a equipe conseguiria atender.
+   */
   @Post('processo/:processoId/etapas/:etapaId/documento')
-  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @Roles(Role.ADMIN, Role.FUNCIONARIO, Role.CLIENTE)
   @UseInterceptors(FileInterceptor('documento'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Anexa uma evidência à etapa (PDF, planilha ou imagem)',
+    summary:
+      'Envia um documento à etapa — evidência da equipe, ou resposta do ' +
+      'cliente a um item do checklist (`microEtapaId`)',
   })
   anexarDocumento(
     @Param('processoId', ParseIntPipe) processoId: number,
     @Param('etapaId', ParseIntPipe) etapaId: number,
     @UploadedFile() arquivo: Express.Multer.File,
+    @Body() dto: AnexarDocumentoDto,
     @CurrentUser() usuario: UsuarioAutenticado,
   ) {
-    return this.documentos.anexar(processoId, etapaId, arquivo, usuario);
+    return this.documentos.anexar(
+      processoId,
+      etapaId,
+      arquivo,
+      usuario,
+      dto.microEtapaId,
+    );
+  }
+
+  @Patch('documentos/:id/avaliacao')
+  @Roles(Role.ADMIN, Role.FUNCIONARIO)
+  @ApiOperation({
+    summary: 'Aceita ou recusa um documento enviado para um item do checklist',
+  })
+  avaliarDocumento(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AvaliarDocumentoDto,
+    @CurrentUser() usuario: UsuarioAutenticado,
+  ) {
+    return this.documentos.avaliar(id, dto, usuario);
   }
 
   @Get('documentos/:id/arquivo')
