@@ -243,6 +243,8 @@ model Funcionario {
   aparenciaAtualizada   ConfiguracaoAparencia[]
   microEtapasConcluidas MicroEtapaCertificacao[] @relation("MicroEtapaConcluida")
   processosCancelados   Processo[]                @relation("ProcessoCancelado")
+  /// Processos de que este funcionário é o dono. Ver `Processo.responsavelId`.
+  processosResponsavel  Processo[]                @relation("ResponsavelProcesso")
 
   @@index([role, status])
   @@map("funcionarios")
@@ -270,6 +272,27 @@ model Processo {
   codigoProcesso      String?        @unique @map("codigo_processo") @db.VarChar(30)
   /// Por que este processo foi aberto. Ver `MotivoProcesso`.
   motivoProcesso      MotivoProcesso @default(INICIAL) @map("motivo_processo")
+  /// Funcionário DONO deste processo — uma pessoa, não uma área.
+  ///
+  /// **Não confundir com `ModeloEtapa.papelResponsavel`**, que é
+  /// `PapelFuncional` (TECNICO, QUALIDADE, …) e diz de que ÁREA é a etapa
+  /// dentro do fluxo. Este campo diz de QUEM é o processo, e é o único eixo
+  /// pessoa↔trabalho que a aplicação tem além da carteira de clientes.
+  ///
+  /// Também não é `Cliente.responsavelId`: a carteira é por EMPRESA, e dois
+  /// técnicos precisam poder dividir processos do mesmo cliente.
+  ///
+  /// **Não restringe acesso.** A equipe continua vendo e avaliando qualquer
+  /// processo — fechar o quadro por responsável esconderia da operação
+  /// justamente o que está parado na mão de quem saiu de férias. O campo existe
+  /// para endereçar aviso: é ele que decide quem recebe notificação sobre este
+  /// processo.
+  ///
+  /// `SetNull` ao excluir o funcionário: o processo fica SEM responsável, e isso
+  /// é visível — a listagem e o quadro filtram por "sem responsável" e marcam o
+  /// cartão. Um processo sem dono não gera aviso para ninguém, então o estado
+  /// precisa ser achável em vez de silencioso.
+  responsavelId       Int?           @map("responsavel_id")
   /// Este processo aprova a etapa sozinho quando todas as microetapas dela são
   /// concluídas?
   ///
@@ -316,6 +339,7 @@ model Processo {
   categoria    CategoriaProcesso      @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
   modeloTrilha ModeloTrilha          @relation(fields: [modeloTrilhaId], references: [id], onDelete: Restrict)
   canceladoPor Funcionario?          @relation("ProcessoCancelado", fields: [canceladoPorId], references: [id], onDelete: SetNull)
+  responsavel  Funcionario?          @relation("ResponsavelProcesso", fields: [responsavelId], references: [id], onDelete: SetNull)
   certificacao CertificacaoProcesso[]
   certificados Certificado[]
   pagamentos   Pagamento[]
@@ -323,6 +347,9 @@ model Processo {
   @@index([clienteId])
   @@index([categoriaId])
   @@index([status])
+  /// A notificação consulta "os processos de quem sou responsável" a cada
+  /// evento de etapa; sem índice é varredura da tabela inteira.
+  @@index([responsavelId])
   @@map("processos")
 }
 

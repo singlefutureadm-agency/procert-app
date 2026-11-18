@@ -41,7 +41,10 @@ export interface ResultadoMicroEtapa {
 export interface FiltrosQuadro {
   categoriaId?: number;
   clienteId?: number;
+  /** ÁREA da etapa atual (PapelFuncional) — não a pessoa. */
   papelResponsavel?: PapelFuncional;
+  /** DONO do processo. `0` traz os sem responsável. */
+  responsavelId?: number;
   semaforo?: SemaforoAging;
   busca?: string;
   /** Cartões por coluna (1–100). Não afeta o `total` de cada uma. */

@@ -15,6 +15,7 @@ import { categoriasApi } from '@/features/categorias-processo/api';
 import { modelosTrilhaApi } from '@/features/trilhas/api';
 import { ROTULO_TIPO_ETAPA } from '@/features/trilhas/rotulos';
 import { clientesApi } from '@/features/clientes/api';
+import { funcionariosApi } from '@/features/funcionarios/api';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { formatarPrazoSla } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
@@ -26,6 +27,12 @@ const esquema = z.object({
   nome: z.string().min(3, 'Informe o nome do processo.'),
   descricao: z.string().optional(),
   preco: z.string().optional(),
+  /*
+   * Texto, não número: o `<select>` devolve string, e a opção "sem
+   * responsável" é a string vazia. Um `z.number()` aqui transformaria "não
+   * atribuído" em `NaN` e o payload sairia com um campo inválido.
+   */
+  responsavelId: z.string().optional(),
 });
 
 type Formulario = z.infer<typeof esquema>;
@@ -48,6 +55,13 @@ export function ProcessoFormPage() {
     queryKey: chaves.categoriasResumo,
     queryFn: categoriasApi.resumo,
     enabled: !editando,
+  });
+
+  // Só funcionários ATIVOS: o endpoint já filtra, e atribuir um processo a
+  // quem foi desativado é deixá-lo sem dono sem parecer — o backend recusa.
+  const { data: equipe } = useQuery({
+    queryKey: chaves.funcionariosResumo,
+    queryFn: funcionariosApi.listarResumido,
   });
 
   const { data: processo, isLoading } = useQuery({
@@ -90,6 +104,9 @@ export function ProcessoFormPage() {
       nome: processo.nome,
       descricao: processo.descricao ?? '',
       preco: String(processo.preco ?? 0),
+      responsavelId: processo.responsavelId
+        ? String(processo.responsavelId)
+        : '',
     });
   }, [processo, reset]);
 
@@ -102,6 +119,12 @@ export function ProcessoFormPage() {
         preco: formulario.preco
           ? Number(formulario.preco.replace(',', '.'))
           : 0,
+        // String vazia é o pedido explícito de "sem responsável", e viaja como
+        // `null` — não como `undefined`, que o backend leria como "não mexa" e
+        // deixaria o dono anterior no lugar.
+        responsavelId: formulario.responsavelId
+          ? Number(formulario.responsavelId)
+          : null,
       };
 
       // A categoria define a trilha e é imutável depois da submissão: o backend
@@ -207,6 +230,21 @@ export function ProcessoFormPage() {
 
             <Campo label="Valor do serviço (R$)" erro={errors.preco?.message}>
               <input type="text" inputMode="decimal" placeholder="0,00" {...register('preco')} />
+            </Campo>
+
+            <Campo
+              label="Responsável pelo processo"
+              erro={errors.responsavelId?.message}
+              dica="Quem recebe os avisos deste processo. Não limita o acesso: a equipe continua vendo e avaliando."
+            >
+              <select {...register('responsavelId')}>
+                <option value="">Sem responsável</option>
+                {equipe?.map((pessoa) => (
+                  <option key={pessoa.id} value={pessoa.id}>
+                    {pessoa.nome}
+                  </option>
+                ))}
+              </select>
             </Campo>
           </div>
 

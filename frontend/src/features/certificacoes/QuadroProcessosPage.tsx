@@ -37,6 +37,7 @@ import type {
   PapelFuncional,
   SemaforoAging,
 } from '@/types';
+import { funcionariosApi } from '@/features/funcionarios/api';
 import { certificacoesApi, type FiltrosQuadro } from './api';
 import { ModalProcesso } from './ModalProcesso';
 import { AlternarVisaoCertificacoes } from './AlternarVisao';
@@ -95,6 +96,11 @@ export function QuadroProcessosPage() {
   const { data: categorias } = useQuery({
     queryKey: chaves.categoriasResumo,
     queryFn: () => categoriasApi.resumo(),
+  });
+
+  const { data: equipe } = useQuery({
+    queryKey: chaves.funcionariosResumo,
+    queryFn: funcionariosApi.listarResumido,
   });
 
   const totalGeral =
@@ -195,8 +201,14 @@ export function QuadroProcessosPage() {
           </select>
         </div>
 
+        {/*
+          Dois eixos, dois filtros, e os rótulos TÊM de distinguir: este recorta
+          a ÁREA da etapa atual ("o que está na mão da Qualidade?"), o de baixo
+          recorta o DONO do processo ("quais processos são meus?"). Chamar os
+          dois de "Responsável" devolveria a pergunta sem resposta.
+        */}
         <div className="campo">
-          <label htmlFor="quadro-papel">Responsável</label>
+          <label htmlFor="quadro-papel">Área da etapa</label>
           <select
             id="quadro-papel"
             value={filtros.papelResponsavel ?? ''}
@@ -215,6 +227,33 @@ export function QuadroProcessosPage() {
                 </option>
               ),
             )}
+          </select>
+        </div>
+
+        <div className="campo">
+          <label htmlFor="quadro-responsavel">Responsável</label>
+          <select
+            id="quadro-responsavel"
+            value={filtros.responsavelId ?? ''}
+            onChange={(evento) =>
+              alterar(
+                'responsavelId',
+                // '' limpa o filtro; '0' é o recorte "sem responsável" — e
+                // precisa de opção própria, porque processo sem dono não
+                // notifica ninguém e é o que se quer achar.
+                evento.target.value === ''
+                  ? undefined
+                  : Number(evento.target.value),
+              )
+            }
+          >
+            <option value="">Todos</option>
+            <option value="0">Sem responsável</option>
+            {equipe?.map((integrante) => (
+              <option key={integrante.id} value={integrante.id}>
+                {integrante.nome}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -408,6 +447,16 @@ function Cartao({
       <h3 className="quadro__processo">{cartao.processo}</h3>
       <p className="quadro__cliente texto-pequeno texto-suave">
         {cartao.cliente.nome}
+      </p>
+      <p className="quadro__responsavel texto-pequeno">
+        <Icone nome="pessoas" tamanho={13} />
+        {cartao.responsavel ? (
+          cartao.responsavel.nome
+        ) : (
+          // Dito, e não omitido: processo sem dono não gera aviso para
+          // ninguém, e um cartão calado esconde justamente isso.
+          <span className="texto-fraco">Sem responsável</span>
+        )}
       </p>
 
       <div className="quadro__etapa">

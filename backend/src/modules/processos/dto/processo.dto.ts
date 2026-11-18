@@ -78,6 +78,21 @@ export class CriarProcessoDto {
   @IsOptional()
   @IsBoolean()
   aprovacaoAutomatica?: boolean | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 3,
+    description:
+      'Funcionário DONO do processo. É quem recebe aviso sobre ele — e não ' +
+      'uma área: `papelResponsavel` da etapa continua sendo o PapelFuncional. ' +
+      'Não restringe acesso: a equipe inteira segue vendo e avaliando o ' +
+      'processo. Envie `null` para deixar sem responsável.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  responsavelId?: number | null;
 }
 
 /**
@@ -106,4 +121,22 @@ export class ListarProcessosDto extends PaginacaoDto {
   @Type(() => Number)
   @IsInt()
   categoriaId?: number;
+
+  /**
+   * Filtra pelo dono do processo. `0` lista os SEM responsável — mesma
+   * convenção de `ListarClientesDto.responsavelId`, e o motivo é o mesmo:
+   * "sem dono" é o recorte que precisa ser achável, não um efeito colateral
+   * de não filtrar nada.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Id do funcionário responsável. Use 0 para listar os processos sem ' +
+      'responsável.',
+    example: 3,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  responsavelId?: number;
 }

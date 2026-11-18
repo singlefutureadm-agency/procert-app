@@ -1,4 +1,4 @@
-import { Prisma, StatusRegistro } from '@prisma/client';
+import { Prisma, Role, StatusRegistro } from '@prisma/client';
 import { mockDeep } from 'jest-mock-extended';
 
 import { ProcessosService } from './processos.service';
@@ -233,5 +233,153 @@ describe('ProcessosService — código do processo', () => {
     expect(banco.tx.certificacaoProcesso.create).toHaveBeenCalledTimes(1);
     expect(banco.tx.certificacaoProcesso.createMany).not.toHaveBeenCalled();
     expect(banco.prisma.processo.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * O DONO do processo — a pessoa que vai receber aviso sobre ele.
+ *
+ * Nada aqui gera stack trace quando quebra, e é por isso que está coberto:
+ *
+ *  - um responsável DESATIVADO passa pela FK sem reclamar. A tela mostraria um
+ *    nome, e o aviso iria para uma conta que ninguém abre — "sem responsável",
+ *    mas sem parecer. A FK não sabe distinguir; o service sabe.
+ *  - o filtro usa `0` para dizer "sem responsável". Repassado cru ao `where`,
+ *    nenhum id casa (ids começam em 1) e a tela diz "nenhum processo", que se
+ *    lê como "ninguém tem processo" em vez de "o filtro está errado".
+ *  - e a AUSÊNCIA de filtro não pode virar filtro: este campo endereça aviso,
+ *    não restringe acesso, e um `responsavelId: undefined` escapando para o
+ *    `where` esconderia processo da equipe sem nenhum aviso.
+ */
+describe('ProcessosService — responsável do processo', () => {
+  let servico: ProcessosService;
+  let banco: PrismaMock;
+  let modelosTrilha: jest.Mocked<ModelosTrilhaService>;
+
+  const RESPONSAVEL = 3;
+
+  const equipe = {
+    id: 1,
+    nome: 'Ana Qualidade',
+    email: 'ana@procertocp.com.br',
+    role: Role.FUNCIONARIO,
+  };
+
+  const dados = {
+    clienteId: CLIENTE,
+    categoriaId: CATEGORIA,
+    nome: 'Cinturão paraquedista',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    banco = criarPrismaMock();
+    modelosTrilha = mockDeep<ModelosTrilhaService>();
+
+    banco.prisma.cliente.findUnique.mockResolvedValue({ id: CLIENTE } as never);
+    banco.prisma.categoriaProcesso.findUnique.mockResolvedValue({
+      id: CATEGORIA,
+      nome: 'EPIs para trabalho em altura',
+      sigla: null,
+      status: StatusRegistro.ATIVO,
+    } as never);
+    modelosTrilha.resolverVigentePorCategoria.mockResolvedValue({
+      id: 80,
+      etapas: [{ id: 900, ordem: 1, microEtapas: [] }],
+    } as never);
+
+    banco.tx.processo.create.mockResolvedValue({ id: 1 } as never);
+    banco.tx.processo.findUniqueOrThrow.mockResolvedValue({ id: 1 } as never);
+    banco.prisma.processo.findUnique.mockResolvedValue({ id: 1 } as never);
+    banco.prisma.processo.update.mockResolvedValue({ id: 1 } as never);
+    // A listagem é `$transaction([findMany, count])`. NÃO sobrescreva o
+    // `$transaction` do mock para isso: ele atende as duas formas, e um
+    // `mockResolvedValue` aqui derrubaria a de callback que `criar` usa.
+    banco.prisma.processo.findMany.mockResolvedValue([] as never);
+    banco.prisma.processo.count.mockResolvedValue(0 as never);
+
+    servico = new ProcessosService(
+      banco.prisma as unknown as PrismaService,
+      mockDeep<UploadsService>(),
+      modelosTrilha,
+    );
+  });
+
+  /** O `where` do `findMany` montado por `listar`. */
+  const whereDaListagem = () =>
+    banco.prisma.processo.findMany.mock.calls[0][0]!.where;
+
+  const funcionario = (status: StatusRegistro) =>
+    banco.prisma.funcionario.findUnique.mockResolvedValue({
+      id: RESPONSAVEL,
+      status,
+    } as never);
+
+  it('recusa funcionário DESATIVADO como responsável', async () => {
+    funcionario(StatusRegistro.INATIVO);
+
+    await expect(
+      servico.criar({ ...dados, responsavelId: RESPONSAVEL }),
+    ).rejects.toThrow('O responsável precisa ser um funcionário ativo.');
+
+    expect(banco.tx.processo.create).not.toHaveBeenCalled();
+  });
+
+  it('recusa funcionário inexistente como responsável', async () => {
+    banco.prisma.funcionario.findUnique.mockResolvedValue(null as never);
+
+    await expect(
+      servico.criar({ ...dados, responsavelId: 999 }),
+    ).rejects.toThrow('não encontrado para ser o responsável');
+  });
+
+  it('grava o responsável ativo no mesmo create do processo', async () => {
+    funcionario(StatusRegistro.ATIVO);
+
+    await servico.criar({ ...dados, responsavelId: RESPONSAVEL });
+
+    expect(banco.tx.processo.create.mock.calls[0][0].data.responsavelId).toBe(
+      RESPONSAVEL,
+    );
+  });
+
+  it('aceita `null` na atualização: desatribuir é pedido explícito', async () => {
+    // O `null` tem de passar sem consultar funcionário nenhum — "deixe sem
+    // dono" é uma decisão, não um id a validar.
+    await servico.atualizar(1, { responsavelId: null });
+
+    expect(banco.prisma.funcionario.findUnique).not.toHaveBeenCalled();
+    expect(banco.prisma.processo.update.mock.calls[0][0].data).toEqual({
+      responsavelId: null,
+    });
+  });
+
+  it('não consulta funcionário quando o campo não foi enviado', async () => {
+    await servico.criar(dados);
+
+    expect(banco.prisma.funcionario.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('filtro `0` lista os SEM responsável, não o id 0', async () => {
+    await servico.listar({ pagina: 1, limite: 20, skip: 0, responsavelId: 0 }, equipe);
+
+    expect(whereDaListagem()).toMatchObject({ responsavelId: null });
+  });
+
+  it('filtro com id real recorta a carteira daquele funcionário', async () => {
+    await servico.listar(
+      { pagina: 1, limite: 20, skip: 0, responsavelId: RESPONSAVEL },
+      equipe,
+    );
+
+    expect(whereDaListagem()).toMatchObject({ responsavelId: RESPONSAVEL });
+  });
+
+  it('sem o filtro, o responsável NÃO entra no where', async () => {
+    // Endereça aviso, não restringe acesso: a equipe continua vendo tudo.
+    await servico.listar({ pagina: 1, limite: 20, skip: 0 }, equipe);
+
+    expect(whereDaListagem()).not.toHaveProperty('responsavelId');
   });
 });
