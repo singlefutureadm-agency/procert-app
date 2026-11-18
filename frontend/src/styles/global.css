@@ -2993,6 +2993,23 @@ fieldset.secao-form legend {
   margin: 0;
 }
 
+/* Dono do processo no cartão — quem recebe aviso sobre ele. Fica ACIMA da
+   etapa e separado do papel funcional do rodapé de propósito: "é do Carlos" e
+   "está na mão da Qualidade" são duas informações, não duas versões de uma. */
+.quadro__responsavel {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.quadro__responsavel svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+}
+
 .quadro__etapa {
   display: flex;
   align-items: center;

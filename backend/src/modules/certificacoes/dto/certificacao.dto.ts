@@ -132,6 +132,27 @@ export class ListarQuadroDto {
   @IsEnum(PapelFuncional)
   papelResponsavel?: PapelFuncional;
 
+  /**
+   * Filtra pelo DONO do processo — a pessoa, não a área. É o que responde
+   * "quais processos são meus?"; `papelResponsavel`, logo acima, responde
+   * "o que está na mão da Qualidade?". Os dois convivem.
+   *
+   * `0` traz os SEM responsável, mesma convenção de `ListarProcessosDto`.
+   * **Filtrar não é restringir**: o padrão do quadro continua sendo todo mundo
+   * vendo tudo, porque esconder o processo de quem saiu de férias é esconder
+   * justamente o que está parado.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Id do funcionário DONO do processo. Use 0 para os sem responsável.',
+    example: 3,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  responsavelId?: number;
+
   @ApiPropertyOptional({ enum: SEMAFOROS_AGING })
   @IsOptional()
   @IsIn(SEMAFOROS_AGING)

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { useAuth } from '@/auth/useAuth';
 import { CabecalhoPagina } from '@/components/CabecalhoPagina';
+import { Campo } from '@/components/Campo';
 import { CampoBusca } from '@/components/CampoBusca';
 import { EsqueletoTabela } from '@/components/Esqueleto';
 import { EstadoVazio } from '@/components/EstadoVazio';
@@ -13,6 +14,7 @@ import { ModalConfirmacao } from '@/components/ModalConfirmacao';
 import { Paginacao } from '@/components/Paginacao';
 import { Progresso } from '@/components/Progresso';
 import { TabelaRolavel } from '@/components/TabelaRolavel';
+import { funcionariosApi } from '@/features/funcionarios/api';
 import { mensagemDeErro, urlArquivo } from '@/lib/api';
 import { moeda } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
@@ -22,7 +24,7 @@ import { processosApi, type FiltrosProcessos } from './api';
 export function ProcessosPage() {
   const { temPapel } = useAuth();
   const queryClient = useQueryClient();
-  const equipe = temPapel('ADMIN', 'FUNCIONARIO');
+  const equipeInterna = temPapel('ADMIN', 'FUNCIONARIO');
 
   const [filtros, setFiltros] = useState<FiltrosProcessos>({
     pagina: 1,
@@ -35,6 +37,12 @@ export function ProcessosPage() {
   const { data, isLoading } = useQuery({
     queryKey: chaves.processos(filtros),
     queryFn: () => processosApi.listar(filtros),
+  });
+
+  const { data: equipe } = useQuery({
+    queryKey: chaves.funcionariosResumo,
+    queryFn: funcionariosApi.listarResumido,
+    enabled: equipeInterna,
   });
 
   const alterarStatus = useMutation({
@@ -57,7 +65,7 @@ export function ProcessosPage() {
         titulo={vendoInativos ? 'Processos inativos' : 'Processos'}
         descricao="Itens submetidos ao processo de certificação."
         acoes={
-          equipe && (
+          equipeInterna && (
             <>
               <button
                 type="button"
@@ -96,6 +104,33 @@ export function ProcessosPage() {
           placeholder="Buscar por processo ou cliente"
           aoMudar={(busca) => setFiltros((atual) => ({ ...atual, busca, pagina: 1 }))}
         />
+        {equipeInterna && (
+          <Campo label="Responsável">
+            <select
+              value={filtros.responsavelId ?? ''}
+              onChange={(evento) =>
+                setFiltros((atual) => ({
+                  ...atual,
+                  // '' limpa o filtro; '0' é o pedido explícito de "sem
+                  // responsável" — mesma convenção da carteira em /clientes.
+                  responsavelId:
+                    evento.target.value === ''
+                      ? undefined
+                      : Number(evento.target.value),
+                  pagina: 1,
+                }))
+              }
+            >
+              <option value="">Todos os responsáveis</option>
+              <option value="0">Sem responsável</option>
+              {equipe?.map((integrante) => (
+                <option key={integrante.id} value={integrante.id}>
+                  {integrante.nome}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
       </div>
 
       <section className="vidro">
@@ -106,12 +141,12 @@ export function ProcessosPage() {
             icone="caixa"
             titulo="Nenhum processo encontrado"
             descricao={
-              equipe
+              equipeInterna
                 ? 'Ao cadastrar um processo, a trilha de certificação é aberta automaticamente.'
                 : 'Você ainda não possui processos em certificação.'
             }
             acao={
-              equipe && (
+              equipeInterna && (
                 <Link to="/processos/novo" className="btn btn--primario">
                   Cadastrar processo
                 </Link>
@@ -126,7 +161,8 @@ export function ProcessosPage() {
                   <tr role="row">
                     <th role="columnheader" />
                     <th role="columnheader">Processo</th>
-                    {equipe && <th role="columnheader">Cliente</th>}
+                    {equipeInterna && <th role="columnheader">Cliente</th>}
+                    {equipeInterna && <th role="columnheader">Responsável</th>}
                     <th role="columnheader">Etapa atual</th>
                     <th role="columnheader" style={{ minWidth: 160 }}>Progresso</th>
                     <th role="columnheader">Valor</th>
@@ -147,8 +183,17 @@ export function ProcessosPage() {
                         />
                       </td>
                       <td role="cell" data-principal style={{ fontWeight: 600 }}>{processo.nome}</td>
-                      {equipe && (
+                      {equipeInterna && (
                         <td role="cell" data-rotulo="Cliente" className="texto-suave">{processo.cliente.nome}</td>
+                      )}
+                      {equipeInterna && (
+                        <td role="cell" data-rotulo="Responsável" className="texto-suave">
+                          {processo.responsavel?.nome ?? (
+                            // Processo sem dono não gera aviso para ninguém: o
+                            // estado precisa ser visível, não um campo em branco.
+                            <span className="texto-fraco">Sem responsável</span>
+                          )}
+                        </td>
                       )}
                       <td role="cell" data-rotulo="Etapa atual" className="texto-suave">
                         {processo.resumoCertificacao.etapaAtual ?? '—'}
@@ -167,7 +212,7 @@ export function ProcessosPage() {
                           >
                             <Icone nome="olho" />
                           </Link>
-                          {equipe && (
+                          {equipeInterna && (
                             <>
                               <Link
                                 to={`/processos/${processo.id}/editar`}

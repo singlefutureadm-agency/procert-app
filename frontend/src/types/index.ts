@@ -381,6 +381,14 @@ export interface Processo {
   codigoProcesso: string | null;
   motivoProcesso: MotivoProcesso;
   /**
+   * Funcionário DONO do processo — a pessoa que recebe aviso sobre ele.
+   * `null` = sem responsável, e a tela marca isso.
+   *
+   * **Não é `PapelFuncional`** (a área da etapa) nem a carteira do cliente.
+   * Também **não restringe acesso**: a equipe segue vendo e avaliando tudo.
+   */
+  responsavelId: number | null;
+  /**
    * Aprovação da etapa ao fechar o checklist. `null` = HERDA a versão da
    * trilha; `true`/`false` sobrepõem só neste processo.
    */
@@ -393,6 +401,7 @@ export interface Processo {
   criadoEm: string;
   atualizadoEm: string;
   cliente: { id: number; nome: string; fotoUrl: string | null };
+  responsavel: { id: number; nome: string } | null;
   categoria: { id: number; nome: string; normaReferencia: string | null };
   /**
    * A VERSÃO da trilha que o processo carrega como retrato, com a família a que
@@ -652,6 +661,13 @@ export interface CartaoQuadro {
   motivoProcesso: MotivoProcesso;
   cliente: { id: number; nome: string };
   categoria: { id: number; nome: string };
+  /**
+   * Dono do processo — a PESSOA. `null` = sem responsável.
+   *
+   * Convive com `etapaAtual.papelResponsavel`, que é a ÁREA da etapa: "é do
+   * Carlos, e agora está na mão da Qualidade" são duas informações.
+   */
+  responsavel: { id: number; nome: string } | null;
   etapaAtual: {
     id: number;
     nome: string;

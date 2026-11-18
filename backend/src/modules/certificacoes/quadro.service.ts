@@ -79,6 +79,16 @@ export interface CartaoQuadro {
   motivoProcesso: MotivoProcesso;
   cliente: { id: number; nome: string };
   categoria: { id: number; nome: string };
+  /**
+   * Dono do processo — a PESSOA. `null` = sem responsável, e o cartão marca
+   * isso: processo sem dono não gera aviso para ninguém, então o estado tem de
+   * aparecer na tela em vez de só faltar.
+   *
+   * Diferente de `etapaAtual.papelResponsavel`, que é a ÁREA da etapa. Os dois
+   * viajam juntos de propósito: "é do Carlos, e agora está na mão da Qualidade"
+   * são duas informações, não duas versões da mesma.
+   */
+  responsavel: { id: number; nome: string } | null;
   etapaAtual: {
     id: number;
     nome: string;
@@ -142,6 +152,8 @@ interface LinhaQuadro {
   cliente_nome: string;
   categoria_id: number;
   categoria_nome: string;
+  responsavel_id: number | null;
+  responsavel_nome: string | null;
   etapa_id: number | null;
   etapa_nome: string | null;
   etapa_status: StatusCertificacao | null;
@@ -241,6 +253,9 @@ export class QuadroService {
       motivoProcesso: linha.motivo_processo,
       cliente: { id: linha.cliente_id, nome: linha.cliente_nome },
       categoria: { id: linha.categoria_id, nome: linha.categoria_nome },
+      responsavel: linha.responsavel_id
+        ? { id: linha.responsavel_id, nome: linha.responsavel_nome! }
+        : null,
       etapaAtual: linha.etapa_id
         ? {
             id: linha.etapa_id,
@@ -355,6 +370,8 @@ export class QuadroService {
           c.nome                     AS cliente_nome,
           cat.id                     AS categoria_id,
           cat.nome                   AS categoria_nome,
+          p.responsavel_id,
+          resp.nome                  AS responsavel_nome,
           a.id                       AS etapa_id,
           a.etapa_nome,
           a.status                   AS etapa_status,
@@ -410,6 +427,9 @@ export class QuadroService {
         FROM processos p
         JOIN clientes c            ON c.id = p.cliente_id
         JOIN categorias_processo cat ON cat.id = p.categoria_id
+        -- LEFT, não INNER: processo sem responsável continua no quadro. Um
+        -- INNER sumiria com ele exatamente no caso que precisa ser visto.
+        LEFT JOIN funcionarios resp ON resp.id = p.responsavel_id
         LEFT JOIN atual a          ON a.processo_id = p.id
         LEFT JOIN resumo r         ON r.processo_id = p.id
         LEFT JOIN LATERAL (
@@ -426,6 +446,15 @@ export class QuadroService {
                OR p.cliente_id = ${filtros.clienteId ?? null}::int)
           AND (${filtros.papelResponsavel ?? null}::text IS NULL
                OR a.papel_responsavel::text = ${filtros.papelResponsavel ?? null}::text)
+          -- O zero precisa de ramo próprio: nenhum id é 0, então uma
+          -- comparação responsavel_id = 0 não casaria nada e o filtro
+          -- "sem responsável" devolveria quadro vazio em vez do recorte
+          -- pedido. (Sem crase neste comentário: ele está dentro de um
+          -- template literal, e uma crase aqui fecharia o Prisma.sql.)
+          AND (${filtros.responsavelId ?? null}::int IS NULL
+               OR (${filtros.responsavelId ?? null}::int = 0
+                   AND p.responsavel_id IS NULL)
+               OR p.responsavel_id = ${filtros.responsavelId ?? null}::int)
           AND (${busca}::text IS NULL
                OR p.nome ILIKE ${busca}::text
                OR c.nome ILIKE ${busca}::text
