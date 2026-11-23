@@ -218,7 +218,7 @@ export function organizacao(): Record<string, unknown> {
       '@type': 'ContactPoint',
       contactType: 'customer service',
       email: 'comercial@procertocp.com.br',
-      telephone: '+55-11-94230-7431',
+      telephone: '+55-11-91443-3414',
       availableLanguage: 'Portuguese',
     },
   };
