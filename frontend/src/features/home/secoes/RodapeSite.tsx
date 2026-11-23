@@ -21,7 +21,7 @@ export function RodapeSite() {
                 <p key={linha}>{linha}</p>
               ))}
               <p style={{ marginTop: 12 }}>
-                <strong>Telefone:</strong> <span>{EMPRESA.telefoneRodape}</span>
+                <strong>Telefone:</strong> <span>{EMPRESA.telefone}</span>
               </p>
               <p>
                 <strong>E-mail:</strong>{' '}

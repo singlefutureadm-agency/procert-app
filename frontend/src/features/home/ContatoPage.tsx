@@ -15,13 +15,13 @@ const CANAIS = [
   {
     icone: 'bi-telephone',
     titulo: 'Telefone',
-    valor: EMPRESA.telefoneContato,
-    href: `tel:+55${EMPRESA.telefoneContato.replace(/\D/g, '')}`,
+    valor: EMPRESA.telefone,
+    href: `tel:+55${EMPRESA.telefone.replace(/\D/g, '')}`,
   },
   {
     icone: 'bi-whatsapp',
     titulo: 'WhatsApp',
-    valor: EMPRESA.telefoneRodape,
+    valor: EMPRESA.telefone,
     href: `https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent(
       EMPRESA.whatsappMensagem,
     )}`,
