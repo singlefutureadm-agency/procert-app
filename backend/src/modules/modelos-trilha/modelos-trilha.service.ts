@@ -102,6 +102,7 @@ export class ModelosTrilhaService {
             nome: micro.nome,
             papelResponsavel: micro.papelResponsavel ?? undefined,
             prazoSlaHoras: micro.prazoSlaHoras ?? undefined,
+            exigeDocumento: micro.exigeDocumento,
           })),
         })) ?? []);
 
@@ -415,6 +416,7 @@ export function paraCriacao(
         nome: micro.nome.trim(),
         papelResponsavel: micro.papelResponsavel,
         prazoSlaHoras: micro.prazoSlaHoras,
+        exigeDocumento: micro.exigeDocumento,
         ordem: posicao + 1,
       })),
     },

@@ -8,6 +8,8 @@ export interface FiltrosProcessos {
   status?: StatusRegistro;
   clienteId?: number;
   categoriaId?: number;
+  /** Dono do processo. `0` traz os SEM responsável — recorte próprio. */
+  responsavelId?: number;
 }
 
 export interface DadosProcesso {
@@ -21,6 +23,11 @@ export interface DadosProcesso {
    * distintos: "herda" não é "manual".
    */
   aprovacaoAutomatica?: boolean | null;
+  /**
+   * Funcionário DONO do processo — quem recebe aviso sobre ele. `null`
+   * desatribui. Não restringe acesso: a equipe segue vendo tudo.
+   */
+  responsavelId?: number | null;
 }
 
 /** A categoria só entra na criação: é ela que define a trilha aberta. */

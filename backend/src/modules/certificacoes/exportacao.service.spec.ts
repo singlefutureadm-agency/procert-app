@@ -2,6 +2,7 @@ import { Workbook, type Worksheet } from 'exceljs';
 import {
   CriticidadeNaoConformidade,
   FaseProcesso,
+  SituacaoDocumento,
   StatusCertificacao,
   StatusNaoConformidade,
   TipoEtapa,
@@ -35,6 +36,11 @@ function documento(over: Partial<Documento> = {}): Documento {
     tipoMime: 'application/pdf',
     tamanhoBytes: 4096,
     enviadoPorNome: 'Ana Técnica',
+    // Evidência da EQUIPE por padrão — o caso que já existia. Documento pedido
+    // ao cliente é o caso novo, e os testes dele passam `microEtapaId` e
+    // `situacao` explicitamente.
+    microEtapaId: null,
+    situacao: null,
     criadoEm: new Date('2026-03-10T14:05:00Z'),
     ...over,
   };
@@ -512,6 +518,85 @@ describe('ExportacaoCertificacaoService', () => {
         .replace(/^acompanhamento-/, '')
         .replace(/-\d{4}-\d{2}-\d{2}\.xlsx$/, '');
       expect(base.length).toBe(60);
+    });
+  });
+
+  /**
+   * A planilha é o artefato que sai para auditoria, e nela os dois tipos de
+   * documento precisam ser distinguíveis.
+   *
+   * Sem a coluna "Situação", um arquivo que o cliente enviou e a equipe RECUSOU
+   * era exportado na mesma lista das evidências — indistinguível de prova
+   * aceita, numa planilha que circula fora do sistema. Não há erro nenhum nesse
+   * caminho: o arquivo existe, o nome está certo, e só o significado está
+   * errado.
+   */
+  describe('situação do documento na aba da etapa', () => {
+    const comDocumentos = (...docs: Documento[]) =>
+      detalhe([
+        etapa({
+          ordem: 1,
+          etapa: { nome: 'Ensaios' },
+          historico: [historico({ documentos: docs })],
+        }),
+      ]);
+
+    /** A coluna Situação de cada linha de "Evidências anexadas". */
+    const situacoesNaAba = (aba: Worksheet): string[] => {
+      const titulo = linhaComRotulo(aba, 'Evidências anexadas');
+      expect(titulo).not.toBeNull();
+
+      const valores: string[] = [];
+      // +1 é o cabeçalho da tabela; os dados começam em +2.
+      for (let numero = titulo! + 2; numero <= aba.rowCount; numero += 1) {
+        const celula = aba.getRow(numero).getCell(6).value;
+        if (celula === null || celula === undefined) break;
+        valores.push(String(celula));
+      }
+      return valores;
+    };
+
+    it('evidência da equipe aparece como tal, não como traço', async () => {
+      const livro = await gerarEReabrir(servico, comDocumentos(documento()));
+
+      expect(situacoesNaAba(livro.worksheets[1])).toEqual([
+        'Evidência da equipe',
+      ]);
+    });
+
+    it('documento RECUSADO é marcado como recusado', async () => {
+      const livro = await gerarEReabrir(
+        servico,
+        comDocumentos(
+          documento({
+            nomeArquivo: 'calibracao.pdf',
+            microEtapaId: 9,
+            situacao: SituacaoDocumento.RECUSADO,
+          }),
+        ),
+      );
+
+      const situacoes = situacoesNaAba(livro.worksheets[1]);
+      expect(situacoes).toHaveLength(1);
+      expect(situacoes[0]).toContain('RECUSADO');
+    });
+
+    it('os quatro estados saem com textos distintos', async () => {
+      // Três do pedido mais a evidência da equipe. Dois textos iguais fariam a
+      // coluna existir sem informar nada.
+      const livro = await gerarEReabrir(
+        servico,
+        comDocumentos(
+          documento({ microEtapaId: 9, situacao: SituacaoDocumento.PENDENTE }),
+          documento({ microEtapaId: 9, situacao: SituacaoDocumento.ACEITO }),
+          documento({ microEtapaId: 9, situacao: SituacaoDocumento.RECUSADO }),
+          documento(),
+        ),
+      );
+
+      const situacoes = situacoesNaAba(livro.worksheets[1]);
+      expect(situacoes).toHaveLength(4);
+      expect(new Set(situacoes).size).toBe(4);
     });
   });
 });

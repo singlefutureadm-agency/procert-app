@@ -21,6 +21,7 @@ import {
 
 const INCLUDE_PROCESSO = {
   cliente: { select: { id: true, nome: true, fotoUrl: true } },
+  responsavel: { select: { id: true, nome: true } },
   categoria: {
     select: {
       id: true,
@@ -71,6 +72,13 @@ export class ProcessosService {
       status: filtros.status ?? StatusRegistro.ATIVO,
       ...(clienteId && { clienteId }),
       ...(filtros.categoriaId && { categoriaId: filtros.categoriaId }),
+      // `0` é o pedido explícito de "sem responsável"; um id real filtra os
+      // processos daquele funcionário. `undefined` não filtra nada. Mesma
+      // convenção de `ClientesService.listar`.
+      ...(filtros.responsavelId !== undefined && {
+        responsavelId:
+          filtros.responsavelId === 0 ? null : filtros.responsavelId,
+      }),
       ...(filtros.busca && {
         OR: [
           { nome: { contains: filtros.busca, mode: 'insensitive' } },
@@ -141,6 +149,8 @@ export class ProcessosService {
       );
     }
 
+    await this.garantirResponsavelValido(dto.responsavelId);
+
     // Lança 400 orientando vincular a trilha, ou publicar uma versão dela,
     // conforme o que estiver faltando.
     const modelo = await this.modelosTrilha.resolverVigentePorCategoria(
@@ -163,6 +173,7 @@ export class ProcessosService {
             modeloTrilhaId: modelo.id,
             codigoProcesso,
             motivoProcesso: dto.motivoProcesso,
+            responsavelId: dto.responsavelId,
             aprovacaoAutomatica: dto.aprovacaoAutomatica,
             nome: dto.nome,
             descricao: dto.descricao,
@@ -192,6 +203,7 @@ export class ProcessosService {
                   nome: micro.nome,
                   papelResponsavel: micro.papelResponsavel,
                   prazoSlaHoras: micro.prazoSlaHoras,
+                  exigeDocumento: micro.exigeDocumento,
                   ordem: micro.ordem,
                 })),
               },
@@ -323,6 +335,8 @@ export class ProcessosService {
       }
     }
 
+    await this.garantirResponsavelValido(dto.responsavelId);
+
     return this.prisma.processo.update({
       where: { id },
       data: dto,
@@ -405,6 +419,41 @@ export class ProcessosService {
       throw new NotFoundException(`Processo ${id} não encontrado.`);
     }
     return processo;
+  }
+
+  /**
+   * O responsável existe e está ATIVO.
+   *
+   * A validação vive aqui, e não na FK: a FK só sabe que o id existe, e
+   * atribuir um processo a quem foi desativado é o mesmo que deixá-lo sem dono
+   * — mas sem parecer, porque a tela mostraria um nome. Gêmeo de
+   * `ClientesService.garantirResponsavelValido`; duplicado em vez de
+   * compartilhado porque as mensagens de erro falam de coisas diferentes
+   * ("a carteira" lá, "o processo" aqui).
+   *
+   * `null` passa de propósito: é o pedido explícito de deixar sem responsável.
+   */
+  private async garantirResponsavelValido(
+    responsavelId?: number | null,
+  ): Promise<void> {
+    if (responsavelId === undefined || responsavelId === null) return;
+
+    const responsavel = await this.prisma.funcionario.findUnique({
+      where: { id: responsavelId },
+      select: { id: true, status: true },
+    });
+
+    if (!responsavel) {
+      throw new BadRequestException(
+        `Funcionário ${responsavelId} não encontrado para ser o responsável.`,
+      );
+    }
+
+    if (responsavel.status !== StatusRegistro.ATIVO) {
+      throw new BadRequestException(
+        'O responsável precisa ser um funcionário ativo.',
+      );
+    }
   }
 
   private garantirAcesso(clienteId: number, usuario: UsuarioAutenticado): void {

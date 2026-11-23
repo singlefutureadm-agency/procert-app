@@ -1067,6 +1067,75 @@ table.tabela {
   color: var(--cor-alerta);
 }
 
+/* Documentos PEDIDOS ao cliente — bloco separado das evidências da etapa.
+   São dois tipos de arquivo com ciclos diferentes, e misturá-los faria um
+   documento recusado parecer prova aceita. */
+.pedidos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espaco-2);
+  padding-top: var(--espaco-2);
+}
+
+.pedido {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--espaco-3);
+  background: var(--vidro-fundo);
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-sm);
+}
+
+.pedido__topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espaco-2);
+  flex-wrap: wrap;
+}
+
+.pedido__nome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.pedido__nome svg {
+  flex: 0 0 auto;
+}
+
+/* O motivo da recusa é o texto que o cliente lê para saber o que reenviar:
+   fica destacado por borda à esquerda, não por cor sozinha. */
+.pedido__parecer {
+  margin: 0;
+  padding: 6px var(--espaco-2);
+  color: var(--texto-suave);
+  border-left: 3px solid var(--cor-erro);
+  background: var(--vidro-fundo);
+  border-radius: 0 var(--raio-xs) var(--raio-xs) 0;
+}
+
+.pedido__acoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pedido__anteriores > summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.pedido__anteriores > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+}
+
 .documentos__item {
   display: flex;
   align-items: center;
@@ -2924,6 +2993,23 @@ fieldset.secao-form legend {
   margin: 0;
 }
 
+/* Dono do processo no cartão — quem recebe aviso sobre ele. Fica ACIMA da
+   etapa e separado do papel funcional do rodapé de propósito: "é do Carlos" e
+   "está na mão da Qualidade" são duas informações, não duas versões de uma. */
+.quadro__responsavel {
+  display: flex;
+  align-items: center;
+  gap: var(--espaco-2);
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.quadro__responsavel svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+}
+
 .quadro__etapa {
   display: flex;
   align-items: center;
@@ -3283,6 +3369,25 @@ fieldset.secao-form legend {
 .micro-editor__campos input[type='text'] {
   grid-column: 1 / -1;
   font-weight: 500;
+}
+
+/* A caixa ocupa a faixa inteira, abaixo de área e prazo: é uma decisão sobre o
+   item, não um detalhe dele. O `width: auto` desfaz o `width: 100%` que vale
+   para os campos de texto — sem ele a caixa de seleção esticaria pela coluna. */
+.micro-editor__pedido {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.micro-editor__campos .micro-editor__pedido input[type='checkbox'] {
+  width: auto;
+  padding: 0;
+  /* Alvo de toque, não medida estética — mesma razão do `.btn--icone`. */
+  min-width: 18px;
+  min-height: 18px;
 }
 
 /* Área e prazo são o detalhe do item, não o item: menores e mais discretos que

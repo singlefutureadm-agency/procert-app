@@ -31,6 +31,7 @@ import type {
 } from '@/types';
 import { certificacoesApi, type EtapaAlteracao } from './api';
 import { DocumentosEtapa } from './DocumentosEtapa';
+import { DocumentosSolicitados } from './DocumentosSolicitados';
 import { ChecklistEtapa } from './ModalProcesso';
 
 const CLASSE_ETAPA: Record<StatusCertificacao, string> = {
@@ -557,6 +558,18 @@ export function CertificacaoDetalhePage() {
                       </div>
                     )}
 
+                    {/* Documentos PEDIDOS ao cliente. Sem `podeEditar`: esta
+                        tela é a timeline do processo e o cliente a alcança, e é
+                        ele quem envia. O que ele NÃO pode é julgar o envio —
+                        daí `podeAvaliar`. */}
+                    <DocumentosSolicitados
+                      processoId={id}
+                      etapa={etapa}
+                      podeAvaliar={podeEditar}
+                    />
+
+                    {/* Evidência da ETAPA, anexada pela equipe. Outro tipo de
+                        documento: não passa por aceite. */}
                     <DocumentosEtapa
                       processoId={id}
                       etapa={etapa}

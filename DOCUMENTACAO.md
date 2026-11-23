@@ -2187,10 +2187,10 @@ peso incomodar, o caminho é gerar um subset ou inlinar os SVGs usados.
 
 ### Dados de contato divergentes entre seções
 
-O legado exibia **três** números: `11 94230-7431` na seção de contato, `11 91443-3414` no
-rodapé e `5511914433414` no link do WhatsApp. Os textos foram preservados como estavam
-(em `conteudo.ts`, campos `telefoneContato` e `telefoneRodape`) porque não há como
-inferir qual é o correto — precisa de confirmação do cliente.
+O legado exibia **dois** números: `11 94230-7431` na seção de contato e `11 91443-3414`
+no rodapé e no WhatsApp (`5511914433414`). Resolvido em 23/11/2026, por decisão do
+cliente: o site usa só `11 91443-3414`, num campo único `EMPRESA.telefone` em
+`conteudo.ts` (também no JSON-LD de `seo.ts` e em `public/llms.txt`).
 
 ### Menu móvel: armadilhas de empilhamento
 

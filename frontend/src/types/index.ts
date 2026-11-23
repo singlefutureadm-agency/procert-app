@@ -136,6 +136,40 @@ export interface ModeloMicroEtapa {
   papelResponsavel: PapelFuncional | null;
   /** Prazo do ITEM, em horas. Independente do prazo da etapa. */
   prazoSlaHoras: number | null;
+  /**
+   * O item é um DOCUMENTO PEDIDO AO CLIENTE: ele envia pelo painel, a equipe
+   * aceita ou recusa, e o item só se conclui com um envio ACEITO.
+   *
+   * **Não é `ModeloEtapa.exigeDocumento`**, que exige evidência da ETAPA e é
+   * anexada pela equipe. Os dois convivem no mesmo passo.
+   */
+  exigeDocumento: boolean;
+}
+
+/**
+ * Situação de um documento pedido ao cliente.
+ *
+ * `null` no campo `situacao` é um QUARTO estado, e não um destes: significa
+ * "não passa por aceite" — evidência que a própria equipe anexou. Não o
+ * confunda com `PENDENTE`, que é fila de avaliação de verdade.
+ */
+export type SituacaoDocumento = 'PENDENTE' | 'ACEITO' | 'RECUSADO';
+
+/** Um envio feito para um item do checklist que pede documento. */
+export interface DocumentoMicroEtapa {
+  id: number;
+  nomeArquivo: string;
+  tipoMime: string;
+  tamanhoBytes: number;
+  enviadoPorNome: string;
+  /** Veio do CLIENTE. Campo próprio: `enviadoPorId` nulo é ambíguo. */
+  enviadoPorCliente: boolean;
+  situacao: SituacaoDocumento | null;
+  /** Preenchido na recusa, sempre. É o que o cliente lê para reenviar. */
+  parecer: string | null;
+  avaliadoPorNome: string | null;
+  avaliadoEm: string | null;
+  criadoEm: string;
 }
 
 /** Item de checklist DE UM PROCESSO. É este que se marca. */
@@ -145,9 +179,18 @@ export interface MicroEtapaCertificacao {
   ordem: number;
   papelResponsavel: PapelFuncional | null;
   prazoSlaHoras: number | null;
+  /** O item é um documento pedido ao cliente. Ver `ModeloMicroEtapa`. */
+  exigeDocumento: boolean;
   concluida: boolean;
   concluidaEm: string | null;
   concluidaPorNome: string | null;
+  /**
+   * Os envios DESTE item, do mais recente para o mais antigo.
+   *
+   * Vários de propósito: um recusado não é apagado, e o reenvio é linha nova —
+   * é o que deixa o parecer da recusa visível ao lado do arquivo novo.
+   */
+  documentos: DocumentoMicroEtapa[];
 }
 
 /** Etapa prevista por uma versão de trilha. */
@@ -173,6 +216,8 @@ export interface MicroEtapaEntrada {
   nome: string;
   papelResponsavel?: PapelFuncional;
   prazoSlaHoras?: number;
+  /** O item é um documento pedido ao cliente. Ver `ModeloMicroEtapa`. */
+  exigeDocumento?: boolean;
 }
 
 /** Payload de escrita de etapa (sem id/ordem: a ordem vem da posição na lista). */
@@ -336,6 +381,14 @@ export interface Processo {
   codigoProcesso: string | null;
   motivoProcesso: MotivoProcesso;
   /**
+   * Funcionário DONO do processo — a pessoa que recebe aviso sobre ele.
+   * `null` = sem responsável, e a tela marca isso.
+   *
+   * **Não é `PapelFuncional`** (a área da etapa) nem a carteira do cliente.
+   * Também **não restringe acesso**: a equipe segue vendo e avaliando tudo.
+   */
+  responsavelId: number | null;
+  /**
    * Aprovação da etapa ao fechar o checklist. `null` = HERDA a versão da
    * trilha; `true`/`false` sobrepõem só neste processo.
    */
@@ -348,6 +401,7 @@ export interface Processo {
   criadoEm: string;
   atualizadoEm: string;
   cliente: { id: number; nome: string; fotoUrl: string | null };
+  responsavel: { id: number; nome: string } | null;
   categoria: { id: number; nome: string; normaReferencia: string | null };
   /**
    * A VERSÃO da trilha que o processo carrega como retrato, com a família a que
@@ -477,12 +531,22 @@ export interface AberturaNaoConformidade {
   prazoResposta?: string;
 }
 
+/**
+ * Um documento visto pelo HISTÓRICO da etapa.
+ *
+ * `microEtapaId` e `situacao` viajam para a tela poder separar os dois tipos:
+ * `null` nos dois é evidência da ETAPA (o bloco "Evidências"); preenchidos, é
+ * resposta a um pedido e aparece em "Documentos solicitados", com o ciclo de
+ * aceite. Sem a distinção, um arquivo RECUSADO seria listado como prova válida.
+ */
 export interface DocumentoCertificacao {
   id: number;
   nomeArquivo: string;
   tipoMime: string;
   tamanhoBytes: number;
   enviadoPorNome: string;
+  microEtapaId: number | null;
+  situacao: SituacaoDocumento | null;
   criadoEm: string;
 }
 
@@ -597,6 +661,13 @@ export interface CartaoQuadro {
   motivoProcesso: MotivoProcesso;
   cliente: { id: number; nome: string };
   categoria: { id: number; nome: string };
+  /**
+   * Dono do processo — a PESSOA. `null` = sem responsável.
+   *
+   * Convive com `etapaAtual.papelResponsavel`, que é a ÁREA da etapa: "é do
+   * Carlos, e agora está na mão da Qualidade" são duas informações.
+   */
+  responsavel: { id: number; nome: string } | null;
   etapaAtual: {
     id: number;
     nome: string;
