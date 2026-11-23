@@ -18,8 +18,7 @@ export const EMPRESA = {
   chamada: 'Plataforma de certificação de processos',
   endereco: 'Rua John Harrison, 299 - Lapa, São Paulo - SP, 05074-080',
   enderecoCurto: ['Rua John Harrison, 299', 'Lapa, São Paulo'],
-  telefoneContato: '11 94230-7431',
-  telefoneRodape: '11 91443-3414',
+  telefone: '11 91443-3414',
   email: 'comercial@procertocp.com.br',
   whatsapp: '5511914433414',
   whatsappMensagem:
@@ -265,7 +264,7 @@ export const CONTATO = {
   titulo: 'Fale Conosco',
   informacoes: [
     { icone: 'bi-geo-alt', titulo: 'Endereço', texto: EMPRESA.endereco },
-    { icone: 'bi-telephone', titulo: 'Nosso Número', texto: EMPRESA.telefoneContato },
+    { icone: 'bi-telephone', titulo: 'Nosso Número', texto: EMPRESA.telefone },
     { icone: 'bi-envelope', titulo: 'Nosso Email', texto: EMPRESA.email },
   ] satisfies ItemIcone[],
 };

@@ -75,9 +75,32 @@ const INCLUDE_MICRO_ETAPAS = {
     // (receber amostra é da Qualidade, executar é do Técnico).
     papelResponsavel: true,
     prazoSlaHoras: true,
+    // O item é um documento PEDIDO ao cliente — ver `ModeloMicroEtapa`.
+    exigeDocumento: true,
     concluida: true,
     concluidaEm: true,
     concluidaPorNome: true,
+    // Os envios DESTE item, do mais recente para o mais antigo.
+    //
+    // Vários de propósito: um documento recusado não é apagado, e o reenvio é
+    // linha nova. A tela precisa das duas para o cliente entender por que foi
+    // pedido de novo — mostrar só o último esconderia o parecer da recusa.
+    documentos: {
+      orderBy: { id: 'desc' },
+      select: {
+        id: true,
+        nomeArquivo: true,
+        tipoMime: true,
+        tamanhoBytes: true,
+        enviadoPorNome: true,
+        enviadoPorCliente: true,
+        situacao: true,
+        parecer: true,
+        avaliadoPorNome: true,
+        avaliadoEm: true,
+        criadoEm: true,
+      },
+    },
   },
 } satisfies Prisma.CertificacaoProcesso$microEtapasArgs;
 
@@ -248,6 +271,11 @@ export class CertificacoesService {
                     tipoMime: true,
                     tamanhoBytes: true,
                     enviadoPorNome: true,
+                    // A tela precisa separar os dois tipos: sem isto, um
+                    // documento do cliente RECUSADO apareceria no bloco de
+                    // evidências da etapa como se valesse como prova.
+                    microEtapaId: true,
+                    situacao: true,
                     criadoEm: true,
                   },
                 },
@@ -598,6 +626,7 @@ export class CertificacoesService {
                 nome: micro.nome,
                 papelResponsavel: micro.papelResponsavel,
                 prazoSlaHoras: micro.prazoSlaHoras,
+                exigeDocumento: micro.exigeDocumento,
                 ordem: micro.ordem,
               })),
             },
@@ -772,6 +801,7 @@ export class CertificacoesService {
                 nome: micro.nome,
                 papelResponsavel: micro.papelResponsavel,
                 prazoSlaHoras: micro.prazoSlaHoras,
+                exigeDocumento: micro.exigeDocumento,
                 ordem: micro.ordem,
               })),
             },

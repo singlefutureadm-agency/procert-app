@@ -140,13 +140,19 @@ function LinhaEtapa({
                 {/* Área e prazo só aparecem quando o item TEM os seus: em
                     branco, ele segue os da etapa, e repetir isso em cada linha
                     viraria ruído. */}
-                {(micro.papelResponsavel || micro.prazoSlaHoras) && (
+                {(micro.papelResponsavel ||
+                  micro.prazoSlaHoras ||
+                  micro.exigeDocumento) && (
                   <span className="texto-fraco">
                     {' — '}
                     {[
                       micro.papelResponsavel &&
                         ROTULO_PAPEL_FUNCIONAL[micro.papelResponsavel],
                       micro.prazoSlaHoras && formatarPrazoSla(micro.prazoSlaHoras),
+                      // Em TEXTO, e não um ícone: numa versão já em uso esta
+                      // lista é a única leitura possível da regra, porque a
+                      // versão é imutável e não há modal para abrir.
+                      micro.exigeDocumento && 'documento do cliente',
                     ]
                       .filter(Boolean)
                       .join(' · ')}
@@ -339,6 +345,7 @@ export function TrilhaDetalhePage() {
         nome: micro.nome,
         papelResponsavel: micro.papelResponsavel ?? undefined,
         prazoSlaHoras: micro.prazoSlaHoras ?? undefined,
+        exigeDocumento: micro.exigeDocumento,
       })),
     }));
   }

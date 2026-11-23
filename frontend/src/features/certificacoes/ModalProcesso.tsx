@@ -17,6 +17,7 @@ import { formatarPrazoSla } from '@/lib/formatadores';
 import { chaves } from '@/lib/queryClient';
 import type { CartaoQuadro, EtapaTimeline } from '@/types';
 import { certificacoesApi } from './api';
+import { esperandoAceite, situacaoDoPedido } from './pedidos';
 
 /**
  * O processo aberto a partir do cartão do quadro.
@@ -389,13 +390,30 @@ export function ChecklistEtapa({
                     // Etapa aprovada trava o checklist: o histórico afirma que
                     // ela foi avaliada com aquele conjunto marcado. O backend
                     // recusa de qualquer forma; aqui é só não oferecer.
-                    disabled={salvando || bloqueado || aprovada}
+                    //
+                    // Item que PEDE documento também trava enquanto não houver
+                    // envio ACEITO — e o `title` abaixo diz por quê, senão a
+                    // caixa aparece desabilitada sem explicação.
+                    disabled={
+                      salvando ||
+                      bloqueado ||
+                      aprovada ||
+                      (!micro.concluida && esperandoAceite(micro))
+                    }
                     onChange={(evento) =>
                       aoAlternar(micro.id, evento.target.checked)
                     }
                   />
                   <span>
                     {micro.nome}
+                    {/* O item é um documento pedido ao cliente. O rótulo em
+                        TEXTO, e não só a caixa desabilitada: desabilitado sem
+                        motivo escrito é a equipe sem saber o que fazer. */}
+                    {micro.exigeDocumento && (
+                      <span className="texto-pequeno processo__item-meta">
+                        {situacaoDoPedido(micro)}
+                      </span>
+                    )}
                     {/* Área e prazo PRÓPRIOS do item. Em branco, ele segue os
                         da etapa — repetir ali seria ruído. */}
                     {(micro.papelResponsavel || micro.prazoSlaHoras) && (

@@ -25,7 +25,13 @@ export function DocumentosEtapa({ processoId, etapa, podeAnexar }: Props) {
   const queryClient = useQueryClient();
   const entrada = useRef<HTMLInputElement>(null);
 
-  const documentos = etapa.historico.flatMap((registro) => registro.documentos);
+  // Só a evidência da ETAPA. Documento respondendo a um item do checklist tem
+  // bloco próprio (`DocumentosSolicitados`), com o ciclo de aceite; listá-lo
+  // aqui também mostraria o mesmo arquivo duas vezes na mesma tela — e um
+  // RECUSADO apareceria como prova válida, sem nada dizendo o contrário.
+  const documentos = etapa.historico
+    .flatMap((registro) => registro.documentos)
+    .filter((documento) => documento.microEtapaId === null);
 
   const anexar = useMutation({
     mutationFn: (arquivo: File) =>
