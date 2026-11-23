@@ -23,6 +23,7 @@ import { FuncionariosModule } from './modules/funcionarios/funcionarios.module';
 import { HealthModule } from './modules/health/health.module';
 import { ModelosTrilhaModule } from './modules/modelos-trilha/modelos-trilha.module';
 import { NaoConformidadesModule } from './modules/nao-conformidades/nao-conformidades.module';
+import { NotificacoesModule } from './modules/notificacoes/notificacoes.module';
 import { MailModule } from './modules/mail/mail.module';
 import { ProcessosModule } from './modules/processos/processos.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
@@ -46,6 +47,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     ModelosTrilhaModule,
     ProcessosModule,
     NaoConformidadesModule,
+    NotificacoesModule,
     CertificacoesModule,
     CertificadosModule,
     EstadosModule,

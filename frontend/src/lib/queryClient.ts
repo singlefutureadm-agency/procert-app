@@ -25,6 +25,16 @@ export const chaves = {
      conta no servidor. */
   graficos: ['dashboard', 'graficos'] as const,
   estados: ['estados'] as const,
+  /*
+   * O contador do badge tem chave PRÓPRIA, fora do prefixo da lista.
+   *
+   * Ele é consultado em intervalo curto e de toda tela; sob o mesmo prefixo, um
+   * `invalidate` da lista refaria o contador e vice-versa — dois pedidos onde
+   * um bastava, a cada marcação de leitura.
+   */
+  notificacoesNaoLidas: ['notificacoes', 'nao-lidas'] as const,
+  notificacoes: (filtros?: unknown) =>
+    ['notificacoes', 'lista', filtros ?? {}] as const,
   aparencia: ['aparencia'] as const,
   clientes: (filtros?: unknown) => ['clientes', filtros ?? {}] as const,
   cliente: (id: number) => ['clientes', id] as const,

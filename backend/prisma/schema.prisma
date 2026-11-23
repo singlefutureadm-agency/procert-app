@@ -87,6 +87,26 @@ enum SituacaoDocumento {
   RECUSADO
 }
 
+/// O que aconteceu, para a notificação poder ser lida sem abrir o processo.
+///
+/// **É uma ALLOWLIST, e o nome do tipo é literal.** Alargar a régua é
+/// acrescentar um valor aqui — de propósito: aviso demais treina o destinatário
+/// a ignorar todos, e aí o único que exigia ação dele chega junto com os que não
+/// exigiam. É a mesma decisão de `EVENTOS_NOTIFICAVEIS` nos e-mails ao cliente.
+///
+/// Os três giram em torno do documento pedido na microetapa, porque é o evento
+/// que **espera ação de uma pessoa específica**. Aprovação de etapa, mudança de
+/// fase e conclusão de checklist ficaram de fora: são visíveis no quadro, que a
+/// equipe já olha, e nenhum deles aponta para alguém em particular.
+enum TipoNotificacao {
+  /// O cliente enviou um documento para um item do checklist. Espera avaliação.
+  DOCUMENTO_ENVIADO
+  /// Um colega aceitou um documento de um processo meu.
+  DOCUMENTO_ACEITO
+  /// Um colega recusou um documento de um processo meu.
+  DOCUMENTO_RECUSADO
+}
+
 enum StatusCertificado {
   EMITIDO
   SUSPENSO
@@ -262,6 +282,8 @@ model Funcionario {
   processosCancelados   Processo[]                @relation("ProcessoCancelado")
   /// Processos de que este funcionário é o dono. Ver `Processo.responsavelId`.
   processosResponsavel  Processo[]                @relation("ResponsavelProcesso")
+  /// Avisos no painel endereçados a ele. Ver `Notificacao`.
+  notificacoes          Notificacao[]            @relation("NotificacaoDestinatario")
 
   @@index([role, status])
   @@map("funcionarios")
@@ -360,6 +382,7 @@ model Processo {
   certificacao CertificacaoProcesso[]
   certificados Certificado[]
   pagamentos   Pagamento[]
+  notificacoes Notificacao[]
 
   @@index([clienteId])
   @@index([categoriaId])
@@ -829,6 +852,65 @@ model DocumentoCertificacao {
   /// checklist e a da guarda de conclusão.
   @@index([microEtapaId, situacao])
   @@map("documentos_certificacao")
+}
+
+/// Aviso no painel, endereçado a UMA pessoa da equipe.
+///
+/// ## Quem recebe: só o responsável pelo processo
+///
+/// O destinatário é sempre `Processo.responsavelId` — e **somente ele, nem o
+/// ADMIN**. Decisão do cliente em 17/11/2026, e a mais simples de sustentar: a
+/// caixa é sempre a do próprio usuário, sem exceção nenhuma no service. O ADMIN
+/// continua vendo TUDO pelo quadro e pelos relatórios, que não mudaram.
+///
+/// Processo sem responsável **não gera aviso para ninguém**. É consequência
+/// assumida, não descuido: a alternativa — mandar para todo mundo — é o aviso
+/// que ninguém trata porque não é de ninguém. O estado é achável, e por isso
+/// visível: a listagem e o quadro filtram e marcam "sem responsável".
+///
+/// ## O texto é COMPOSTO na gravação, não derivado na leitura
+///
+/// `titulo` e `detalhe` guardam o texto pronto, como as autorias
+/// desnormalizadas ao lado. Derivar na leitura faria a notificação mudar de
+/// sentido quando o dado mudasse: renomear a microetapa reescreveria um aviso
+/// de três semanas atrás, e um documento excluído deixaria a linha sem texto.
+/// Um aviso descreve o que aconteceu NAQUELE instante.
+///
+/// ## Nasce no MESMO commit do evento
+///
+/// É escrita dentro da transação que grava o documento ou a avaliação — e não
+/// depois do commit, como o e-mail. A diferença é o destino: e-mail é chamada
+/// externa, que não pode derrubar a operação; isto é uma linha no MESMO banco,
+/// e incluí-la no commit custa nada. Fora dele, um envio podia concluir sem
+/// avisar ninguém, em silêncio — exatamente o que este modelo existe para
+/// impedir.
+model Notificacao {
+  id             Int             @id @default(autoincrement())
+  /// Destinatário. **Sempre um `Funcionario`** — o cliente acompanha o processo
+  /// pela timeline dele, e não há caixa de avisos para ele nesta entrega.
+  ///
+  /// `Cascade`: aviso é pessoal e não serve a mais ninguém. Mantê-lo após a
+  /// exclusão do colaborador criaria linha órfã que nenhuma tela alcança.
+  destinatarioId Int             @map("destinatario_id")
+  tipo           TipoNotificacao
+  /// Uma linha, o suficiente para decidir se vale abrir. Texto PRONTO.
+  titulo         String          @db.VarChar(200)
+  /// Complemento opcional — o parecer de uma recusa, por exemplo.
+  detalhe        String?         @db.Text
+  /// Para onde o clique leva. Nulável porque a origem pode ter sido excluída.
+  processoId     Int?            @map("processo_id")
+  /// `null` = não lida. Data, e não booleano: "quando li" responde mais que
+  /// "li", e o custo é o mesmo.
+  lidaEm         DateTime?       @map("lida_em")
+  criadoEm       DateTime        @default(now()) @map("criado_em")
+
+  destinatario Funcionario @relation("NotificacaoDestinatario", fields: [destinatarioId], references: [id], onDelete: Cascade)
+  processo     Processo?   @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  /// A consulta da tela é sempre "as minhas, as não lidas primeiro, mais
+  /// recentes no topo" — e o badge conta as não lidas a cada polling.
+  @@index([destinatarioId, lidaEm, criadoEm])
+  @@map("notificacoes")
 }
 
 /// Certificado de conformidade emitido para um processo.

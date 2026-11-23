@@ -82,9 +82,9 @@ npm run dev                   # http://localhost:5173
 | `npm run mover:uploads-processos` | Copia as fotos de `/uploads/produtos/` para `/uploads/processos/` (disco ou Supabase), complemento da migration `20260918120000_produto_vira_processo`. Idempotente; só apaga a origem com `-- --remover-antigos`, depois de conferir a cópia |
 | `npm run prisma:studio` | UI do banco |
 | `npm run lint` | ✅ ESLint 9 flat config (`eslint.config.js`), com `--fix` |
-| `npm test` | ✅ 505 unitários, 27 suítes, Prisma mockado |
+| `npm test` | ✅ 538 unitários, 29 suítes, Prisma mockado |
 | `npm run test:cov` | ✅ idem, com cobertura |
-| `npm run test:e2e` | ✅ 163 casos, 6 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
+| `npm run test:e2e` | ✅ 178 casos, 7 suítes, Supertest + PostgreSQL real. **Exige `backend/.env.test`** |
 | `npm run typecheck:scripts` | ⚠️ type-check de `prisma/`. **Falha hoje**, e é esperado — o ETL do legado está desatualizado |
 
 **Frontend** (`frontend/`)
@@ -94,11 +94,11 @@ npm run dev                   # http://localhost:5173
 | `npm run dev` | Vite (proxy de `/api` e `/uploads` para :3000) |
 | `npm run build` | `tsc -b && vite build` — o type-check cobre os `.test.tsx` também |
 | `npm run lint` | ✅ funciona (`eslint.config.js` presente) |
-| `npm test` | ✅ 156 testes, 15 arquivos — Vitest + Testing Library, `vitest.config.ts` |
+| `npm test` | ✅ 165 testes, 16 arquivos — Vitest + Testing Library, `vitest.config.ts` |
 | `npm run test:watch` | idem, em watch |
 | `npm run test:cov` | idem, com cobertura (v8) |
 
-> **Os dois pacotes têm rede de segurança.** No backend, 505 unitários + 163 e2e cobrem
+> **Os dois pacotes têm rede de segurança.** No backend, 538 unitários + 178 e2e cobrem
 > auth, certificados, certificações (incluindo a renumeração da migração de trilha),
 > catálogo e versões de trilha, NCs, relatórios, e-mail e a matriz de autorização. Ao mexer em regra
 > de negócio, **rode `npm test` e `npm run test:e2e`**.
@@ -702,6 +702,63 @@ Pontos que não devem regredir:
 > (`trilhas.service.ts`), abertura da trilha (`processos.service.ts`), `reiniciar` e
 > `migrarParaVersaoVigente` (`certificacoes.service.ts`), e `paraEntrada` do frontend
 > (`TrilhaDetalhePage.tsx`). Campo que ficar de fora some em silêncio.
+
+### Caixa de avisos — `Notificacao` (17/11/2026)
+
+Fecha a leva de três PRs: o item 34 criou o destinatário, o 35 criou os eventos, e aqui
+eles se encontram. Módulo `notificacoes`, sino no cabeçalho do painel.
+
+**O escopo é LITERAL: cada um vê só a própria caixa, e nem o ADMIN vê a de outro.** É a
+decisão do cliente, e a única regra que não precisa de exceção em lugar nenhum — não há
+parâmetro de destinatário em nenhuma rota, o id sai sempre do token. O ADMIN continua
+vendo TUDO pelo quadro e pelos relatórios, que não mudaram. Se um dia precisar de
+inspeção (auditoria, suporte), é entrega própria com `@Roles(ADMIN)` e motivo registrado
+— **não** um parâmetro opcional acrescentado ao DTO.
+
+Quem recebe está em **`avisosPara()`**, função pura com três regras:
+
+1. o destinatário é o **responsável pelo processo**, e mais ninguém;
+2. **processo sem responsável não avisa nada** — lista vazia, não erro. A alternativa
+   (mandar para todo mundo) é o aviso que ninguém trata porque não é de ninguém;
+3. **quem agiu não é avisado da própria ação.** Sem isso, aceitar um documento no próprio
+   processo geraria notificação para si mesmo, e a caixa de quem trabalha encheria com o
+   eco do próprio trabalho.
+
+Pontos que não devem regredir:
+
+- **CLIENTE é barrado ANTES de `usuario.id` ser usado.** Não é zelo: `sub` é o id na
+  tabela `Cliente` **OU** na `Funcionario`, e as sequências são independentes — o cliente
+  3 e o funcionário 3 são pessoas diferentes. Usar o id sem conferir o papel entregaria a
+  caixa do funcionário 3 ao cliente 3, **sem erro nenhum**, porque a consulta é válida e
+  devolve linhas. Pelo mesmo motivo, o autor de um envio do cliente viaja como `null` em
+  `avisosPara` — passar o id dele silenciaria o aviso quando coincidisse com o do
+  responsável.
+- **O aviso nasce no MESMO commit do evento** (`gravar(tx, …)`), e não depois dele como o
+  e-mail. A diferença é o destino: e-mail é chamada externa, que não pode derrubar a
+  operação; isto é uma linha no mesmo banco. Fora da transação, um envio podia concluir
+  sem avisar ninguém, em silêncio.
+- **O texto é COMPOSTO na gravação**, como as autorias desnormalizadas. Derivá-lo na
+  leitura faria renomear a microetapa reescrever um aviso de três semanas atrás.
+- **`TipoNotificacao` é allowlist.** Três valores, todos sobre o documento pedido —
+  o evento que espera ação de uma pessoa específica. Aprovação de etapa, mudança de fase
+  e checklist fechado ficaram de fora: são visíveis no quadro, e nenhum aponta para
+  alguém em particular. Alargar a régua é acrescentar um valor no enum.
+- **`lidaEm` é data, não booleano**; marcar lida é idempotente (`lidaEm: null` no `where`),
+  senão reabrir a central moveria o "lida em" de tudo para agora.
+- **Aviso de outra pessoa devolve 404, não 403** — 403 confirmaria que ele existe. O
+  `destinatarioId` vai no `where` junto do id, em vez de uma conferência depois do
+  `findUnique`.
+- **`?apenasNaoLidas=false` precisa DESLIGAR o filtro.** O `ValidationPipe` global roda
+  com `enableImplicitConversion: true`, e essa conversão transforma a string `"false"` em
+  `true` ANTES do `@Transform` do DTO — o filtro fazia o oposto do pedido, sem erro. O
+  transform lê `obj[key]`, o valor cru. Travado em `notificacao.dto.spec.ts`.
+- **O sino é montado só para a equipe.** Para o CLIENTE a rota devolve 403, e montá-lo
+  faria o painel pedir `/notificacoes/nao-lidas` a cada minuto para receber erro.
+- **Polling de 60 s, não WebSocket**: a API roda como função serverless, sem processo de
+  longa duração. O badge consulta uma rota que devolve só o número; a LISTA só é
+  carregada quando o painel abre (`enabled: aberto`).
+- **O contador tem chave de cache própria** (`notificacoesNaoLidas`), fora do prefixo da
+  lista: sob o mesmo prefixo, um `invalidate` da lista refaria o contador e vice-versa.
 
 ### Proteções de integridade em `funcionarios`
 
@@ -1498,11 +1555,13 @@ Os dois primeiros abrem caminho; o aviso em si é o terceiro:
     checklist, envio **pelo cliente** — primeira rota de escrita aberta a ele —, e
     situação ACEITO/RECUSADO com parecer, mais a invariante `ck_documento_avaliacao`.
     Ver §4, "Documento pedido ao cliente na microetapa".
-36. **Tabela `Notificacao` + sino e central no painel** — ainda não feito. Escopo
-    **literal: só o responsável, nem o ADMIN** (o ADMIN segue vendo tudo pelo quadro e
-    pelos relatórios). Canal só no painel, sem e-mail: o SMTP não está no ar em produção.
+36. Tabela `Notificacao` + sino no cabeçalho do painel (migration
+    `20261118030000_notificacoes_do_responsavel`): módulo `notificacoes`, escopo
+    **literal — só o responsável, nem o ADMIN** (que segue vendo tudo pelo quadro e pelos
+    relatórios). Canal só no painel, sem e-mail: o SMTP não está no ar em produção. Ver
+    §4, "Caixa de avisos".
 
-A lacuna do frontend foi fechada — são 156 testes hoje, mirando o que quebra em silêncio
+A lacuna do frontend foi fechada — são 165 testes hoje, mirando o que quebra em silêncio
 (ver §5). Ver `DOCUMENTACAO.md` §17, que traz o backlog priorizado com o gatilho de cada
 item.
 
