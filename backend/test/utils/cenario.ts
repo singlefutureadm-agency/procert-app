@@ -24,6 +24,7 @@ const APROVADA_EM = new Date('2026-03-01T12:00:00Z');
  * ninguém repare.
  */
 const TABELAS = [
+  'notificacoes',
   'documentos_certificacao',
   'certificacoes_historico',
   'nao_conformidades',
@@ -49,6 +50,9 @@ const TABELAS = [
 export interface Cenario {
   admin: string;
   funcionario: string;
+  /** Id do ADMIN e do FUNCIONARIO, para os testes de notificação. */
+  adminId: number;
+  funcionarioId: number;
   /** Token do cliente DONO do processo/certificado/documento sob teste. */
   clienteDono: string;
   /** Token de um segundo cliente, sem nenhuma relação com eles. */
@@ -111,7 +115,7 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     data: { sigla: 'SP', nome: 'São Paulo' },
   });
 
-  await db.funcionario.create({
+  const administradora = await db.funcionario.create({
     data: {
       nome: 'Ana Administradora',
       email: 'admin@procertocp.com.br',
@@ -121,7 +125,7 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     },
   });
 
-  await db.funcionario.create({
+  const analista = await db.funcionario.create({
     data: {
       nome: 'Bruno Analista',
       email: 'analista@procertocp.com.br',
@@ -200,12 +204,17 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
   const trilha = catalogo.versoes[0];
   const etapas = [...trilha.etapas].sort((a, b) => a.ordem - b.ordem);
 
-  const criarProcesso = async (clienteId: number, nome: string) =>
+  const criarProcesso = async (
+    clienteId: number,
+    nome: string,
+    responsavelId?: number,
+  ) =>
     db.processo.create({
       data: {
         clienteId,
         categoriaId: categoria.id,
         modeloTrilhaId: trilha.id,
+        responsavelId,
         nome,
         preco: 1000,
         certificacao: {
@@ -246,7 +255,13 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
       },
     });
 
-  const processoDono = await criarProcesso(dono.id, 'Disjuntor DIN 25A');
+  // O responsável é o ANALISTA, não a ADMIN: é o que permite provar que nem o
+  // ADMIN recebe aviso de processo que não é dele.
+  const processoDono = await criarProcesso(
+    dono.id,
+    'Disjuntor DIN 25A',
+    analista.id,
+  );
   const processoAlheio = await criarProcesso(alheio.id, 'Tomada 20A');
 
   const arquivos = gravarArquivos();
@@ -291,6 +306,9 @@ export async function prepararCenario(app: INestApplication): Promise<Cenario> {
     funcionario: await autenticar(app, 'analista@procertocp.com.br', SENHA),
     clienteDono: await autenticar(app, 'dono@cliente.com.br', SENHA),
     clienteAlheio: await autenticar(app, 'alheio@cliente.com.br', SENHA),
+
+    adminId: administradora.id,
+    funcionarioId: analista.id,
 
     clienteDonoId: dono.id,
     clienteAlheioId: alheio.id,

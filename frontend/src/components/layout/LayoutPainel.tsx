@@ -4,12 +4,21 @@ import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { Icone } from '@/components/Icone';
 import { useTema } from '@/features/aparencia/useTema';
+import { SinoNotificacoes } from '@/features/notificacoes/SinoNotificacoes';
 import { Sidebar } from './Sidebar';
 
 export function LayoutPainel() {
-  const { usuario, sair } = useAuth();
+  const { usuario, sair, temPapel } = useAuth();
   const { modo, podeAlternar, alternarModo } = useTema();
   const [menuAberto, setMenuAberto] = useState(false);
+
+  /*
+   * O sino é só da equipe, e a condição não é cosmética: a rota devolve 403
+   * para CLIENTE, e montá-lo para ele faria o painel pedir
+   * `/notificacoes/nao-lidas` de um minuto em um minuto para receber 403 — um
+   * erro a cada polling, em toda tela.
+   */
+  const equipeInterna = temPapel('ADMIN', 'FUNCIONARIO');
 
   return (
     <div className="layout">
@@ -35,6 +44,8 @@ export function LayoutPainel() {
           <strong>Painel ProCert</strong>
 
           <div className="topo__usuario">
+            {equipeInterna && <SinoNotificacoes />}
+
             {/* O admin pode travar o painel no modo padrão; aí o botão some. */}
             {podeAlternar && (
               <button
