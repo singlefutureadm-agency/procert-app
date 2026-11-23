@@ -1310,9 +1310,9 @@ já se sabe que virarão tabela ou cartões: o spinner ocupa ~110px e some dando
   painel. `depoimentos-bg.png` (2,4 MB) continua **sem
   referência**, decisão em aberto. O `bootstrap-icons.css` completo (~106 KB) é carregado
   por ~28 ícones.
-- **Dados de contato divergentes** em `features/home/conteudo.ts`: o legado tinha três
-  telefones diferentes (contato, rodapé, WhatsApp). Preservados como estavam — precisa de
-  confirmação do cliente, não invente qual é o certo.
+- **Telefone do site é um só**: `EMPRESA.telefone` (`11 91443-3414`) em
+  `features/home/conteudo.ts`, decisão do cliente em 23/11/2026 — o `11 94230-7431` do
+  legado saiu. Mudou o número? Mude também `lib/seo.ts` (JSON-LD) e `public/llms.txt`.
 - **Menu móvel da home**: o botão de fechar é `z-index: 999` (painel 998, cabeçalho 997) e
   vira `position: fixed` quando aberto. Refatorar o cabeçalho sem isso reintroduz um X
   invisível sobre a cortina escura.
